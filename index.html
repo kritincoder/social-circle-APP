@@ -4,9 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Social Circle</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAxM-KHzmW00p9uMO-FBxFkCIk0Aa5lh-g&libraries=marker&loading=async" async defer></script>
 <style>
 :root{
   --ink:#14171A; --ink-soft:#5A6067; --paper:#FBFAF7; --paper-dim:#F0EEE8; --line:#E3E0D8;
@@ -150,7 +149,11 @@ img{display:block; max-width:100%;}
 .districtScroll{display:flex; gap:8px; overflow-x:auto;}
 .districtChip{flex-shrink:0; padding:8px 14px; border-radius:100px; background:#fff; border:1px solid var(--line); font-size:12.5px; font-weight:600; box-shadow:0 3px 10px rgba(0,0,0,.05);}
 .districtChip.active{background:var(--ink); color:#fff; border-color:var(--ink);}
-#leafletMap{position:absolute; top:var(--topbar-h); left:0; right:0; bottom:0;}
+#googleMap{position:absolute; top:var(--topbar-h); left:0; right:0; bottom:0;}
+.mapLegend{position:absolute; right:14px; bottom:96px; z-index:20; background:var(--card-bg); border:1px solid var(--line); border-radius:12px; padding:8px 12px; display:flex; gap:14px; font-size:11.5px; color:var(--ink-soft); box-shadow:0 4px 14px rgba(0,0,0,.06);}
+.mapLegend span{display:flex; align-items:center; gap:6px;}
+.mapLegend i{width:9px; height:9px; border-radius:50%; display:inline-block;}
+@media(max-width:860px){ .mapLegend{bottom:calc(var(--tabbar-h) + 14px);} }
 .mapSheet{position:absolute; left:16px; right:16px; bottom:16px; z-index:30; background:#fff; border-radius:18px; border:1px solid var(--line); box-shadow:0 12px 30px rgba(0,0,0,.12); padding:18px; display:none; max-width:400px;}
 .mapSheet.show{display:block;}
 .mapSheet .closeX{position:absolute; top:10px; right:10px; border:none; background:none; font-size:14px; color:var(--ink-soft);}
@@ -167,6 +170,8 @@ img{display:block; max-width:100%;}
 /* ============ MESSAGES ============ */
 .msgWrap{display:flex; height:calc(100vh - var(--topbar-h)); }
 .convoList{width:300px; flex-shrink:0; border-right:1px solid var(--line); overflow-y:auto;}
+.convoListHead{display:flex; align-items:center; justify-content:space-between; padding:16px 18px 10px;}
+.convoListHead h3{font-size:16px;}
 .convoItem{display:flex; gap:12px; padding:14px 18px; border-bottom:1px solid var(--paper-dim); align-items:center;}
 .convoItem:hover, .convoItem.active{background:var(--paper-dim);}
 .convoAvatar{width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,var(--coral),var(--gold)); flex-shrink:0; color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center; font-size:14px;}
@@ -228,6 +233,9 @@ img{display:block; max-width:100%;}
 .districtCard h3{font-size:17px; font-weight:600; font-family:'Inter',sans-serif;}
 .districtCard p{font-size:13.5px; color:var(--ink-soft); margin-top:5px;}
 .districtCard .dc-meta{margin-top:10px; font-size:12px; font-family:'IBM Plex Mono',monospace; color:var(--ink-soft);}
+.dc-events{margin-top:10px; border-top:1px solid var(--paper-dim); padding-top:8px;}
+.dc-event-row{display:flex; gap:10px; font-size:12.5px; padding:4px 0; color:var(--ink);}
+.dc-event-row .dc-event-date{font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); flex-shrink:0; width:56px;}
 
 /* ============ SETTINGS ============ */
 .settingsRow{display:flex; align-items:center; justify-content:space-between; padding:16px 0; border-bottom:1px solid var(--line);}
@@ -290,10 +298,12 @@ svg{display:block;}
 
 /* ============ NEWS ============ */
 .news-card{position:absolute; inset:0; border-radius:20px; overflow:hidden; border:1px solid var(--line); background:var(--card-bg); display:flex; flex-direction:column; justify-content:flex-end; cursor:grab; user-select:none; touch-action:none; transition:transform .35s cubic-bezier(.2,.7,.3,1), opacity .35s; box-shadow:0 10px 30px rgba(0,0,0,.06);}
-.news-card .nc-body{padding:20px;}
-.news-card .src{font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; color:var(--ink-soft); letter-spacing:.04em;}
-.news-card h4{font-family:'Fraunces',serif; font-size:19px; font-weight:500; margin-top:6px;}
-.news-card p{font-size:13.5px; color:var(--ink-soft); margin-top:8px;}
+.news-card .nc-photo{position:absolute; inset:0;}
+.news-card .nc-body{position:relative; padding:20px; background:linear-gradient(0deg, rgba(20,23,26,.92), rgba(20,23,26,.55) 60%, transparent); color:#fff;}
+.news-card .src{font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; color:#C9CDD2; letter-spacing:.04em; display:flex; align-items:center; gap:6px; justify-content:space-between;}
+.news-card .src .readLink{display:inline-flex; align-items:center; gap:4px; color:#fff; text-decoration:none; border:1px solid rgba(255,255,255,.35); border-radius:100px; padding:3px 9px 3px 8px; font-size:10.5px;}
+.news-card h4{font-family:'Fraunces',serif; font-size:19px; font-weight:500; margin-top:6px; color:#fff;}
+.news-card p{font-size:13.5px; color:#D8DBDE; margin-top:8px;}
 
 /* ============ PLACE DETAIL ============ */
 .placeHero{height:190px; border-radius:18px; margin-bottom:18px;}
@@ -306,8 +316,11 @@ svg{display:block;}
 /* ============ CREATE POST MODAL ============ */
 #createOverlay{position:fixed; inset:0; background:rgba(20,23,26,.5); z-index:250; display:none; align-items:flex-end; justify-content:center;}
 #createOverlay.show{display:flex;}
+#groupOverlay{position:fixed; inset:0; background:rgba(20,23,26,.5); z-index:250; display:none; align-items:flex-end; justify-content:center;}
+#groupOverlay.show{display:flex;}
+.groupPickRow{display:flex; align-items:center; gap:10px; font-size:14px; padding:6px 0;}
 .createSheet{width:100%; max-width:520px; background:#fff; border-radius:20px 20px 0 0; padding:22px; max-height:88vh; overflow-y:auto;}
-@media(min-width:861px){ #createOverlay{align-items:center;} .createSheet{border-radius:20px;} }
+@media(min-width:861px){ #createOverlay{align-items:center;} #groupOverlay{align-items:center;} .createSheet{border-radius:20px;} }
 .createSheet textarea{width:100%; border:1px solid var(--line); border-radius:12px; padding:12px 14px; font-size:14.5px; min-height:90px; resize:vertical;}
 .createSheet select{width:100%; padding:11px 13px; border-radius:10px; border:1px solid var(--line); font-size:14px; margin-top:6px;}
 .starRow{display:flex; gap:6px; margin-top:6px;}
@@ -352,7 +365,6 @@ svg{display:block;}
       </div>
       <button type="submit" class="authSubmit" id="authSubmitBtn">Log in</button>
     </form>
-    <div class="authNote">Prototype build — any email/password enters. No account is actually created.</div>
   </div>
 </div>
 
@@ -435,7 +447,11 @@ svg{display:block;}
         <div class="districtScroll" id="districtScroll"></div>
         <div class="chipRow" id="mapLayerChips" style="margin-bottom:0;"></div>
       </div>
-      <div id="leafletMap"></div>
+      <div id="googleMap"></div>
+      <div class="mapLegend" id="mapLegend">
+        <span><i style="background:#1F98A9;"></i>Place</span>
+        <span><i style="background:#54677C; border-radius:3px;"></i>Event</span>
+      </div>
       <div class="mapSheet" id="mapSheet">
         <button class="closeX" id="mapSheetClose"></button>
         <div id="mapSheetBody"></div>
@@ -466,7 +482,7 @@ svg{display:block;}
   <section class="screen" id="screen-news">
     <div class="screenInner">
       <h2 class="screenTitle">News</h2>
-      <p class="screenSub">Personalised from your interests and location — source always shown. Swipe right for more like this, left for less.</p>
+      <p class="screenSub">Personalised from your interests and location — source always shown, tap through to read. Swipe right for more like this, left for less. <span id="newsAsOf" style="color:var(--ink-soft);"></span></p>
       <div class="discoverWrap">
         <div class="card-stack" id="newsStack"></div>
         <div class="swipe-controls">
@@ -497,7 +513,13 @@ svg{display:block;}
   <!-- MESSAGES -->
   <section class="screen" id="screen-messages">
     <div class="msgWrap" id="msgWrap">
-      <div class="convoList" id="convoList"></div>
+      <div class="convoList" id="convoList">
+        <div class="convoListHead">
+          <h3>Messages</h3>
+          <button class="pillBtn" id="newGroupBtn"><span data-icon="circle"></span>New group</button>
+        </div>
+        <div id="convoItems"></div>
+      </div>
       <div class="threadPane" id="threadPane">
         <div class="threadHeader">
           <span style="display:flex;align-items:center;"><button class="backBtn" id="backBtn"><span data-icon="back"></span> Back</button><span id="threadTitle"></span></span>
@@ -548,6 +570,11 @@ svg{display:block;}
   </section>
 </div>
 
+<!-- NEW GROUP -->
+<div id="groupOverlay" class="modalOverlay">
+  <div class="createSheet" id="groupOverlayBody"></div>
+</div>
+
 <!-- CREATE POST -->
 <div id="createOverlay">
   <div class="createSheet">
@@ -557,6 +584,9 @@ svg{display:block;}
     <textarea id="postText" placeholder="What was it like?"></textarea>
     <div class="createLabel">Place</div>
     <select id="postPlace"></select>
+    <div class="createLabel">Or pin the exact spot on the map</div>
+    <div id="postPinMap" style="height:180px; border-radius:12px; border:1px solid var(--line); overflow:hidden;"></div>
+    <p style="font-size:11.5px; color:var(--ink-soft); margin-top:6px;" id="postPinNote">Tap the map to drop a pin — useful for a spot that isn't listed yet.</p>
     <div class="createLabel">Rating</div>
     <div class="starRow" id="postStars"></div>
     <div class="createLabel">Tags</div>
@@ -757,12 +787,17 @@ const friendRequests = [
 ];
 
 const newsItems = [
-  {id:'n1', source:'Delhi Metro Times', category:'Local', title:"Gurugram's indie tech scene is quietly booming", body:'A dozen new meetups have started in Cyber Hub this quarter, mostly organised outside the big conference circuit.'},
-  {id:'n2', source:'The Hauz Khas Journal', category:'Food', title:'Five new cafés worth the detour this month', body:'From filter-coffee bars to a nursery-adjacent brunch spot, the neighbourhood keeps adding places worth a Saturday morning.'},
-  {id:'n3', source:'Citywalk Weekly', category:'Entertainment', title:'Saket galleries lean into open-studio weekends', body:'Champa Gali is expanding its open-studio program, with more artists opening their doors on Sundays.'},
-  {id:'n4', source:'Delhi Outdoors', category:'Outdoors', title:'Sunder Nursery adds a new evening walking loop', body:'A quieter path through the gardens opens this month, timed for the cooler evening hours.'},
-  {id:'n5', source:'Gurugram Now', category:'Technology', title:'Cyber Hub rooftop scene keeps expanding', body:'Three new rooftop venues have opened this year, each leaning into a different crowd — from live music to quiet after-work drinks.'},
+  {id:'n1', source:'Times of India', category:'Civic', title:'NCRTC signs solar power deal to meet 60% of Namo Bharat corridor\u2019s requirement', body:'The corridor operator has tied up solar capacity to power a majority of the Delhi\u2013Meerut RRTS line, part of a wider push to green the network.', url:'https://c.newsnow.com/A/1322977346?-49731:2467204922'},
+  {id:'n2', source:'Times of India', category:'Civic', title:'Break the railway rules, pay more: Delhi sees sharp rise in fines under Jan Vishwas', body:'Penalties for common railway-property offences have climbed sharply across Delhi stations since the new rules took effect.', url:'https://c.newsnow.com/A/1322977342?-49731:2467204922'},
+  {id:'n3', source:'Indian Express', category:'Civic', title:'6-m fire access, fire lifts, refuge areas \u2014 Delhi tightens safety norms for high-rises', body:'New building-safety rules for tall residential and commercial towers are being rolled out across the capital.', url:'https://c.newsnow.com/A/1322973927?-49731:2467204922'},
+  {id:'n4', source:'Indian Express', category:'Economy', title:'GST Council to meet after a year on Sept 12; blocked credit, simpler compliance likely on agenda', body:'The council\u2019s first sitting in a year is expected to take up input-credit rules and compliance simplification.', url:'https://c.newsnow.com/A/1322971988?-49731:2467204922'},
+  {id:'n5', source:'Times of India', category:'Transport', title:'\u2018We do not want to burden people\u2019: Auto, taxi unions oppose CNG hike in Delhi', body:'Driver unions have pushed back on the latest CNG price increase, warning of a knock-on fare rise across the city.', url:'https://c.newsnow.com/A/1322968549?-49731:2467204922'},
+  {id:'n6', source:'The Hindu', category:'Politics', title:'Police may bar protest planned for Sept. 5 in New Delhi district', body:'Delhi Police are weighing permission for a large planned demonstration in the New Delhi district next week.', url:'https://c.newsnow.com/A/1322716054?-49731:2467204922'},
 ];
+
+/* News is a snapshot pulled from Times of India / Indian Express / The Hindu on the day this prototype
+   was built. In production this list is fetched live and refreshed on a schedule (see roadmap §10). */
+const NEWS_AS_OF = 'Aug 29, 2026';
 
 const TAGS = ['Chill','Group-friendly','Good for work','Date spot','Budget','Live music','Outdoors','Late night'];
 
@@ -841,7 +876,7 @@ function buildNavButton(item){
   const b=document.createElement('button');
   b.className='navItem'+(item.id==='home'?' active':'')+(item.cls?(' '+item.cls):'');
   b.dataset.screen=item.id;
-  b.innerHTML=`<span class="ic">${item.ic}</span><span>${item.label}</span>`;
+  b.innerHTML=`<span class="ic">${icon(item.ic)}</span><span>${item.label}</span>`;
   if(item.action){ b.onclick=()=>openCreate(); }
   else { b.onclick=()=>switchScreen(item.id); }
   return b;
@@ -862,7 +897,7 @@ function switchScreen(id){
   if(!target) return;
   target.classList.add('active');
   document.querySelectorAll('.navItem').forEach(n=>n.classList.toggle('active', n.dataset.screen===id));
-  if(id==='map' && window._leafletMap){ setTimeout(()=>window._leafletMap.invalidateSize(),50); }
+  if(id==='map' && window._gmap){ setTimeout(()=>google.maps.event.trigger(window._gmap, 'resize'),50); }
 }
 document.querySelectorAll('[data-screen]').forEach(el=>{
   if(el.classList.contains('navItem')) return;
@@ -974,30 +1009,33 @@ document.getElementById('btnRight').onclick=()=>{ if(deck[0]) decideCard('right'
 renderStack();
 
 /* =========================================================
-   MAP
+   MAP — Google Maps JS API
 ========================================================= */
-let markersLayer;
+let gMarkers=[];
 function initMap(){
-  if(window._leafletMap) return;
-  const map=L.map('leafletMap',{zoomControl:false}).setView([28.58,77.19],12);
-  L.control.zoom({position:'bottomright'}).addTo(map);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    attribution:'&copy; OpenStreetMap contributors', maxZoom:19
-  }).addTo(map);
-  window._leafletMap=map;
-  markersLayer=L.layerGroup().addTo(map);
+  if(window._gmap) return;
+  if(typeof google === 'undefined' || !google.maps){ setTimeout(initMap, 300); return; }
+  const map = new google.maps.Map(document.getElementById('googleMap'), {
+    center:{lat:28.58,lng:77.19}, zoom:12, disableDefaultUI:true, zoomControl:true,
+    zoomControlOptions:{position:google.maps.ControlPosition.RIGHT_BOTTOM},
+    styles:[
+      {featureType:'poi', elementType:'labels', stylers:[{visibility:'off'}]},
+      {featureType:'transit', elementType:'labels', stylers:[{visibility:'off'}]}
+    ]
+  });
+  window._gmap = map;
   renderMapMarkers();
 
   const dScroll=document.getElementById('districtScroll');
   const allChip=document.createElement('button'); allChip.className='districtChip active'; allChip.textContent='All districts';
-  allChip.onclick=()=>{state.activeDistrict=null; document.querySelectorAll('.districtChip').forEach(c=>c.classList.remove('active')); allChip.classList.add('active'); map.setView([28.58,77.19],12); renderMapMarkers();};
+  allChip.onclick=()=>{state.activeDistrict=null; document.querySelectorAll('.districtChip').forEach(c=>c.classList.remove('active')); allChip.classList.add('active'); map.panTo({lat:28.58,lng:77.19}); map.setZoom(12); renderMapMarkers();};
   dScroll.appendChild(allChip);
   districts.forEach(d=>{
     const chip=document.createElement('button'); chip.className='districtChip'; chip.textContent=d.name;
     chip.onclick=()=>{
       state.activeDistrict=d.id;
       document.querySelectorAll('.districtChip').forEach(c=>c.classList.remove('active')); chip.classList.add('active');
-      map.flyTo([d.lat,d.lng],14.5,{duration:0.8});
+      map.panTo({lat:d.lat,lng:d.lng}); map.setZoom(14.5);
       renderMapMarkers();
       openSheet(`<div class="feedKicker"><span class="dot" style="background:${d.color}"></span>DISTRICT</div><h3>${d.name}</h3><p style="color:var(--ink-soft);font-size:13.5px;margin-top:6px;">${d.desc}</p>`);
     };
@@ -1012,19 +1050,29 @@ function initMap(){
   });
 }
 function renderMapMarkers(){
-  markersLayer.clearLayers();
+  if(!window._gmap) return;
+  gMarkers.forEach(m=>m.setMap(null));
+  gMarkers=[];
   const showPlaces = state.mapLayer==='all'||state.mapLayer==='places'||state.mapLayer==='friends';
   const showEvents = state.mapLayer==='all'||state.mapLayer==='events';
   if(showPlaces){
     places.filter(p=> !state.activeDistrict || p.district===state.activeDistrict).forEach(p=>{
-      const m=L.circleMarker([p.lat,p.lng],{radius:9,color:p.color,fillColor:p.color,fillOpacity:0.9,weight:2}).addTo(markersLayer);
-      m.on('click',()=>{ openSheet(placeSheetHtml(p)); track('place_opened',{id:p.id}); });
+      const marker = new google.maps.Marker({
+        position:{lat:p.lat,lng:p.lng}, map:window._gmap, title:p.name,
+        icon:{ path:google.maps.SymbolPath.CIRCLE, scale:9, fillColor:p.color, fillOpacity:1, strokeColor:'#fff', strokeWeight:2 }
+      });
+      marker.addListener('click', ()=>{ openSheet(placeSheetHtml(p)); track('place_opened',{id:p.id}); });
+      gMarkers.push(marker);
     });
   }
   if(showEvents){
     events.filter(e=> !state.activeDistrict || e.district===state.activeDistrict).forEach(e=>{
-      const m=L.circleMarker([e.lat,e.lng],{radius:9,color:'#54677C',fillColor:'#54677C',fillOpacity:0.9,weight:2,dashArray:'2,2'}).addTo(markersLayer);
-      m.on('click',()=>openSheet(eventSheetHtml(e)));
+      const marker = new google.maps.Marker({
+        position:{lat:e.lat,lng:e.lng}, map:window._gmap, title:e.title,
+        icon:{ path:'M -7,-7 7,-7 7,7 -7,7 z', scale:1, fillColor:'#54677C', fillOpacity:1, strokeColor:'#fff', strokeWeight:2 }
+      });
+      marker.addListener('click', ()=>openSheet(eventSheetHtml(e)));
+      gMarkers.push(marker);
     });
   }
 }
@@ -1035,7 +1083,7 @@ function placeSheetHtml(p){
     <p style="font-size:12.5px;color:${p.color};margin-top:8px;font-weight:600;">${p.friend}</p>
     <div class="feedMeta"><button class="pillBtn ${isSaved?'saved':''}" onclick="toggleSavePlace('${p.id}')">${isSaved?'Saved':'Save'}</button>
     <button class="pillBtn" onclick="openPlace('${p.id}')">Full page</button>
-    <button class="pillBtn" onclick="window.open('https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lng}#map=17/${p.lat}/${p.lng}','_blank')">Directions</button></div>`;
+    <button class="pillBtn" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}','_blank')">Directions</button></div>`;
 }
 function eventSheetHtml(e){
   const isSaved=state.savedEvents.has(e.id);
@@ -1119,6 +1167,7 @@ renderEvents();
 ========================================================= */
 let newsDeck=[...newsItems];
 const newsStackEl=document.getElementById('newsStack'), newsSignalEl=document.getElementById('newsSignal');
+const newsAsOfEl=document.getElementById('newsAsOf'); if(newsAsOfEl) newsAsOfEl.textContent = `As of ${NEWS_AS_OF}.`;
 function renderNewsStack(){
   newsStackEl.innerHTML='';
   if(newsDeck.length===0){
@@ -1130,7 +1179,8 @@ function renderNewsStack(){
     el.style.zIndex=10-i;
     el.style.transform=`translateY(${i*8}px) scale(${1-i*0.035})`;
     el.style.opacity = i===2?0.5:1;
-    el.innerHTML=`<div class="nc-body"><div class="src">${n.source} \u00b7 ${n.category}</div><h4>${n.title}</h4><p>${n.body}</p></div>`;
+    el.innerHTML=`<div class="nc-photo" style="background-image:linear-gradient(0deg, rgba(20,23,26,.15), rgba(20,23,26,.15)), url('${photoUrl(n.id,500,700)}'); background-size:cover; background-position:center;"></div>
+      <div class="nc-body"><div class="src"><span>${n.source} \u00b7 ${n.category}</span><a class="readLink" href="${n.url}" target="_blank" rel="noopener" onclick="event.stopPropagation(); track('news_opened',{id:'${n.id}'});">${icon('share',12)} Read</a></div><h4>${n.title}</h4><p>${n.body}</p></div>`;
     if(i===0) attachNewsDrag(el,n);
     newsStackEl.appendChild(el);
   });
@@ -1142,7 +1192,7 @@ function decideNews(dir,n){
 }
 function attachNewsDrag(el,n){
   let startX=0,dx=0,dragging=false;
-  el.addEventListener('pointerdown', e=>{dragging=true; startX=e.clientX; el.setPointerCapture(e.pointerId); el.style.transition='none';});
+  el.addEventListener('pointerdown', e=>{ if(e.target.closest('.readLink')) return; dragging=true; startX=e.clientX; el.setPointerCapture(e.pointerId); el.style.transition='none';});
   el.addEventListener('pointermove', e=>{ if(!dragging) return; dx=e.clientX-startX; el.style.transform=`translateX(${dx}px) rotate(${dx/18}deg)`;});
   const release=()=>{
     if(!dragging) return; dragging=false; el.style.transition='';
@@ -1204,7 +1254,7 @@ renderCircle();
    MESSAGES
 ========================================================= */
 function renderConvoList(){
-  const list=document.getElementById('convoList'); list.innerHTML='';
+  const list=document.getElementById('convoItems'); list.innerHTML='';
   conversations.forEach(c=>{
     const last=c.messages[c.messages.length-1];
     const preview = last.shared ? (icon('pin',12) + ' ' + last.shared.title) : last.text;
@@ -1214,6 +1264,35 @@ function renderConvoList(){
     list.appendChild(el);
   });
 }
+document.getElementById('newGroupBtn').onclick=()=>openNewGroup();
+function openNewGroup(){
+  const chosen = new Set();
+  const rows = friends.map(f=>`<label class="groupPickRow"><input type="checkbox" value="${f.id}"> <span class="friendAv" style="background:${f.avatarBg}; width:32px; height:32px; font-size:12px;">${f.name[0]}</span> ${f.name}</label>`).join('');
+  const html = `
+    <h3 style="font-size:18px;">New group</h3>
+    <p class="screenSub" style="margin:4px 0 14px;">Pick who's in it, then give it a name.</p>
+    <div id="groupPickList" style="display:flex; flex-direction:column; gap:10px; max-height:220px; overflow-y:auto;">${rows}</div>
+    <div class="createLabel">Group name</div>
+    <input type="text" id="groupNameInput" placeholder="e.g. Weekend Plans" style="width:100%; padding:11px 13px; border-radius:10px; border:1px solid var(--line); font-size:14px;">
+    <button class="pillBtn primary" id="groupCreateBtn" style="width:100%; margin-top:16px; padding:12px;">Create group</button>
+  `;
+  document.getElementById('groupOverlayBody').innerHTML = html;
+  document.getElementById('groupOverlay').classList.add('show');
+  document.getElementById('groupCreateBtn').onclick=()=>{
+    const picked = [...document.querySelectorAll('#groupPickList input:checked')].map(i=>i.value);
+    const name = document.getElementById('groupNameInput').value.trim();
+    if(picked.length<2){ toast('Pick at least two friends for a group'); return; }
+    if(!name){ toast('Give the group a name'); return; }
+    const id = 'c'+(conversations.length+1)+Math.random().toString(36).slice(2,5);
+    conversations.push({id, name, isGroup:true, unread:0, messages:[{from:'them', name:friends.find(f=>f.id===picked[0]).name, text:'Group created \u2014 say hi!'}]});
+    state.activeConvo=id;
+    renderConvoList(); renderThread();
+    document.getElementById('msgWrap').classList.add('threadOpen');
+    document.getElementById('groupOverlay').classList.remove('show');
+    toast('Group created');
+  };
+}
+document.getElementById('groupOverlay').addEventListener('click', e=>{ if(e.target.id==='groupOverlay') e.currentTarget.classList.remove('show'); });
 function renderThread(){
   const c=conversations.find(x=>x.id===state.activeConvo);
   document.getElementById('threadTitle').textContent=c.name;
@@ -1261,10 +1340,29 @@ function buildPostForm(){
   const tagsEl=document.getElementById('postTags'); tagsEl.innerHTML='';
   TAGS.forEach(t=>{ const b=document.createElement('button'); b.className='tagChip'+(state.postTags.has(t)?' on':''); b.textContent=t; b.onclick=()=>{ state.postTags.has(t)?state.postTags.delete(t):state.postTags.add(t); buildPostForm(); }; tagsEl.appendChild(b); });
 }
+let postPin=null, postPinMarker=null;
+function initPostPinMap(){
+  if(window._postPinMap || typeof google === 'undefined' || !google.maps) return;
+  const map = new google.maps.Map(document.getElementById('postPinMap'), {
+    center:{lat:28.58,lng:77.19}, zoom:11, disableDefaultUI:true, zoomControl:true,
+    zoomControlOptions:{position:google.maps.ControlPosition.RIGHT_BOTTOM}
+  });
+  window._postPinMap = map;
+  map.addListener('click', e=>{
+    postPin = {lat:e.latLng.lat(), lng:e.latLng.lng()};
+    if(postPinMarker) postPinMarker.setMap(null);
+    postPinMarker = new google.maps.Marker({position:postPin, map});
+    document.getElementById('postPinNote').textContent = 'Pin set — this exact spot will be attached to your post.';
+  });
+}
 function openCreate(placeId){
   buildPostForm();
   if(placeId) document.getElementById('postPlace').value=placeId;
+  postPin=null;
+  if(postPinMarker){ postPinMarker.setMap(null); postPinMarker=null; }
+  document.getElementById('postPinNote').textContent = 'Tap the map to drop a pin \u2014 useful for a spot that isn\'t listed yet.';
   createOverlay.classList.add('show');
+  setTimeout(()=>{ initPostPinMap(); if(window._postPinMap) google.maps.event.trigger(window._postPinMap,'resize'); }, 60);
 }
 createOverlay.addEventListener('click', e=>{ if(e.target===createOverlay) createOverlay.classList.remove('show'); });
 document.getElementById('postSubmit').onclick=()=>{
@@ -1272,9 +1370,10 @@ document.getElementById('postSubmit').onclick=()=>{
   const placeId=document.getElementById('postPlace').value;
   const p=places.find(x=>x.id===placeId);
   if(!text){ toast('Say a little about what it was like first'); return; }
-  feed.unshift({type:'friend', color:p.color, kicker:'You posted', title:p.name, body:`"${text}" · Rating ${state.postRating}/5${state.postTags.size?' · '+[...state.postTags].join(', '):''}`, place:p.id});
+  const pinNote = postPin ? ` \u00b7 pinned at ${postPin.lat.toFixed(4)}, ${postPin.lng.toFixed(4)}` : '';
+  feed.unshift({type:'friend', color:p.color, kicker:'You posted', title:p.name, body:`"${text}" \u00b7 Rating ${state.postRating}/5${state.postTags.size?' \u00b7 '+[...state.postTags].join(', '):''}${pinNote}`, place:p.id});
   renderFeed();
-  track('post_created',{place:p.id, rating:state.postRating, tags:[...state.postTags]});
+  track('post_created',{place:p.id, rating:state.postRating, tags:[...state.postTags], pin:postPin});
   document.getElementById('postText').value='';
   state.postTags=new Set();
   createOverlay.classList.remove('show');
@@ -1385,12 +1484,16 @@ function renderDistrictsScreen(){
   const list=document.getElementById('districtList'); list.innerHTML='';
   districts.forEach(d=>{
     const placeCount = places.filter(p=>p.district===d.id).length;
-    const eventCount = events.filter(e=>e.district===d.id).length;
+    const districtEvents = events.filter(e=>e.district===d.id);
     const card=document.createElement('div'); card.className='districtCard';
+    const upcomingHtml = districtEvents.length
+      ? `<div class="dc-events">${districtEvents.map(e=>`<div class="dc-event-row"><span class="dc-event-date">${e.date}</span><span>${e.title}</span></div>`).join('')}</div>`
+      : `<p style="font-size:12.5px; color:var(--ink-soft); margin-top:8px;">Nothing scheduled here right now.</p>`;
     card.innerHTML=`<div class="dc-band" style="background:${d.color}"></div>
       <div class="dc-body">
         <h3>${d.name}</h3><p>${d.desc}</p>
-        <div class="dc-meta">${placeCount} PLACES · ${eventCount} EVENTS</div>
+        <div class="dc-meta">${placeCount} PLACES \u00b7 ${districtEvents.length} EVENTS</div>
+        ${upcomingHtml}
         <div class="feedMeta"><button class="pillBtn" data-id="${d.id}">Explore on map</button></div>
       </div>`;
     card.querySelector('.pillBtn').onclick=()=>{
