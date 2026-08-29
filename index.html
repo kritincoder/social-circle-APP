@@ -39,25 +39,26 @@ img{display:block; max-width:100%;}
 
 /* ============ AUTH SCREEN ============ */
 #auth{
-  position:fixed; inset:0; background:var(--ink); color:var(--paper);
+  position:fixed; inset:0; background:var(--paper); color:var(--ink);
   display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:500; padding:24px;
 }
-#auth .logoWrap{ width:104px; height:104px; margin-bottom:26px; animation: floatLogo 3.4s ease-in-out infinite; filter: drop-shadow(0 0 26px rgba(31,152,169,0.35)); }
-#auth .logoWrap img{width:100%; height:100%; border-radius:26px;}
+#authThemeBtn{ position:absolute; top:18px; right:18px; }
+#auth .logoWrap{ width:104px; height:104px; margin-bottom:26px; animation: floatLogo 3.4s ease-in-out infinite; filter: drop-shadow(0 6px 18px rgba(20,23,26,0.18)); }
+#auth .logoWrap img{width:100%; height:100%; border-radius:26px; object-fit:cover;}
 @keyframes floatLogo{ 0%,100%{transform:translateY(0) scale(1);} 50%{transform:translateY(-8px) scale(1.03);} }
 #auth h1{font-size:30px; text-align:center;}
-#auth p.tag{color:#9AA1A8; margin-top:8px; font-size:14.5px; text-align:center; max-width:320px;}
-.authCard{margin-top:34px; width:100%; max-width:340px; background:#1D2126; border:1px solid #2C3138; border-radius:18px; padding:26px;}
-.authToggle{display:flex; background:#14171A; border-radius:100px; padding:4px; margin-bottom:20px;}
-.authToggle button{flex:1; border:none; background:none; color:#9AA1A8; padding:9px; border-radius:100px; font-size:13.5px; font-weight:600;}
-.authToggle button.active{background:var(--paper); color:var(--ink);}
+#auth p.tag{color:var(--ink-soft); margin-top:8px; font-size:14.5px; text-align:center; max-width:320px;}
+.authCard{margin-top:34px; width:100%; max-width:340px; background:var(--card-bg); border:1px solid var(--line); border-radius:18px; padding:26px;}
+.authToggle{display:flex; background:var(--paper-dim); border-radius:100px; padding:4px; margin-bottom:20px;}
+.authToggle button{flex:1; border:none; background:none; color:var(--ink-soft); padding:9px; border-radius:100px; font-size:13.5px; font-weight:600;}
+.authToggle button.active{background:var(--card-bg); color:var(--ink); box-shadow:0 1px 4px rgba(0,0,0,.08);}
 .field{margin-bottom:12px;}
-.field label{display:block; font-size:12px; color:#9AA1A8; margin-bottom:6px;}
-.field input{width:100%; padding:11px 13px; border-radius:10px; border:1px solid #333940; background:#14171A; color:var(--paper); font-size:14px;}
+.field label{display:block; font-size:12px; color:var(--ink-soft); margin-bottom:6px;}
+.field input{width:100%; padding:11px 13px; border-radius:10px; border:1px solid var(--line); background:var(--paper-dim); color:var(--ink); font-size:14px;}
 .field input:focus{outline:2px solid var(--teal); border-color:transparent;}
 .authSubmit{width:100%; margin-top:8px; padding:13px; border-radius:10px; border:none; background:var(--teal); color:#08181B; font-weight:700; font-size:14.5px;}
 .authSubmit:hover{background:#33aebd;}
-.authNote{margin-top:16px; font-size:12px; color:#767C83; text-align:center;}
+.authNote{margin-top:16px; font-size:12px; color:var(--ink-soft); text-align:center;}
 
 /* ============ APP SHELL ============ */
 #app{display:none; height:100vh; overflow:hidden;}
@@ -264,7 +265,13 @@ img{display:block; max-width:100%;}
 .exploreTile span{font-size:11.5px; color:var(--ink-soft);}
 .tileGrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px;}
 .actionTile{border:1px solid var(--line); border-radius:14px; padding:16px 14px; background:#fff; text-align:left; display:flex; flex-direction:column; gap:6px;}
-.actionTile .ic{font-size:20px;}
+.actionTile .ic{display:flex;}
+.actionTile .ic svg{width:22px; height:22px;}
+svg{display:block;}
+.iconBtn svg, .pillBtn svg, .navItem .ic svg, .swipe-btn svg, .callBtn svg, .closeX svg, .backBtn svg{vertical-align:middle;}
+.pillBtn, .backBtn{display:inline-flex; align-items:center; gap:6px;}
+.starMini{display:inline-flex; gap:2px; color:var(--gold); vertical-align:-3px;}
+.ratingPill{display:inline-flex; align-items:center; gap:4px; color:var(--gold);}
 .actionTile h5{font-size:13px; font-weight:600;}
 .actionTile span{font-size:11.5px; color:var(--ink-soft);}
 
@@ -282,10 +289,11 @@ img{display:block; max-width:100%;}
 .menuList button:hover{background:var(--paper-dim);}
 
 /* ============ NEWS ============ */
-.newsCard{border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px; background:#fff;}
-.newsCard .src{font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; color:var(--ink-soft); letter-spacing:.04em;}
-.newsCard h3{font-size:16.5px; font-weight:600; margin-top:6px;}
-.newsCard p{font-size:13.5px; color:var(--ink-soft); margin-top:6px;}
+.news-card{position:absolute; inset:0; border-radius:20px; overflow:hidden; border:1px solid var(--line); background:var(--card-bg); display:flex; flex-direction:column; justify-content:flex-end; cursor:grab; user-select:none; touch-action:none; transition:transform .35s cubic-bezier(.2,.7,.3,1), opacity .35s; box-shadow:0 10px 30px rgba(0,0,0,.06);}
+.news-card .nc-body{padding:20px;}
+.news-card .src{font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; color:var(--ink-soft); letter-spacing:.04em;}
+.news-card h4{font-family:'Fraunces',serif; font-size:19px; font-weight:500; margin-top:6px;}
+.news-card p{font-size:13.5px; color:var(--ink-soft); margin-top:8px;}
 
 /* ============ PLACE DETAIL ============ */
 .placeHero{height:190px; border-radius:18px; margin-bottom:18px;}
@@ -320,6 +328,7 @@ img{display:block; max-width:100%;}
 
 <!-- ================= AUTH GATE ================= -->
 <div id="auth">
+  <button class="iconBtn" id="authThemeBtn" title="Toggle theme"></button>
   <div class="logoWrap"><img id="logoImgAuth" alt="Social Circle logo"></div>
   <h1>Social Circle</h1>
   <p class="tag">Sign in to enter. People, places and plans, through the friends whose taste you trust.</p>
@@ -352,10 +361,10 @@ img{display:block; max-width:100%;}
   <div class="topbar">
     <div class="tLeft"><img id="logoImgTop" alt=""> Social Circle</div>
     <div class="tRight">
-      <button class="iconBtn" id="themeBtn" title="Toggle theme">🌙</button>
-      <button class="iconBtn" id="searchBtn" title="Search">🔍</button>
-      <button class="iconBtn" id="notifBtn" title="Notifications">🔔<span class="badge" id="notifBadge"></span></button>
-      <button class="iconBtn" id="settingsBtn" title="Settings">⚙️</button>
+      <button class="iconBtn" id="themeBtn" title="Toggle theme"></button>
+      <button class="iconBtn" id="searchBtn" title="Search"></button>
+      <button class="iconBtn" id="notifBtn" title="Notifications"><span class="badge" id="notifBadge"></span></button>
+      <button class="iconBtn" id="settingsBtn" title="Settings"></button>
       <button class="iconBtn" id="profileBtn" title="Profile"><span class="avatar" id="topAvatar">Y</span></button>
     </div>
   </div>
@@ -379,10 +388,10 @@ img{display:block; max-width:100%;}
       <h2 class="screenTitle">Explore</h2>
       <p class="screenSub">Nearby, trending, and what your circle recommends — search or just browse.</p>
       <div class="tileGrid" style="margin-bottom:26px;">
-        <button class="actionTile" data-screen="discover"><span class="ic">🔀</span><h5>Swipe discovery</h5><span>Teach the feed fast</span></button>
-        <button class="actionTile" data-screen="news"><span class="ic">📰</span><h5>News</h5><span>Personalised to you</span></button>
-        <button class="actionTile" data-screen="districts"><span class="ic">📍</span><h5>Districts</h5><span>Explore by area</span></button>
-        <button class="actionTile" data-screen="events"><span class="ic">📅</span><h5>Events</h5><span>What's happening</span></button>
+        <button class="actionTile" data-screen="discover"><span class="ic" data-icon="swipe"></span><h5>Swipe discovery</h5><span>Teach the feed fast</span></button>
+        <button class="actionTile" data-screen="news"><span class="ic" data-icon="news"></span><h5>News</h5><span>Personalised to you</span></button>
+        <button class="actionTile" data-screen="districts"><span class="ic" data-icon="pin"></span><h5>Districts</h5><span>Explore by area</span></button>
+        <button class="actionTile" data-screen="events"><span class="ic" data-icon="calendar"></span><h5>Events</h5><span>What's happening</span></button>
       </div>
       <div class="exploreSection">
         <div class="exploreSectionHead"><h3>Nearby places</h3><span data-screen="map">Map view</span></div>
@@ -411,8 +420,8 @@ img{display:block; max-width:100%;}
       <div class="discoverWrap">
         <div class="card-stack" id="cardStack"></div>
         <div class="swipe-controls">
-          <button class="swipe-btn reject" id="btnLeft">✕</button>
-          <button class="swipe-btn accept" id="btnRight">♥</button>
+          <button class="swipe-btn reject" id="btnLeft"></button>
+          <button class="swipe-btn accept" id="btnRight"></button>
         </div>
         <div class="signalFeed" id="signalFeed">&nbsp;</div>
       </div>
@@ -428,7 +437,7 @@ img{display:block; max-width:100%;}
       </div>
       <div id="leafletMap"></div>
       <div class="mapSheet" id="mapSheet">
-        <button class="closeX" id="mapSheetClose">✕</button>
+        <button class="closeX" id="mapSheetClose"></button>
         <div id="mapSheetBody"></div>
       </div>
     </div>
@@ -457,8 +466,15 @@ img{display:block; max-width:100%;}
   <section class="screen" id="screen-news">
     <div class="screenInner">
       <h2 class="screenTitle">News</h2>
-      <p class="screenSub">Personalised from your interests and location — source always shown. Right for more like this, left for less.</p>
-      <div id="newsList"></div>
+      <p class="screenSub">Personalised from your interests and location — source always shown. Swipe right for more like this, left for less.</p>
+      <div class="discoverWrap">
+        <div class="card-stack" id="newsStack"></div>
+        <div class="swipe-controls">
+          <button class="swipe-btn reject" id="newsLeft"></button>
+          <button class="swipe-btn accept" id="newsRight"></button>
+        </div>
+        <div class="signalFeed" id="newsSignal">&nbsp;</div>
+      </div>
     </div>
   </section>
 
@@ -484,8 +500,8 @@ img{display:block; max-width:100%;}
       <div class="convoList" id="convoList"></div>
       <div class="threadPane" id="threadPane">
         <div class="threadHeader">
-          <span style="display:flex;align-items:center;"><button class="backBtn" id="backBtn">← Back</button><span id="threadTitle"></span></span>
-          <button class="iconBtn" id="callBtn" title="Voice call">📞</button>
+          <span style="display:flex;align-items:center;"><button class="backBtn" id="backBtn"><span data-icon="back"></span> Back</button><span id="threadTitle"></span></span>
+          <button class="iconBtn" id="callBtn" title="Voice call"></button>
         </div>
         <div class="pinnedRow" id="pinnedRow" style="display:none;"></div>
         <div class="threadMsgs" id="threadMsgs"></div>
@@ -542,7 +558,7 @@ img{display:block; max-width:100%;}
     <div class="createLabel">Place</div>
     <select id="postPlace"></select>
     <div class="createLabel">Rating</div>
-    <div class="starRow" id="postStars">★★★★★</div>
+    <div class="starRow" id="postStars"></div>
     <div class="createLabel">Tags</div>
     <div id="postTags"></div>
     <button class="pillBtn primary" id="postSubmit" style="width:100%; margin-top:16px; padding:12px;">Post experience</button>
@@ -557,9 +573,9 @@ img{display:block; max-width:100%;}
     <div class="callStatus" id="callStatus">Calling…</div>
     <div class="callTimer" id="callTimer">00:00</div>
     <div class="callControls">
-      <button class="callBtn" id="callMute" title="Mute">🎤</button>
-      <button class="callBtn end" id="callEnd" title="End call">⏹</button>
-      <button class="callBtn" id="callSpeaker" title="Speaker">🔊</button>
+      <button class="callBtn" id="callMute" title="Mute"></button>
+      <button class="callBtn end" id="callEnd" title="End call"></button>
+      <button class="callBtn" id="callSpeaker" title="Speaker"></button>
     </div>
   </div>
 </div>
@@ -588,6 +604,60 @@ img{display:block; max-width:100%;}
 const LOGO_SRC = "data:image/svg+xml;utf8," + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='#14171A'/><circle cx='50' cy='40' r='16' fill='#1F98A9'/><circle cx='30' cy='68' r='12' fill='#E15A42'/><circle cx='70' cy='68' r='12' fill='#CE9A2E'/></svg>`);
 document.getElementById('logoImgAuth').src = LOGO_SRC;
 document.getElementById('logoImgTop').src = LOGO_SRC;
+
+/* =========================================================
+   ICON SYSTEM — inline SVG line icons, no emoji anywhere
+========================================================= */
+const ICONS = {
+  home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V10"/>',
+  explore: '<circle cx="12" cy="12" r="9"/><path d="M14.8 9.2l-2.1 5.5-5.5 2.1 2.1-5.5z"/>',
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  map: '<path d="M9 3L3 5.2v15.6L9 18l6 2.8 6-2.2V2.8L15 5 9 3z"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="5" x2="15" y2="20.8"/>',
+  circle: '<circle cx="9" cy="8" r="3"/><circle cx="17" cy="11" r="2.4"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M14.2 15c2.6.3 4.6 2.1 4.6 5"/>',
+  swipe: '<polyline points="17 2.5 21.5 2.5 21.5 7"/><line x1="3" y1="21" x2="21.5" y2="2.5"/><polyline points="21.5 16.5 21.5 21.5 16.5 21.5"/><line x1="14" y1="14" x2="21.5" y2="21.5"/><line x1="3" y1="3" x2="9" y2="9"/>',
+  pin: '<path d="M12 21s-7-7.4-7-12a7 7 0 0114 0c0 4.6-7 12-7 12z"/><circle cx="12" cy="9" r="2.4"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>',
+  news: '<path d="M4 4h13a2 2 0 012 2v13a2 2 0 01-2 2H7a3 3 0 01-3-3V4z"/><path d="M4 4v14a3 3 0 003 3"/><line x1="8" y1="8.5" x2="15" y2="8.5"/><line x1="8" y1="12" x2="15" y2="12"/><line x1="8" y1="15.5" x2="12" y2="15.5"/>',
+  message: '<path d="M21 11.5a8.5 8.5 0 01-8.5 8.5H6l-3 3V11.5a8.5 8.5 0 018.5-8.5h1a8.5 8.5 0 018.5 8.5z"/>',
+  profile: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.6V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9V15a1.7 1.7 0 00-1.6-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.6V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.6 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.6 1H21a2 2 0 010 4h-.1a1.7 1.7 0 00-1.6 1z"/>',
+  search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  bell: '<path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/>',
+  phone: '<path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1.9.3 1.8.6 2.7a2 2 0 01-.4 2.1L8 9.9a16 16 0 006 6l1.4-1.4a2 2 0 012.1-.4c.9.3 1.8.5 2.7.6a2 2 0 011.8 2.2z"/>',
+  close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  heart: '<path d="M12 21s-7.2-4.5-9.5-8.8C.8 8.6 2.3 5 6 5c2 0 3.3 1 4 2 .7-1 2-2 4-2 3.7 0 5.2 3.6 3.5 7.2C19.2 16.5 12 21 12 21z"/>',
+  moon: '<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.9" y1="4.9" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.1" y2="19.1"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.9" y1="19.1" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.1" y2="4.9"/>',
+  send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+  back: '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
+  star: '<polygon points="12 2 15 9 22 9.5 16.5 14 18 21 12 17.3 6 21 7.5 14 2 9.5 9 9"/>',
+  more: '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
+  share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/>',
+  directions: '<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
+  mic: '<path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v1a7 7 0 01-14 0v-1"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>',
+  volume: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a4.5 4.5 0 010 7"/><path d="M19 5a9 9 0 010 14"/>',
+};
+function icon(name, size){
+  size = size || 20;
+  return '<svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+(ICONS[name]||'')+'</svg>';
+}
+function photoUrl(seed, w, h){
+  return 'https://picsum.photos/seed/' + encodeURIComponent(String(seed)) + '/' + w + '/' + h;
+}
+function wireStaticIcons(){
+  const map = {
+    searchBtn:'search', settingsBtn:'settings', btnLeft:'close', btnRight:'heart',
+    mapSheetClose:'close', callBtn:'phone', callMute:'mic', callEnd:'close', callSpeaker:'volume',
+    newsLeft:'close', newsRight:'heart'
+  };
+  Object.keys(map).forEach(id=>{ const el=document.getElementById(id); if(el) el.innerHTML = icon(map[id]); });
+  const notifBtn=document.getElementById('notifBtn');
+  if(notifBtn) notifBtn.insertAdjacentHTML('afterbegin', icon('bell'));
+  document.querySelectorAll('[data-icon]').forEach(el=>{ el.innerHTML = icon(el.dataset.icon); });
+  const themeBtn=document.getElementById('themeBtn');
+  if(themeBtn) themeBtn.innerHTML = icon('moon');
+}
+wireStaticIcons();
 
 /* =========================================================
    MOCK DATA
@@ -644,7 +714,7 @@ const conversations = [
     {from:'me', text:'Sending it to the group?'},
     {shared:{title:'Late Night Dhaba Run', sub:'Food · Connaught Place', color:'#E15A42', place:'p2'}}
   ]},
-  {id:'c2', name:'Weekend Plans 🗺️', isGroup:true, unread:0, messages:[
+  {id:'c2', name:'Weekend Plans Crew', isGroup:true, unread:0, messages:[
     {from:'them', name:'Arjun', text:'Lake deck this Saturday?'},
     {shared:{title:'Hauz Khas Lake Deck', sub:'Outdoors · Hauz Khas Village', color:'#CE9A2E', place:'p5'}},
     {from:'me', text:'In. Golden hour?'},
@@ -658,7 +728,7 @@ const conversations = [
     {from:'them', text:'Also found a book swap event nearby.'},
     {shared:{title:'CP Book Swap', sub:'Sep 13 · Connaught Place', color:'#E15A42', eventId:'e7'}},
   ]},
-  {id:'c5', name:'Foodies Only 🍜', isGroup:true, unread:0, messages:[
+  {id:'c5', name:'Foodies Only', isGroup:true, unread:0, messages:[
     {from:'them', name:'Zoya', text:'Champa Gali food walk on the 14th?'},
     {shared:{title:'Food Photography Walk', sub:'Sep 14 · Saket', color:'#DB8236', eventId:'e8'}},
     {from:'them', name:'Kritin', text:'In, obviously.'},
@@ -668,11 +738,11 @@ const conversations = [
 const notifications = [
   {text:'Kritin recommended Kunzum Travel Café.', time:'2h ago'},
   {text:'2 friends are interested in Rooftop Tech Meetup.', time:'5h ago'},
-  {text:'Weekend Plans 🗺️ — new message from Arjun.', time:'Yesterday'},
+  {text:'Weekend Plans Crew — new message from Arjun.', time:'Yesterday'},
   {text:'Sunder Nursery is trending in your district.', time:'2 days ago'},
   {text:'Arjun sent you the CP Book Swap event.', time:'2 days ago'},
   {text:'Zoya posted an experience at Champa Gali.', time:'3 days ago'},
-  {text:'Foodies Only 🍜 — 3 new messages.', time:'4 days ago'},
+  {text:'Foodies Only — 3 new messages.', time:'4 days ago'},
 ];
 
 const friends = [
@@ -752,20 +822,20 @@ document.getElementById('authForm').addEventListener('submit', e=>{
    is reached contextually via Explore tiles, the topbar icons, or the desktop sidenav.
 ========================================================= */
 const NAV_PRIMARY = [
-  {id:'home', label:'Home', ic:'🏠'},
-  {id:'explore', label:'Explore', ic:'🧭'},
-  {id:'create', label:'Create', ic:'✚', action:true, cls:'createBtn'},
-  {id:'map', label:'Map', ic:'🗺️'},
-  {id:'circle', label:'Circle', ic:'👥'},
+  {id:'home', label:'Home', ic:'home'},
+  {id:'explore', label:'Explore', ic:'explore'},
+  {id:'create', label:'Create', ic:'plus', action:true, cls:'createBtn'},
+  {id:'map', label:'Map', ic:'map'},
+  {id:'circle', label:'Circle', ic:'circle'},
 ];
 const NAV_SECONDARY = [
-  {id:'discover', label:'Swipe discovery', ic:'🔀'},
-  {id:'districts', label:'Districts', ic:'📍'},
-  {id:'events', label:'Events', ic:'📅'},
-  {id:'news', label:'News', ic:'📰'},
-  {id:'messages', label:'Messages', ic:'💬'},
-  {id:'profile', label:'Profile', ic:'👤'},
-  {id:'settings', label:'Settings', ic:'⚙️'},
+  {id:'discover', label:'Swipe discovery', ic:'swipe'},
+  {id:'districts', label:'Districts', ic:'pin'},
+  {id:'events', label:'Events', ic:'calendar'},
+  {id:'news', label:'News', ic:'news'},
+  {id:'messages', label:'Messages', ic:'message'},
+  {id:'profile', label:'Profile', ic:'profile'},
+  {id:'settings', label:'Settings', ic:'settings'},
 ];
 function buildNavButton(item){
   const b=document.createElement('button');
@@ -842,10 +912,10 @@ renderFeed();
    EXPLORE
 ========================================================= */
 function placeTileHtml(p){
-  return `<div class="exploreTile" data-place="${p.id}"><div class="et-img" style="background:linear-gradient(160deg, ${p.color}77, #14171A 90%)"></div><div class="et-body"><h5>${p.name}</h5><span>${p.category} · ★${p.rating}</span></div></div>`;
+  return `<div class="exploreTile" data-place="${p.id}"><div class="et-img" style="background-image:linear-gradient(160deg, ${p.color}33, rgba(20,23,26,.35)), url('${photoUrl(p.id,300,200)}'); background-size:cover; background-position:center;"></div><div class="et-body"><h5>${p.name}</h5><span>${p.category} · ${p.rating} rating</span></div></div>`;
 }
 function eventTileHtml(e){
-  return `<div class="exploreTile" data-event="${e.id}"><div class="et-img" style="background:linear-gradient(160deg, #54677C77, #14171A 90%)"></div><div class="et-body"><h5>${e.title}</h5><span>${e.date} · ${e.category}</span></div></div>`;
+  return `<div class="exploreTile" data-event="${e.id}"><div class="et-img" style="background-image:linear-gradient(160deg, #54677C33, rgba(20,23,26,.35)), url('${photoUrl(e.id,300,200)}'); background-size:cover; background-position:center;"></div><div class="et-body"><h5>${e.title}</h5><span>${e.date} · ${e.category}</span></div></div>`;
 }
 function renderExplore(){
   document.getElementById('exploreNearby').innerHTML = places.slice(0,6).map(placeTileHtml).join('');
@@ -873,7 +943,7 @@ function renderStack(){
     el.style.zIndex=10-i;
     el.style.transform=`translateY(${i*8}px) scale(${1-i*0.035})`;
     el.style.opacity = i===2?0.5:1;
-    el.innerHTML=`<div class="photo" style="background:linear-gradient(160deg, ${p.color}66, #14171A 88%)"></div>
+    el.innerHTML=`<div class="photo" style="background-image:linear-gradient(180deg, rgba(20,23,26,.15), rgba(20,23,26,.85)), url('${photoUrl(p.id,500,700)}'); background-size:cover; background-position:center;"></div>
       <div class="card-body"><h4>${p.name}</h4><p>${p.note}</p><span class="swipe-tag">${p.friend||p.category}</span></div>`;
     if(i===0) attachDrag(el,p);
     stackEl.appendChild(el);
@@ -999,10 +1069,10 @@ function renderPlaceDetail(id){
   ];
   const html = `
     <button class="pillBtn" onclick="switchScreen('explore')" style="margin-bottom:14px;">← Back</button>
-    <div class="placeHero" style="background:linear-gradient(155deg, ${p.color}88, #14171A 92%)"></div>
+    <div class="placeHero" style="background-image:linear-gradient(160deg, ${p.color}44, rgba(20,23,26,.4)), url('${photoUrl(p.id,800,400)}'); background-size:cover; background-position:center;"></div>
     <div class="placeHead">
       <div><h2>${p.name}</h2><p class="screenSub" style="margin:4px 0 0;">${p.category} · ${dist?dist.name:''} · ${p.address}</p></div>
-      <div class="ratingPill">★ ${p.rating}</div>
+      <div class="ratingPill"><span data-icon="star" style="display:inline-flex;vertical-align:-3px;margin-right:3px;"></span>${p.rating}</div>
     </div>
     <div class="feedMeta" style="margin:14px 0 6px;">
       <button class="pillBtn ${isSaved?'saved':''}" onclick="toggleSavePlace('${p.id}')">${isSaved?'Saved':'Save'}</button>
@@ -1011,7 +1081,7 @@ function renderPlaceDetail(id){
       <button class="pillBtn" onclick="switchScreen('map'); setTimeout(()=>openSheet(placeSheetHtml(places.find(x=>x.id==='${p.id}'))),80)">View on map</button>
     </div>
     <h3 style="font-size:15px; margin:22px 0 6px;">Friend ratings</h3>
-    ${friendRatings.map(r=>`<div class="friendRatingRow"><span class="miniAv">${r.name[0]}</span><div><strong>${r.name}</strong> — ${'★'.repeat(r.stars)}<div style="color:var(--ink-soft);font-size:12.5px;">${r.note}</div></div></div>`).join('')}
+    ${friendRatings.map(r=>`<div class="friendRatingRow"><span class="miniAv">${r.name[0]}</span><div><strong>${r.name}</strong> — <span class="starMini" data-stars="${r.stars}"></span><div style="color:var(--ink-soft);font-size:12.5px;">${r.note}</div></div></div>`).join('')}
     <h3 style="font-size:15px; margin:22px 0 6px;">Recent experiences</h3>
     ${relatedPosts.length ? relatedPosts.map(r=>`<div class="feedCard"><div class="feedKicker"><span class="dot" style="background:${r.color}"></span>${r.kicker}</div><p>${r.body}</p></div>`).join('') : `<p class="screenSub">No posts yet — be the first to share what it was like.</p>`}
     <h3 style="font-size:15px; margin:22px 0 6px;">Nearby events</h3>
@@ -1047,19 +1117,46 @@ renderEvents();
 /* =========================================================
    NEWS
 ========================================================= */
-function renderNews(){
-  const list=document.getElementById('newsList'); list.innerHTML='';
-  newsItems.forEach(n=>{
-    const card=document.createElement('div'); card.className='newsCard';
-    card.innerHTML=`<div class="src">${n.source} · ${n.category}</div><h3>${n.title}</h3><p>${n.body}</p>
-      <div class="feedMeta"><button class="pillBtn" data-a="more" data-id="${n.id}">More like this</button><button class="pillBtn" data-a="less" data-id="${n.id}">Show less</button></div>`;
-    list.appendChild(card);
-  });
-  list.querySelectorAll('[data-a]').forEach(btn=>{
-    btn.onclick=()=>{ track(btn.dataset.a==='more'?'swipe_right':'swipe_left',{news:btn.dataset.id}); toast(btn.dataset.a==='more'?"Got it — more like this":"Got it — less like this"); };
+let newsDeck=[...newsItems];
+const newsStackEl=document.getElementById('newsStack'), newsSignalEl=document.getElementById('newsSignal');
+function renderNewsStack(){
+  newsStackEl.innerHTML='';
+  if(newsDeck.length===0){
+    newsStackEl.innerHTML=`<div class="news-card" style="display:flex;align-items:center;justify-content:center;background:var(--paper-dim);"><p style="padding:24px;text-align:center;color:var(--ink-soft);">That's everything for now — check back later for more stories.</p></div>`;
+    return;
+  }
+  newsDeck.slice(0,3).forEach((n,i)=>{
+    const el=document.createElement('div'); el.className='news-card';
+    el.style.zIndex=10-i;
+    el.style.transform=`translateY(${i*8}px) scale(${1-i*0.035})`;
+    el.style.opacity = i===2?0.5:1;
+    el.innerHTML=`<div class="nc-body"><div class="src">${n.source} \u00b7 ${n.category}</div><h4>${n.title}</h4><p>${n.body}</p></div>`;
+    if(i===0) attachNewsDrag(el,n);
+    newsStackEl.appendChild(el);
   });
 }
-renderNews();
+function decideNews(dir,n){
+  newsSignalEl.textContent = dir==='right' ? `learned: more ${n.category.toLowerCase()} stories like this` : `learned: fewer stories like this`;
+  track(dir==='right'?'swipe_right':'swipe_left',{news:n.id});
+  newsDeck.shift(); renderNewsStack();
+}
+function attachNewsDrag(el,n){
+  let startX=0,dx=0,dragging=false;
+  el.addEventListener('pointerdown', e=>{dragging=true; startX=e.clientX; el.setPointerCapture(e.pointerId); el.style.transition='none';});
+  el.addEventListener('pointermove', e=>{ if(!dragging) return; dx=e.clientX-startX; el.style.transform=`translateX(${dx}px) rotate(${dx/18}deg)`;});
+  const release=()=>{
+    if(!dragging) return; dragging=false; el.style.transition='';
+    if(dx>90){el.style.transform='translateX(500px) rotate(20deg)'; el.style.opacity=0; setTimeout(()=>decideNews('right',n),240);}
+    else if(dx<-90){el.style.transform='translateX(-500px) rotate(-20deg)'; el.style.opacity=0; setTimeout(()=>decideNews('left',n),240);}
+    else{el.style.transform='';}
+    dx=0;
+  };
+  el.addEventListener('pointerup', release);
+  el.addEventListener('pointerleave', ()=>{if(dragging) release();});
+}
+document.getElementById('newsLeft').onclick=()=>{ if(newsDeck[0]) decideNews('left',newsDeck[0]); };
+document.getElementById('newsRight').onclick=()=>{ if(newsDeck[0]) decideNews('right',newsDeck[0]); };
+renderNewsStack();
 
 /* =========================================================
    CIRCLE — friends, trust, requests, mute/unfollow/block
@@ -1080,7 +1177,7 @@ function renderCircle(){
       <div><h4>${f.name}</h4><p>${f.mutuals} mutual friends · ${f.note}</p></div>
       <div class="friendActions">
         <button class="pillBtn" data-msg="${f.name}">Message</button>
-        <div class="menuPop"><button class="pillBtn" data-menu>⋯</button>
+        <div class="menuPop"><button class="pillBtn" data-menu style="display:inline-flex;">${icon('more',16)}</button>
           <div class="menuList">
             <button data-mute="${f.id}">Mute</button>
             <button data-unfollow="${f.id}">Unfollow</button>
@@ -1110,7 +1207,7 @@ function renderConvoList(){
   const list=document.getElementById('convoList'); list.innerHTML='';
   conversations.forEach(c=>{
     const last=c.messages[c.messages.length-1];
-    const preview = last.shared ? `📍 ${last.shared.title}` : last.text;
+    const preview = last.shared ? (icon('pin',12) + ' ' + last.shared.title) : last.text;
     const el=document.createElement('div'); el.className='convoItem'+(c.id===state.activeConvo?' active':'');
     el.innerHTML=`<div class="convoAvatar">${c.name[0]}</div><div><h4>${c.name}</h4><p>${preview}</p></div>`;
     el.onclick=()=>{ state.activeConvo=c.id; renderConvoList(); renderThread(); document.getElementById('msgWrap').classList.add('threadOpen'); track('chat_started',{convo:c.id}); };
@@ -1125,12 +1222,12 @@ function renderThread(){
   const sharedItems=c.messages.filter(m=>m.shared);
   if(c.isGroup && sharedItems.length){
     pinned.style.display='block';
-    pinned.textContent = `📌 ${sharedItems.length} pinned — shared places & events for this plan`;
+    pinned.textContent = `${sharedItems.length} pinned — shared places & events for this plan`;
   } else { pinned.style.display='none'; }
   c.messages.forEach(m=>{
     const row=document.createElement('div'); row.className='msgRow'+(m.from==='me'?' me':'');
     if(m.shared){
-      row.innerHTML=`<div class="sharedCard" data-place="${m.shared.place||''}" data-event="${m.shared.eventId||''}"><div class="sc-img" style="background:${m.shared.color}55"></div><div class="sc-body"><h5>${m.shared.title}</h5><span>${m.shared.sub}</span></div></div>`;
+      row.innerHTML=`<div class="sharedCard" data-place="${m.shared.place||''}" data-event="${m.shared.eventId||''}"><div class="sc-img" style="background-image:linear-gradient(160deg, ${m.shared.color}33, rgba(20,23,26,.3)), url('${photoUrl(m.shared.place||m.shared.eventId||m.shared.title,300,200)}'); background-size:cover; background-position:center;"></div><div class="sc-body"><h5>${m.shared.title}</h5><span>${m.shared.sub}</span></div></div>`;
     }else{
       row.innerHTML=`<div class="bubble">${m.name?`<strong style="display:block;font-size:11px;opacity:.6;margin-bottom:2px;">${m.name}</strong>`:''}${m.text}</div>`;
     }
@@ -1160,7 +1257,7 @@ function buildPostForm(){
   const sel=document.getElementById('postPlace'); sel.innerHTML='';
   places.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; sel.appendChild(o); });
   const stars=document.getElementById('postStars'); stars.innerHTML='';
-  for(let i=1;i<=5;i++){ const s=document.createElement('span'); s.textContent='★'; s.dataset.v=i; if(i<=state.postRating) s.classList.add('on'); s.onclick=()=>{ state.postRating=i; buildPostForm(); }; stars.appendChild(s); }
+  for(let i=1;i<=5;i++){ const s=document.createElement('span'); s.innerHTML=icon('star',22); s.dataset.v=i; if(i<=state.postRating) s.classList.add('on'); s.onclick=()=>{ state.postRating=i; buildPostForm(); }; stars.appendChild(s); }
   const tagsEl=document.getElementById('postTags'); tagsEl.innerHTML='';
   TAGS.forEach(t=>{ const b=document.createElement('button'); b.className='tagChip'+(state.postTags.has(t)?' on':''); b.textContent=t; b.onclick=()=>{ state.postTags.has(t)?state.postTags.delete(t):state.postTags.add(t); buildPostForm(); }; tagsEl.appendChild(b); });
 }
@@ -1175,7 +1272,7 @@ document.getElementById('postSubmit').onclick=()=>{
   const placeId=document.getElementById('postPlace').value;
   const p=places.find(x=>x.id===placeId);
   if(!text){ toast('Say a little about what it was like first'); return; }
-  feed.unshift({type:'friend', color:p.color, kicker:'You posted', title:p.name, body:`"${text}" · ${'★'.repeat(state.postRating)}${state.postTags.size?' · '+[...state.postTags].join(', '):''}`, place:p.id});
+  feed.unshift({type:'friend', color:p.color, kicker:'You posted', title:p.name, body:`"${text}" · Rating ${state.postRating}/5${state.postTags.size?' · '+[...state.postTags].join(', '):''}`, place:p.id});
   renderFeed();
   track('post_created',{place:p.id, rating:state.postRating, tags:[...state.postTags]});
   document.getElementById('postText').value='';
@@ -1200,11 +1297,11 @@ function renderProfileTab(which){
   const el=document.getElementById('profileTabContent');
   if(which==='saved'){
     const items=[...places.filter(p=>state.savedPlaces.has(p.id))];
-    el.innerHTML = items.length ? `<div class="savedGrid">${items.map(p=>`<div class="savedTile" data-place="${p.id}"><div class="st-img" style="background:${p.color}55"></div><div class="st-body"><h5>${p.name}</h5></div></div>`).join('')}</div>` : `<p class="screenSub">Nothing saved yet — swipe right on Discover or save a place on the map.</p>`;
+    el.innerHTML = items.length ? `<div class="savedGrid">${items.map(p=>`<div class="savedTile" data-place="${p.id}"><div class="st-img" style="background-image:linear-gradient(160deg, ${p.color}33, rgba(20,23,26,.3)), url('${photoUrl(p.id,300,200)}'); background-size:cover; background-position:center;"></div><div class="st-body"><h5>${p.name}</h5></div></div>`).join('')}</div>` : `<p class="screenSub">Nothing saved yet — swipe right on Discover or save a place on the map.</p>`;
     el.querySelectorAll('[data-place]').forEach(t=>t.onclick=()=>openPlace(t.dataset.place));
   } else if(which==='events'){
     const items=events.filter(e=>state.savedEvents.has(e.id));
-    el.innerHTML = items.length ? `<div class="savedGrid">${items.map(e=>`<div class="savedTile"><div class="st-img" style="background:#54677C55"></div><div class="st-body"><h5>${e.title}</h5></div></div>`).join('')}</div>` : `<p class="screenSub">No events marked interested yet.</p>`;
+    el.innerHTML = items.length ? `<div class="savedGrid">${items.map(e=>`<div class="savedTile"><div class="st-img" style="background-image:linear-gradient(160deg, #54677C33, rgba(20,23,26,.3)), url('${photoUrl(e.id,300,200)}'); background-size:cover; background-position:center;"></div><div class="st-body"><h5>${e.title}</h5></div></div>`).join('')}</div>` : `<p class="screenSub">No events marked interested yet.</p>`;
   } else {
     const posts=feed.filter(f=>f.kicker==='You posted');
     el.innerHTML = posts.length ? posts.map(p=>`<div class="feedCard"><div class="feedKicker"><span class="dot" style="background:${p.color}"></span>${p.kicker}</div><h3>${p.title}</h3><p>${p.body}</p></div>`).join('') : `<p class="screenSub">Your posted experiences will show up here after your first visit.</p>`;
@@ -1253,14 +1350,17 @@ document.getElementById('settingsBtn').onclick=()=>switchScreen('settings');
    THEME TOGGLE
 ========================================================= */
 const themeBtn=document.getElementById('themeBtn');
+const authThemeBtn=document.getElementById('authThemeBtn');
 const settingsThemeToggle=document.getElementById('settingsThemeToggle');
 function applyTheme(dark){
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  themeBtn.textContent = dark ? '☀️' : '🌙';
+  themeBtn.innerHTML = icon(dark ? 'sun' : 'moon');
+  authThemeBtn.innerHTML = icon(dark ? 'sun' : 'moon');
   settingsThemeToggle.classList.toggle('on', dark);
 }
 function toggleTheme(){ applyTheme(document.documentElement.dataset.theme !== 'dark'); }
 themeBtn.onclick = toggleTheme;
+authThemeBtn.onclick = toggleTheme;
 settingsThemeToggle.onclick = toggleTheme;
 applyTheme(false);
 
@@ -1336,27 +1436,6 @@ document.getElementById('callEnd').onclick=()=>{
 };
 document.getElementById('callMute').onclick=(e)=>{ callMuted=!callMuted; e.currentTarget.classList.toggle('active', callMuted); };
 document.getElementById('callSpeaker').onclick=(e)=>{ callSpeaker=!callSpeaker; e.currentTarget.classList.toggle('active', callSpeaker); };
-
-/* =========================================================
-   PWA-READY: inline manifest + service worker registration (§22)
-   Kept inline so the single file stays self-contained; a real deploy
-   would move these into manifest.json / service-worker.js on disk.
-========================================================= */
-try{
-  const manifest = {
-    name:'Social Circle', short_name:'Circle', start_url:'.', display:'standalone',
-    background_color:'#FBFAF7', theme_color:'#14171A',
-    icons:[{src:LOGO_SRC, sizes:'100x100', type:'image/svg+xml'}]
-  };
-  const manifestBlob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
-  const link=document.createElement('link'); link.rel='manifest'; link.href=URL.createObjectURL(manifestBlob);
-  document.head.appendChild(link);
-  if('serviceWorker' in navigator){
-    const swCode = "self.addEventListener('fetch', e => {}); self.addEventListener('install', e => self.skipWaiting());";
-    const swBlob = new Blob([swCode], {type:'application/javascript'});
-    navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(()=>{});
-  }
-}catch(err){ /* PWA registration is best-effort in this prototype */ }
 </script>
 </body>
 </html>
