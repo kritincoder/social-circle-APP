@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Social Circle</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#14171A; --ink-soft:#5A6067; --paper:#FBFAF7; --paper-dim:#F0EEE8; --line:#E3E0D8;
+  --teal:#1F98A9; --coral:#E15A42; --gold:#CE9A2E; --slate:#54677C; --green:#2C9464; --orange:#DB8236;
+  --shell-w: 232px; --topbar-h: 60px; --tabbar-h: 62px; --card-bg:#fff;
+}
+html[data-theme="dark"]{
+  --ink:#F2F1ED; --ink-soft:#A9AFB6; --paper:#15171B; --paper-dim:#1F2227; --line:#2B2E34; --card-bg:#1B1E23;
+}
+html[data-theme="dark"] body{background:var(--paper); color:var(--ink);}
+html[data-theme="dark"] .feedCard, html[data-theme="dark"] .eventCard, html[data-theme="dark"] .savedTile,
+html[data-theme="dark"] .sharedCard, html[data-theme="dark"] .searchPanel, html[data-theme="dark"] #notifDrawer,
+html[data-theme="dark"] .mapSheet, html[data-theme="dark"] .districtCard{background:var(--card-bg); color:var(--ink);}
+html[data-theme="dark"] .chip, html[data-theme="dark"] .districtChip, html[data-theme="dark"] .pillBtn,
+html[data-theme="dark"] .swipe-btn, html[data-theme="dark"] .field input{background:var(--card-bg); color:var(--ink); border-color:var(--line);}
+html[data-theme="dark"] .authCard{background:#1B1E23;}
+html[data-theme="dark"] .topbar, html[data-theme="dark"] .sidenav, html[data-theme="dark"] .tabbar{background:rgba(21,23,27,0.92); border-color:var(--line);}
+html[data-theme="dark"] .navItem:hover{background:var(--paper-dim);}
+html[data-theme="dark"] .navItem.active{background:var(--paper-dim); color:var(--teal);}
+html[data-theme="dark"] .bubble{background:var(--paper-dim); color:var(--ink);}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{font-family:'Inter',sans-serif; background:var(--paper); color:var(--ink); overflow:hidden; height:100vh;}
+h1,h2,h3,h4{font-family:'Fraunces',serif; font-weight:500;}
+.mono{font-family:'IBM Plex Mono',monospace; letter-spacing:.05em; text-transform:uppercase;}
+button{font-family:inherit; cursor:pointer;}
+input,textarea{font-family:inherit;}
+img{display:block; max-width:100%;}
+::-webkit-scrollbar{width:6px; height:6px;}
+::-webkit-scrollbar-thumb{background:var(--line); border-radius:10px;}
+
+/* ============ AUTH SCREEN ============ */
+#auth{
+  position:fixed; inset:0; background:var(--ink); color:var(--paper);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:500; padding:24px;
+}
+#auth .logoWrap{ width:104px; height:104px; margin-bottom:26px; animation: floatLogo 3.4s ease-in-out infinite; filter: drop-shadow(0 0 26px rgba(31,152,169,0.35)); }
+#auth .logoWrap img{width:100%; height:100%; border-radius:26px;}
+@keyframes floatLogo{ 0%,100%{transform:translateY(0) scale(1);} 50%{transform:translateY(-8px) scale(1.03);} }
+#auth h1{font-size:30px; text-align:center;}
+#auth p.tag{color:#9AA1A8; margin-top:8px; font-size:14.5px; text-align:center; max-width:320px;}
+.authCard{margin-top:34px; width:100%; max-width:340px; background:#1D2126; border:1px solid #2C3138; border-radius:18px; padding:26px;}
+.authToggle{display:flex; background:#14171A; border-radius:100px; padding:4px; margin-bottom:20px;}
+.authToggle button{flex:1; border:none; background:none; color:#9AA1A8; padding:9px; border-radius:100px; font-size:13.5px; font-weight:600;}
+.authToggle button.active{background:var(--paper); color:var(--ink);}
+.field{margin-bottom:12px;}
+.field label{display:block; font-size:12px; color:#9AA1A8; margin-bottom:6px;}
+.field input{width:100%; padding:11px 13px; border-radius:10px; border:1px solid #333940; background:#14171A; color:var(--paper); font-size:14px;}
+.field input:focus{outline:2px solid var(--teal); border-color:transparent;}
+.authSubmit{width:100%; margin-top:8px; padding:13px; border-radius:10px; border:none; background:var(--teal); color:#08181B; font-weight:700; font-size:14.5px;}
+.authSubmit:hover{background:#33aebd;}
+.authNote{margin-top:16px; font-size:12px; color:#767C83; text-align:center;}
+
+/* ============ APP SHELL ============ */
+#app{display:none; height:100vh; overflow:hidden;}
+#app.on{display:block;}
+
+.topbar{
+  position:fixed; top:0; left:0; right:0; height:var(--topbar-h); z-index:60;
+  background:rgba(251,250,247,0.92); backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
+  display:flex; align-items:center; justify-content:space-between; padding:0 18px 0 18px;
+}
+.topbar .tLeft{display:flex; align-items:center; gap:10px; font-family:'Fraunces',serif; font-weight:600; font-size:16.5px;}
+.topbar .tLeft img{width:30px; height:30px; border-radius:8px;}
+.topbar .tRight{display:flex; align-items:center; gap:8px;}
+.iconBtn{width:38px; height:38px; border-radius:50%; border:none; background:transparent; display:flex; align-items:center; justify-content:center; font-size:17px; position:relative;}
+.iconBtn:hover{background:var(--paper-dim);}
+.badge{position:absolute; top:5px; right:5px; width:8px; height:8px; border-radius:50%; background:var(--coral); border:1.5px solid var(--paper);}
+.avatar{width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,var(--teal),var(--green)); color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center;}
+
+.sidenav{
+  position:fixed; top:var(--topbar-h); left:0; bottom:0; width:var(--shell-w); border-right:1px solid var(--line);
+  padding:18px 12px; display:flex; flex-direction:column; gap:2px; z-index:40; background:var(--paper); overflow-y:auto;
+}
+.navItem{display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:12px; border:none; background:none; font-size:14.5px; font-weight:500; color:var(--ink-soft); text-align:left; width:100%;}
+.navItem .ic{font-size:17px; width:20px; text-align:center;}
+.navItem:hover{background:var(--paper-dim); color:var(--ink);}
+.navItem.active{background:var(--ink); color:var(--paper);}
+.navDivider{height:1px; background:var(--line); margin:12px 6px; flex-shrink:0;}
+.navGroupLabel{font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-soft); padding:10px 14px 4px;}
+
+.tabbar{display:none;}
+
+.screen{ position:fixed; top:var(--topbar-h); left:var(--shell-w); right:0; bottom:0; overflow-y:auto; display:none; }
+.screen.active{display:block;}
+.screenInner{max-width:920px; margin:0 auto; padding:28px 24px 60px;}
+.screenTitle{margin-bottom:4px;}
+.screenSub{color:var(--ink-soft); font-size:14px; margin-bottom:24px;}
+
+@media (max-width:860px){
+  .sidenav{display:none;}
+  .screen{left:0; bottom:var(--tabbar-h);}
+  .tabbar{
+    display:flex; position:fixed; left:0; right:0; bottom:0; height:var(--tabbar-h); z-index:60;
+    background:rgba(251,250,247,0.96); backdrop-filter:blur(10px); border-top:1px solid var(--line);
+  }
+  .tabbar .navItem{flex:1; flex-direction:column; gap:3px; border-radius:0; align-items:center; font-size:10.5px; padding:8px 4px;}
+  .tabbar .navItem.active{background:none; color:var(--teal);}
+  .tabbar .navItem .ic{font-size:19px;}
+  .tabbar .createBtn{flex-direction:column;}
+  .tabbar .createBtn .ic{background:var(--ink); color:#fff; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px;}
+}
+
+/* ============ CHIP FILTERS ============ */
+.chipRow{display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; margin-bottom:20px;}
+.chip{flex-shrink:0; padding:8px 15px; border-radius:100px; border:1px solid var(--line); background:var(--paper); font-size:13px; font-weight:600; color:var(--ink-soft); white-space:nowrap;}
+.chip.active{background:var(--ink); color:var(--paper); border-color:var(--ink);}
+
+/* ============ FEED ============ */
+.feedCard{border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px; background:#fff; cursor:default;}
+.feedKicker{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ink-soft); margin-bottom:10px;}
+.dot{width:6px; height:6px; border-radius:50%;}
+.feedCard h3{font-size:17px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;}
+.feedCard h3:hover{text-decoration:underline;}
+.feedCard p{font-size:13.8px; color:var(--ink-soft); margin-top:5px;}
+.feedMeta{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;}
+.pillBtn{padding:7px 14px; border-radius:100px; border:1px solid var(--line); background:none; font-size:12.5px; font-weight:600; color:var(--ink);}
+.pillBtn:hover{border-color:var(--ink);}
+.pillBtn.saved{background:var(--ink); color:var(--paper); border-color:var(--ink);}
+.pillBtn.primary{background:var(--teal); color:#08181B; border-color:var(--teal);}
+
+/* ============ SWIPE / DISCOVER ============ */
+.discoverWrap{display:flex; flex-direction:column; align-items:center;}
+.card-stack{position:relative; height:420px; width:100%; max-width:330px;}
+.swipe-card{position:absolute; inset:0; border-radius:20px; overflow:hidden; border:1px solid var(--line); display:flex; flex-direction:column; justify-content:flex-end; cursor:grab; user-select:none; touch-action:none; transition:transform .35s cubic-bezier(.2,.7,.3,1), opacity .35s; box-shadow:0 10px 30px rgba(0,0,0,.06);}
+.swipe-card .photo{position:absolute; inset:0;}
+.swipe-card .card-body{position:relative; padding:20px; background:linear-gradient(0deg, rgba(0,0,0,.78), transparent 65%); color:#fff;}
+.swipe-card h4{font-family:'Fraunces',serif; font-size:20px; font-weight:500;}
+.swipe-card p{font-size:13px; color:#E7E7E7; margin-top:4px;}
+.swipe-tag{display:inline-block; margin-top:9px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:4px 9px; border-radius:100px; background:rgba(255,255,255,.18);}
+.swipe-controls{display:flex; justify-content:center; gap:16px; margin-top:22px;}
+.swipe-btn{width:52px; height:52px; border-radius:50%; border:1.5px solid var(--line); background:#fff; font-size:20px;}
+.swipe-btn:hover{transform:translateY(-2px);}
+.swipe-btn.reject:hover{border-color:var(--coral); color:var(--coral);}
+.swipe-btn.accept:hover{border-color:var(--green); color:var(--green);}
+.signalFeed{margin-top:16px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--green); min-height:18px;}
+
+/* ============ MAP ============ */
+#mapScreen .screenInner{padding:0; max-width:none;}
+.mapTop{position:absolute; top:76px; left:0; right:0; z-index:20; padding:0 16px; display:flex; flex-direction:column; gap:10px;}
+.districtScroll{display:flex; gap:8px; overflow-x:auto;}
+.districtChip{flex-shrink:0; padding:8px 14px; border-radius:100px; background:#fff; border:1px solid var(--line); font-size:12.5px; font-weight:600; box-shadow:0 3px 10px rgba(0,0,0,.05);}
+.districtChip.active{background:var(--ink); color:#fff; border-color:var(--ink);}
+#leafletMap{position:absolute; top:var(--topbar-h); left:0; right:0; bottom:0;}
+.mapSheet{position:absolute; left:16px; right:16px; bottom:16px; z-index:30; background:#fff; border-radius:18px; border:1px solid var(--line); box-shadow:0 12px 30px rgba(0,0,0,.12); padding:18px; display:none; max-width:400px;}
+.mapSheet.show{display:block;}
+.mapSheet .closeX{position:absolute; top:10px; right:10px; border:none; background:none; font-size:14px; color:var(--ink-soft);}
+@media(max-width:860px){ .mapTop{top:72px;} }
+
+/* ============ EVENTS ============ */
+.eventCard{display:flex; gap:14px; border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:12px; background:#fff;}
+.eventDate{flex-shrink:0; width:56px; text-align:center; background:var(--paper-dim); border-radius:12px; padding:8px 0;}
+.eventDate .d{font-family:'Fraunces',serif; font-size:20px; font-weight:600;}
+.eventDate .m{font-size:10px; color:var(--ink-soft); text-transform:uppercase;}
+.eventBody h3{font-size:15.5px; font-weight:600; font-family:'Inter',sans-serif;}
+.eventBody p{font-size:13px; color:var(--ink-soft); margin-top:3px;}
+
+/* ============ MESSAGES ============ */
+.msgWrap{display:flex; height:calc(100vh - var(--topbar-h)); }
+.convoList{width:300px; flex-shrink:0; border-right:1px solid var(--line); overflow-y:auto;}
+.convoItem{display:flex; gap:12px; padding:14px 18px; border-bottom:1px solid var(--paper-dim); align-items:center;}
+.convoItem:hover, .convoItem.active{background:var(--paper-dim);}
+.convoAvatar{width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,var(--coral),var(--gold)); flex-shrink:0; color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center; font-size:14px;}
+.convoItem h4{font-size:14px; font-weight:600;}
+.convoItem p{font-size:12.5px; color:var(--ink-soft); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;}
+.threadPane{flex:1; display:flex; flex-direction:column;}
+.threadHeader{padding:16px 20px; border-bottom:1px solid var(--line); font-weight:600; font-family:'Fraunces',serif; display:flex; align-items:center; justify-content:space-between;}
+.threadMsgs{flex:1; overflow-y:auto; padding:20px;}
+.msgRow{display:flex; margin-bottom:12px;}
+.msgRow.me{justify-content:flex-end;}
+.bubble{max-width:60%; padding:10px 14px; border-radius:16px; background:var(--paper-dim); font-size:14px;}
+.msgRow.me .bubble{background:var(--ink); color:var(--paper);}
+.sharedCard{max-width:260px; border:1px solid var(--line); border-radius:14px; overflow:hidden; background:#fff; cursor:pointer;}
+.sharedCard .sc-img{height:80px;}
+.sharedCard .sc-body{padding:10px 12px;}
+.sharedCard h5{font-size:13.5px;}
+.sharedCard span{font-size:11px; color:var(--ink-soft);}
+.threadInput{display:flex; gap:10px; padding:14px 20px; border-top:1px solid var(--line);}
+.threadInput input{flex:1; padding:11px 14px; border-radius:100px; border:1px solid var(--line); font-size:14px;}
+.threadInput button{padding:0 20px; border-radius:100px; border:none; background:var(--ink); color:#fff; font-weight:600; font-size:13.5px;}
+.pinnedRow{padding:9px 20px; border-bottom:1px solid var(--line); font-size:11.5px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:.04em;}
+@media(max-width:860px){ .convoList{width:100%;} .threadPane{display:none;} .msgWrap.threadOpen .convoList{display:none;} .msgWrap.threadOpen .threadPane{display:flex;} .backBtn{display:inline-block !important;} }
+.backBtn{display:none; border:none; background:none; font-size:14px; margin-right:10px;}
+
+/* ============ PROFILE ============ */
+.profileHead{display:flex; gap:18px; align-items:center; margin-bottom:22px;}
+.profileHead .av{width:74px; height:74px; border-radius:50%; background:linear-gradient(135deg,var(--teal),var(--green)); color:#fff; display:flex; align-items:center; justify-content:center; font-size:26px; font-weight:700;}
+.interestChip{display:inline-block; padding:6px 13px; border-radius:100px; background:var(--paper-dim); font-size:12.5px; margin:0 6px 6px 0;}
+.profileTabs{display:flex; gap:22px; border-bottom:1px solid var(--line); margin:22px 0 18px;}
+.profileTabs button{background:none; border:none; padding:10px 0; font-size:13.5px; font-weight:600; color:var(--ink-soft); border-bottom:2px solid transparent;}
+.profileTabs button.active{color:var(--ink); border-color:var(--ink);}
+.savedGrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px;}
+.savedTile{border:1px solid var(--line); border-radius:14px; overflow:hidden; background:#fff; cursor:pointer;}
+.savedTile .st-img{height:90px;}
+.savedTile .st-body{padding:10px;}
+.savedTile h5{font-size:12.5px;}
+
+/* ============ SEARCH OVERLAY ============ */
+#searchOverlay{position:fixed; inset:0; background:rgba(20,23,26,0.5); z-index:200; display:none;}
+#searchOverlay.show{display:block;}
+.searchPanel{max-width:600px; margin:70px auto 0; background:#fff; border-radius:18px; padding:20px; max-height:75vh; display:flex; flex-direction:column;}
+.searchPanel input{width:100%; padding:13px 16px; border-radius:12px; border:1px solid var(--line); font-size:15px;}
+.searchResults{margin-top:14px; overflow-y:auto;}
+.searchRow{display:flex; justify-content:space-between; align-items:center; padding:11px 6px; border-bottom:1px solid var(--paper-dim); font-size:14px; cursor:pointer;}
+.searchRow span.type{font-size:11px; color:var(--ink-soft); text-transform:uppercase; font-family:'IBM Plex Mono',monospace;}
+
+/* ============ NOTIFICATIONS DRAWER ============ */
+#notifDrawer{position:fixed; top:0; right:-360px; width:340px; height:100vh; background:#fff; z-index:220; box-shadow:-10px 0 30px rgba(0,0,0,.12); transition:right .3s ease; padding:20px;}
+#notifDrawer.show{right:0;}
+#notifOverlay{position:fixed; inset:0; background:rgba(0,0,0,0.25); z-index:210; display:none;}
+#notifOverlay.show{display:block;}
+.notifItem{padding:12px 0; border-bottom:1px solid var(--paper-dim); font-size:13.5px;}
+.notifItem .nt{font-size:11px; color:var(--ink-soft); margin-top:3px;}
+
+/* ============ DISTRICTS SCREEN ============ */
+.districtCard{border:1px solid var(--line); border-radius:16px; overflow:hidden; margin-bottom:14px; background:#fff; display:flex; flex-wrap:wrap;}
+.districtCard .dc-band{width:100%; height:8px;}
+.districtCard .dc-body{padding:18px; flex:1;}
+.districtCard h3{font-size:17px; font-weight:600; font-family:'Inter',sans-serif;}
+.districtCard p{font-size:13.5px; color:var(--ink-soft); margin-top:5px;}
+.districtCard .dc-meta{margin-top:10px; font-size:12px; font-family:'IBM Plex Mono',monospace; color:var(--ink-soft);}
+
+/* ============ SETTINGS ============ */
+.settingsRow{display:flex; align-items:center; justify-content:space-between; padding:16px 0; border-bottom:1px solid var(--line);}
+.settingsRow .sLabel{font-size:14.5px; font-weight:500;}
+.settingsRow .sSub{font-size:12.5px; color:var(--ink-soft); margin-top:2px;}
+.toggleSwitch{width:44px; height:26px; border-radius:100px; background:var(--line); position:relative; border:none; flex-shrink:0; cursor:pointer;}
+.toggleSwitch::after{content:''; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:transform .2s;}
+.toggleSwitch.on{background:var(--teal);}
+.toggleSwitch.on::after{transform:translateX(18px);}
+.logoutBtn{margin-top:26px; padding:12px 22px; border-radius:100px; border:1.5px solid var(--coral); background:none; color:var(--coral); font-weight:700; font-size:13.5px;}
+.logoutBtn:hover{background:var(--coral); color:#fff;}
+
+/* ============ VOICE CALL MODAL ============ */
+#callOverlay{position:fixed; inset:0; background:rgba(10,12,14,0.6); z-index:300; display:none; align-items:center; justify-content:center;}
+#callOverlay.show{display:flex;}
+.callCard{width:100%; max-width:320px; background:var(--ink); color:var(--paper); border-radius:24px; padding:36px 26px; text-align:center;}
+.callAvatar{width:88px; height:88px; border-radius:50%; margin:0 auto 16px; background:linear-gradient(135deg,var(--teal),var(--coral)); display:flex; align-items:center; justify-content:center; font-size:30px; font-weight:700;}
+.callStatus{font-size:13px; color:#9AA1A8; margin-top:4px;}
+.callTimer{font-family:'IBM Plex Mono',monospace; font-size:14px; margin-top:6px; color:#9AA1A8;}
+.callControls{display:flex; justify-content:center; gap:16px; margin-top:30px;}
+.callBtn{width:54px; height:54px; border-radius:50%; border:none; font-size:20px; background:#2A2E34; color:#fff;}
+.callBtn.end{background:var(--coral);}
+.callBtn.active{background:var(--teal);}
+
+/* ============ EXPLORE ============ */
+.exploreSection{margin-bottom:28px;}
+.exploreSectionHead{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px;}
+.exploreSectionHead h3{font-size:15.5px; font-weight:600; font-family:'Inter',sans-serif;}
+.exploreSectionHead span{font-size:12px; color:var(--ink-soft); cursor:pointer;}
+.hScroll{display:flex; gap:12px; overflow-x:auto; padding-bottom:6px;}
+.exploreTile{flex-shrink:0; width:190px; border:1px solid var(--line); border-radius:14px; overflow:hidden; background:#fff; cursor:pointer;}
+.exploreTile .et-img{height:100px;}
+.exploreTile .et-body{padding:11px 12px;}
+.exploreTile h5{font-size:13px; font-weight:600;}
+.exploreTile span{font-size:11.5px; color:var(--ink-soft);}
+.tileGrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px;}
+.actionTile{border:1px solid var(--line); border-radius:14px; padding:16px 14px; background:#fff; text-align:left; display:flex; flex-direction:column; gap:6px;}
+.actionTile .ic{font-size:20px;}
+.actionTile h5{font-size:13px; font-weight:600;}
+.actionTile span{font-size:11.5px; color:var(--ink-soft);}
+
+/* ============ CIRCLE (friends & trust) ============ */
+.friendRow{display:flex; align-items:center; gap:12px; padding:13px 0; border-bottom:1px solid var(--paper-dim);}
+.friendAv{width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg,var(--gold),var(--coral)); color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;}
+.friendRow h4{font-size:14px; font-weight:600;}
+.friendRow p{font-size:12px; color:var(--ink-soft); margin-top:2px;}
+.friendActions{display:flex; gap:6px; margin-left:auto;}
+.reqCard{border:1px solid var(--line); border-radius:14px; padding:14px; display:flex; align-items:center; gap:12px; margin-bottom:10px; background:#fff;}
+.menuPop{position:relative; display:inline-block;}
+.menuPop .menuList{display:none; position:absolute; right:0; top:38px; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 22px rgba(0,0,0,.1); z-index:20; overflow:hidden;}
+.menuPop.open .menuList{display:block;}
+.menuList button{display:block; width:160px; text-align:left; padding:10px 14px; font-size:13px; border:none; background:#fff;}
+.menuList button:hover{background:var(--paper-dim);}
+
+/* ============ NEWS ============ */
+.newsCard{border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px; background:#fff;}
+.newsCard .src{font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; color:var(--ink-soft); letter-spacing:.04em;}
+.newsCard h3{font-size:16.5px; font-weight:600; margin-top:6px;}
+.newsCard p{font-size:13.5px; color:var(--ink-soft); margin-top:6px;}
+
+/* ============ PLACE DETAIL ============ */
+.placeHero{height:190px; border-radius:18px; margin-bottom:18px;}
+.placeHead{display:flex; justify-content:space-between; align-items:flex-start; gap:14px;}
+.placeHead h2{font-size:22px;}
+.ratingPill{font-family:'IBM Plex Mono',monospace; font-size:12.5px; background:var(--paper-dim); padding:5px 10px; border-radius:100px; flex-shrink:0;}
+.friendRatingRow{display:flex; gap:10px; align-items:center; padding:10px 0; border-bottom:1px solid var(--paper-dim); font-size:13px;}
+.miniAv{width:30px; height:30px; border-radius:50%; background:linear-gradient(135deg,var(--teal),var(--coral)); color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+
+/* ============ CREATE POST MODAL ============ */
+#createOverlay{position:fixed; inset:0; background:rgba(20,23,26,.5); z-index:250; display:none; align-items:flex-end; justify-content:center;}
+#createOverlay.show{display:flex;}
+.createSheet{width:100%; max-width:520px; background:#fff; border-radius:20px 20px 0 0; padding:22px; max-height:88vh; overflow-y:auto;}
+@media(min-width:861px){ #createOverlay{align-items:center;} .createSheet{border-radius:20px;} }
+.createSheet textarea{width:100%; border:1px solid var(--line); border-radius:12px; padding:12px 14px; font-size:14.5px; min-height:90px; resize:vertical;}
+.createSheet select{width:100%; padding:11px 13px; border-radius:10px; border:1px solid var(--line); font-size:14px; margin-top:6px;}
+.starRow{display:flex; gap:6px; margin-top:6px;}
+.starRow span{font-size:22px; cursor:pointer; opacity:.35;}
+.starRow span.on{opacity:1;}
+.tagChip{padding:6px 13px; border-radius:100px; border:1px solid var(--line); background:none; font-size:12.5px; margin:0 6px 6px 0;}
+.tagChip.on{background:var(--ink); color:#fff; border-color:var(--ink);}
+.createLabel{font-size:12px; color:var(--ink-soft); font-weight:600; margin:14px 0 4px;}
+
+/* ============ TOAST ============ */
+#toastHost{position:fixed; bottom:calc(var(--tabbar-h) + 18px); left:50%; transform:translateX(-50%); z-index:400; display:flex; flex-direction:column; gap:8px; align-items:center;}
+@media(min-width:861px){ #toastHost{bottom:24px;} }
+.toast{background:var(--ink); color:var(--paper); padding:11px 18px; border-radius:100px; font-size:13px; box-shadow:0 8px 22px rgba(0,0,0,.18); animation:toastIn .25s ease;}
+@keyframes toastIn{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);}}
+</style>
+</head>
+<body>
+
+<!-- ================= AUTH GATE ================= -->
+<div id="auth">
+  <div class="logoWrap"><img id="logoImgAuth" alt="Social Circle logo"></div>
+  <h1>Social Circle</h1>
+  <p class="tag">Sign in to enter. People, places and plans, through the friends whose taste you trust.</p>
+  <div class="authCard">
+    <div class="authToggle">
+      <button id="toLogin" class="active">Log in</button>
+      <button id="toSignup">Sign up</button>
+    </div>
+    <form id="authForm">
+      <div class="field" id="nameField" style="display:none;">
+        <label>Name</label>
+        <input type="text" id="fName" placeholder="Your name" autocomplete="name">
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="fEmail" placeholder="you@email.com" autocomplete="email" required>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="fPass" placeholder="••••••••" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="authSubmit" id="authSubmitBtn">Log in</button>
+    </form>
+    <div class="authNote">Prototype build — any email/password enters. No account is actually created.</div>
+  </div>
+</div>
+
+<!-- ================= APP SHELL ================= -->
+<div id="app">
+  <div class="topbar">
+    <div class="tLeft"><img id="logoImgTop" alt=""> Social Circle</div>
+    <div class="tRight">
+      <button class="iconBtn" id="themeBtn" title="Toggle theme">🌙</button>
+      <button class="iconBtn" id="searchBtn" title="Search">🔍</button>
+      <button class="iconBtn" id="notifBtn" title="Notifications">🔔<span class="badge" id="notifBadge"></span></button>
+      <button class="iconBtn" id="settingsBtn" title="Settings">⚙️</button>
+      <button class="iconBtn" id="profileBtn" title="Profile"><span class="avatar" id="topAvatar">Y</span></button>
+    </div>
+  </div>
+
+  <nav class="sidenav" id="sidenav"></nav>
+  <nav class="tabbar" id="tabbar"></nav>
+
+  <!-- HOME -->
+  <section class="screen active" id="screen-home">
+    <div class="screenInner">
+      <h2 class="screenTitle">Home</h2>
+      <p class="screenSub">What might I care about. Who I trust did this. What can I do next.</p>
+      <div class="chipRow" id="homeChips"></div>
+      <div id="feedList"></div>
+    </div>
+  </section>
+
+  <!-- EXPLORE -->
+  <section class="screen" id="screen-explore">
+    <div class="screenInner">
+      <h2 class="screenTitle">Explore</h2>
+      <p class="screenSub">Nearby, trending, and what your circle recommends — search or just browse.</p>
+      <div class="tileGrid" style="margin-bottom:26px;">
+        <button class="actionTile" data-screen="discover"><span class="ic">🔀</span><h5>Swipe discovery</h5><span>Teach the feed fast</span></button>
+        <button class="actionTile" data-screen="news"><span class="ic">📰</span><h5>News</h5><span>Personalised to you</span></button>
+        <button class="actionTile" data-screen="districts"><span class="ic">📍</span><h5>Districts</h5><span>Explore by area</span></button>
+        <button class="actionTile" data-screen="events"><span class="ic">📅</span><h5>Events</h5><span>What's happening</span></button>
+      </div>
+      <div class="exploreSection">
+        <div class="exploreSectionHead"><h3>Nearby places</h3><span data-screen="map">Map view</span></div>
+        <div class="hScroll" id="exploreNearby"></div>
+      </div>
+      <div class="exploreSection">
+        <div class="exploreSectionHead"><h3>Trending discoveries</h3></div>
+        <div class="hScroll" id="exploreTrending"></div>
+      </div>
+      <div class="exploreSection">
+        <div class="exploreSectionHead"><h3>Friends recommend</h3><span data-screen="circle">See circle</span></div>
+        <div class="hScroll" id="exploreFriends"></div>
+      </div>
+      <div class="exploreSection">
+        <div class="exploreSectionHead"><h3>Activities</h3></div>
+        <div class="hScroll" id="exploreActivities"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DISCOVER -->
+  <section class="screen" id="screen-discover">
+    <div class="screenInner">
+      <h2 class="screenTitle">Discover</h2>
+      <p class="screenSub">Swipe right to keep it, left to teach the feed what's not for you.</p>
+      <div class="discoverWrap">
+        <div class="card-stack" id="cardStack"></div>
+        <div class="swipe-controls">
+          <button class="swipe-btn reject" id="btnLeft">✕</button>
+          <button class="swipe-btn accept" id="btnRight">♥</button>
+        </div>
+        <div class="signalFeed" id="signalFeed">&nbsp;</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAP -->
+  <section class="screen" id="screen-map">
+    <div class="screenInner">
+      <div class="mapTop">
+        <div class="districtScroll" id="districtScroll"></div>
+        <div class="chipRow" id="mapLayerChips" style="margin-bottom:0;"></div>
+      </div>
+      <div id="leafletMap"></div>
+      <div class="mapSheet" id="mapSheet">
+        <button class="closeX" id="mapSheetClose">✕</button>
+        <div id="mapSheetBody"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EVENTS -->
+  <section class="screen" id="screen-events">
+    <div class="screenInner">
+      <h2 class="screenTitle">Events</h2>
+      <p class="screenSub">What's happening, and when.</p>
+      <div class="chipRow" id="eventChips"></div>
+      <div id="eventList"></div>
+    </div>
+  </section>
+
+  <!-- DISTRICTS -->
+  <section class="screen" id="screen-districts">
+    <div class="screenInner">
+      <h2 class="screenTitle">Districts</h2>
+      <p class="screenSub">The geographic heartbeat of the network — tap through to see it on the map.</p>
+      <div id="districtList"></div>
+    </div>
+  </section>
+
+  <!-- NEWS -->
+  <section class="screen" id="screen-news">
+    <div class="screenInner">
+      <h2 class="screenTitle">News</h2>
+      <p class="screenSub">Personalised from your interests and location — source always shown. Right for more like this, left for less.</p>
+      <div id="newsList"></div>
+    </div>
+  </section>
+
+  <!-- CIRCLE -->
+  <section class="screen" id="screen-circle">
+    <div class="screenInner">
+      <h2 class="screenTitle">Circle</h2>
+      <p class="screenSub">The people whose taste shapes what you see.</p>
+      <div id="reqSection"></div>
+      <h3 style="font-size:15px; margin:18px 0 6px;">Your friends</h3>
+      <div id="friendsList"></div>
+    </div>
+  </section>
+
+  <!-- PLACE DETAIL -->
+  <section class="screen" id="screen-place">
+    <div class="screenInner" id="placeDetailBody"></div>
+  </section>
+
+  <!-- MESSAGES -->
+  <section class="screen" id="screen-messages">
+    <div class="msgWrap" id="msgWrap">
+      <div class="convoList" id="convoList"></div>
+      <div class="threadPane" id="threadPane">
+        <div class="threadHeader">
+          <span style="display:flex;align-items:center;"><button class="backBtn" id="backBtn">← Back</button><span id="threadTitle"></span></span>
+          <button class="iconBtn" id="callBtn" title="Voice call">📞</button>
+        </div>
+        <div class="pinnedRow" id="pinnedRow" style="display:none;"></div>
+        <div class="threadMsgs" id="threadMsgs"></div>
+        <div class="threadInput">
+          <input type="text" id="msgInput" placeholder="Message…">
+          <button id="sendBtn">Send</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROFILE -->
+  <section class="screen" id="screen-profile">
+    <div class="screenInner">
+      <div class="profileHead">
+        <div class="av" id="profAv">Y</div>
+        <div>
+          <h2 id="profName">You</h2>
+          <p class="screenSub" style="margin:2px 0 0;" id="profBio">Exploring Delhi, one recommendation at a time.</p>
+        </div>
+      </div>
+      <div id="profInterests"></div>
+      <div class="profileTabs" id="profileTabs">
+        <button class="active" data-t="saved">Saved</button>
+        <button data-t="posts">Posts</button>
+        <button data-t="events">Events</button>
+      </div>
+      <div id="profileTabContent"></div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="screen" id="screen-settings">
+    <div class="screenInner" style="max-width:560px;">
+      <h2 class="screenTitle">Settings</h2>
+      <p class="screenSub">Privacy is part of the object model, not bolted on at the end.</p>
+      <div class="settingsRow"><div><div class="sLabel">Dark mode</div><div class="sSub">Switch the whole app to a dark theme.</div></div><button class="toggleSwitch" id="settingsThemeToggle"></button></div>
+      <div class="settingsRow"><div><div class="sLabel">Share live location with close friends</div><div class="sSub">Off by default. A saved place is never the same as a live location.</div></div><button class="toggleSwitch" id="toggleLive"></button></div>
+      <div class="settingsRow"><div><div class="sLabel">Friend activity in feed</div><div class="sSub">Let friends' saves and visits show up as cards on your Home feed.</div></div><button class="toggleSwitch on" id="toggleFriendActivity"></button></div>
+      <div class="settingsRow"><div><div class="sLabel">Weekly digest email</div><div class="sSub">A Sunday summary of what your circle saved this week.</div></div><button class="toggleSwitch" id="toggleDigest"></button></div>
+      <div class="settingsRow"><div><div class="sLabel">Discoverable by email</div><div class="sSub">Let people who have your email find your profile in Search.</div></div><button class="toggleSwitch on" id="toggleDiscoverable"></button></div>
+      <button class="logoutBtn" id="logoutBtn">Log out</button>
+    </div>
+  </section>
+</div>
+
+<!-- CREATE POST -->
+<div id="createOverlay">
+  <div class="createSheet">
+    <h3 style="font-size:18px;">Share an experience</h3>
+    <p class="screenSub" style="margin:4px 0 0;">A post says "I went here." The place page stays the same for everyone.</p>
+    <div class="createLabel">What happened</div>
+    <textarea id="postText" placeholder="What was it like?"></textarea>
+    <div class="createLabel">Place</div>
+    <select id="postPlace"></select>
+    <div class="createLabel">Rating</div>
+    <div class="starRow" id="postStars">★★★★★</div>
+    <div class="createLabel">Tags</div>
+    <div id="postTags"></div>
+    <button class="pillBtn primary" id="postSubmit" style="width:100%; margin-top:16px; padding:12px;">Post experience</button>
+  </div>
+</div>
+
+<!-- VOICE CALL MODAL -->
+<div id="callOverlay">
+  <div class="callCard">
+    <div class="callAvatar" id="callAvatar">M</div>
+    <h3 id="callName">Meera</h3>
+    <div class="callStatus" id="callStatus">Calling…</div>
+    <div class="callTimer" id="callTimer">00:00</div>
+    <div class="callControls">
+      <button class="callBtn" id="callMute" title="Mute">🎤</button>
+      <button class="callBtn end" id="callEnd" title="End call">⏹</button>
+      <button class="callBtn" id="callSpeaker" title="Speaker">🔊</button>
+    </div>
+  </div>
+</div>
+
+<!-- SEARCH OVERLAY -->
+<div id="searchOverlay">
+  <div class="searchPanel">
+    <input type="text" id="searchInput" placeholder="Search people, places, events, districts…">
+    <div class="searchResults" id="searchResults"></div>
+  </div>
+</div>
+
+<!-- NOTIFICATIONS DRAWER -->
+<div id="notifOverlay"></div>
+<div id="notifDrawer">
+  <h3 style="margin-bottom:14px;">Notifications</h3>
+  <div id="notifList"></div>
+</div>
+
+<div id="toastHost"></div>
+
+<script>
+/* =========================================================
+   LOGO
+========================================================= */
+const LOGO_SRC = "data:image/svg+xml;utf8," + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='#14171A'/><circle cx='50' cy='40' r='16' fill='#1F98A9'/><circle cx='30' cy='68' r='12' fill='#E15A42'/><circle cx='70' cy='68' r='12' fill='#CE9A2E'/></svg>`);
+document.getElementById('logoImgAuth').src = LOGO_SRC;
+document.getElementById('logoImgTop').src = LOGO_SRC;
+
+/* =========================================================
+   MOCK DATA
+========================================================= */
+const districts = [
+  {id:'hk', name:'Hauz Khas', lat:28.5535, lng:77.1936, color:'#1F98A9', desc:'Village lanes, cafés, weekend crowd.'},
+  {id:'cp', name:'Connaught Place', lat:28.6315, lng:77.2167, color:'#E15A42', desc:'The city centre — always something on.'},
+  {id:'gk', name:'Greater Kailash', lat:28.5494, lng:77.2426, color:'#DB8236', desc:'Markets, brunch spots, quieter streets.'},
+  {id:'dlf', name:'Cyber Hub, Gurugram', lat:28.4950, lng:77.0890, color:'#54677C', desc:'Late nights, tech crowd, rooftop bars.'},
+  {id:'hz', name:'Hauz Khas Village', lat:28.5560, lng:77.2000, color:'#CE9A2E', desc:'Art, live music, lakeside views.'},
+  {id:'sk', name:'Saket', lat:28.5245, lng:77.2066, color:'#2C9464', desc:'Malls, multiplexes, easy weeknight plans.'},
+  {id:'ip', name:'Vasant Kunj Strip', lat:28.5200, lng:77.1591, color:'#E15A42', desc:'Brunch spots and a growing café scene.'},
+];
+
+const places = [
+  {id:'p1', name:'Kunzum Travel Café', district:'hk', lat:28.5540, lng:77.1946, category:'Café', color:'#1F98A9', rating:4.6, address:'Hauz Khas Village Rd, Delhi', friend:'Kritin went here and loved it', note:'Chai, maps on the wall, and a table full of trip planning.'},
+  {id:'p2', name:'Late Night Dhaba Run', district:'cp', lat:28.6320, lng:77.2180, category:'Food', color:'#E15A42', rating:4.4, address:'Inner Circle, Connaught Place', friend:'Meera and Zoya went twice this month', note:'Open past midnight, loud, exactly what the group chat asked for.'},
+  {id:'p3', name:'Sunder Nursery', district:'gk', lat:28.5980, lng:77.2500, category:'Outdoors', color:'#DB8236', rating:4.8, address:'Nizamuddin, Delhi', friend:'3 friends went this month', note:'A quiet loop through the gardens — good for a slow Sunday.'},
+  {id:'p4', name:'Cyber Hub Rooftop', district:'dlf', lat:28.4955, lng:77.0900, category:'Nightlife', color:'#54677C', rating:4.3, address:'Cyber Hub, Gurugram', friend:'Popular with your circle', note:'Rooftop, good playlist, easy to find a table before 8.'},
+  {id:'p5', name:'Hauz Khas Lake Deck', district:'hz', lat:28.5565, lng:77.2010, category:'Outdoors', color:'#CE9A2E', rating:4.7, address:'Deer Park Rd, Hauz Khas Village', friend:'Arjun saved this last week', note:'Best at golden hour, right by the fort ruins.'},
+  {id:'p6', name:'Indie Gaming Lounge', district:'hk', lat:28.5520, lng:77.1960, category:'Activity', color:'#2C9464', rating:4.5, address:'Hauz Khas Main Rd', friend:'Matches your interests', note:'A monthly meetup two friends have attended twice.'},
+  {id:'p7', name:'Select Citywalk Rooftop', district:'sk', lat:28.5280, lng:77.2190, category:'Food', color:'#2C9464', rating:4.2, address:'District Centre, Saket', friend:'2 friends went after work', note:'Easy pre-movie dinner spot, always crowded after 8.'},
+  {id:'p8', name:'Third Wave Coffee', district:'ip', lat:28.5215, lng:77.1560, category:'Café', color:'#E15A42', rating:4.5, address:'Vasant Kunj Market', friend:'Your circle rates this highly', note:'Good for working from, plug points at every table.'},
+  {id:'p9', name:'Champa Gali Art Walk', district:'sk', lat:28.5300, lng:77.2010, category:'Outdoors', color:'#DB8236', rating:4.6, address:'Champa Gali, Saidulajab', friend:'Zoya posted about this last week', note:'A maze of studios and small galleries, best on weekends.'},
+  {id:'p10', name:'CP Inner Circle Bookshops', district:'cp', lat:28.6330, lng:77.2195, category:'Activity', color:'#54677C', rating:4.4, address:'Inner Circle, Connaught Place', friend:'Arjun goes most weekends', note:'Secondhand stacks worth an hour of getting lost in.'},
+];
+
+const events = [
+  {id:'e1', title:'Indie Gaming Meetup', date:'AUG 30', category:'Gaming', district:'hk', lat:28.5525, lng:77.1955, note:'Board games, indie devs demoing builds, snacks included.', friends:'2 friends interested', saved:false},
+  {id:'e2', title:'Delhi Food Crawl', date:'SEP 02', category:'Food', district:'gk', lat:28.5498, lng:77.2430, note:'A guided crawl through five stalls in Greater Kailash.', friends:'Meera is going', saved:true},
+  {id:'e3', title:'Rooftop Tech Meetup', date:'SEP 05', category:'Technology', district:'dlf', lat:28.4958, lng:77.0895, note:'Lightning talks on local startups, open bar after.', friends:'4 mutuals saved this', saved:false},
+  {id:'e4', title:'Live Music at the Lake', date:'SEP 07', category:'Entertainment', district:'hz', lat:28.5568, lng:77.2015, note:'An acoustic set right on the Hauz Khas lake deck.', friends:'Arjun and Zoya saved this', saved:false},
+  {id:'e5', title:'Champa Gali Studio Walk', date:'SEP 09', category:'Entertainment', district:'sk', lat:28.5302, lng:77.2015, note:'Open studios, small-batch prints, coffee carts along the lane.', friends:'Meera is going', saved:false},
+  {id:'e6', title:'Weeknight Trivia', date:'SEP 11', category:'Entertainment', district:'ip', lat:28.5218, lng:77.1565, note:'Teams of four, prizes are mostly bragging rights.', friends:'3 friends interested', saved:false},
+  {id:'e7', title:'CP Book Swap', date:'SEP 13', category:'Technology', district:'cp', lat:28.6332, lng:77.2200, note:'Bring three, take three — mostly sci-fi and design books.', friends:'Arjun saved this', saved:false},
+  {id:'e8', title:'Food Photography Walk', date:'SEP 14', category:'Food', district:'sk', lat:28.5283, lng:77.2192, note:'A slow walk through Select Citywalk stalls, phones only.', friends:'2 mutuals saved this', saved:false},
+];
+
+let feed = [
+  {type:'friend', color:'#1F98A9', kicker:'Kritin recommends', title:'Kunzum Travel Café', body:'"Best chai in Hauz Khas, and the wall maps are worth the trip alone."', place:'p1'},
+  {type:'district', color:'#DB8236', kicker:'Trending in Greater Kailash', title:'Sunder Nursery is having a moment', body:'12 posts from your circle this week — mostly weekend morning walks.', place:'p3'},
+  {type:'event', color:'#54677C', kicker:'Event near you', title:'Rooftop Tech Meetup — Sep 5', body:'4 mutual friends have already saved this one.', eventId:'e3'},
+  {type:'friend', color:'#2C9464', kicker:'Meera and Zoya went together', title:'Late Night Dhaba Run', body:'"We went back two weeks in a row. Get the paratha."', place:'p2'},
+  {type:'news', color:'#CE9A2E', kicker:'Technology · Delhi', title:"Gurugram's indie tech scene is quietly booming", body:'A dozen new meetups have started in Cyber Hub this quarter.'},
+  {type:'friend', color:'#DB8236', kicker:'Zoya posted an experience', title:'Champa Gali Art Walk', body:'"Found a print I\'m still thinking about. Go on a weekday if you can."', place:'p9'},
+  {type:'district', color:'#2C9464', kicker:'Active this week in Saket', title:'Select Citywalk Rooftop is picking up', body:'Three friends went after work this week — easy pre-movie stop.', place:'p7'},
+  {type:'event', color:'#E15A42', kicker:'Arjun sent you this', title:'CP Book Swap — Sep 13', body:'Bring three, take three. Mostly sci-fi and design books.', eventId:'e7'},
+  {type:'friend', color:'#54677C', kicker:'Arjun goes most weekends', title:'CP Inner Circle Bookshops', body:'"Secondhand stacks worth an hour of getting lost in."', place:'p10'},
+];
+
+const conversations = [
+  {id:'c1', name:'Meera', isGroup:false, unread:1, messages:[
+    {from:'them', text:'You have to try the new dhaba, seriously.'},
+    {from:'me', text:'Sending it to the group?'},
+    {shared:{title:'Late Night Dhaba Run', sub:'Food · Connaught Place', color:'#E15A42', place:'p2'}}
+  ]},
+  {id:'c2', name:'Weekend Plans 🗺️', isGroup:true, unread:0, messages:[
+    {from:'them', name:'Arjun', text:'Lake deck this Saturday?'},
+    {shared:{title:'Hauz Khas Lake Deck', sub:'Outdoors · Hauz Khas Village', color:'#CE9A2E', place:'p5'}},
+    {from:'me', text:'In. Golden hour?'},
+  ]},
+  {id:'c3', name:'Zoya', isGroup:false, unread:0, messages:[
+    {from:'them', text:'Saved the rooftop meetup for us.'},
+    {shared:{title:'Rooftop Tech Meetup', sub:'Sep 5 · Cyber Hub', color:'#54677C', eventId:'e3'}},
+  ]},
+  {id:'c4', name:'Arjun', isGroup:false, unread:2, messages:[
+    {from:'them', text:'CP bookshops this weekend? Been meaning to go.'},
+    {from:'them', text:'Also found a book swap event nearby.'},
+    {shared:{title:'CP Book Swap', sub:'Sep 13 · Connaught Place', color:'#E15A42', eventId:'e7'}},
+  ]},
+  {id:'c5', name:'Foodies Only 🍜', isGroup:true, unread:0, messages:[
+    {from:'them', name:'Zoya', text:'Champa Gali food walk on the 14th?'},
+    {shared:{title:'Food Photography Walk', sub:'Sep 14 · Saket', color:'#DB8236', eventId:'e8'}},
+    {from:'them', name:'Kritin', text:'In, obviously.'},
+  ]},
+];
+
+const notifications = [
+  {text:'Kritin recommended Kunzum Travel Café.', time:'2h ago'},
+  {text:'2 friends are interested in Rooftop Tech Meetup.', time:'5h ago'},
+  {text:'Weekend Plans 🗺️ — new message from Arjun.', time:'Yesterday'},
+  {text:'Sunder Nursery is trending in your district.', time:'2 days ago'},
+  {text:'Arjun sent you the CP Book Swap event.', time:'2 days ago'},
+  {text:'Zoya posted an experience at Champa Gali.', time:'3 days ago'},
+  {text:'Foodies Only 🍜 — 3 new messages.', time:'4 days ago'},
+];
+
+const friends = [
+  {id:'f1', name:'Meera', mutuals:6, note:'Shares your taste in food spots', avatarBg:'linear-gradient(135deg,#CE9A2E,#E15A42)'},
+  {id:'f2', name:'Arjun', mutuals:9, note:'Shares 3 saved places with you', avatarBg:'linear-gradient(135deg,#1F98A9,#2C9464)'},
+  {id:'f3', name:'Zoya', mutuals:4, note:'Recently posted near Saket', avatarBg:'linear-gradient(135deg,#E15A42,#DB8236)'},
+  {id:'f4', name:'Kritin', mutuals:12, note:'Founding member of your circle', avatarBg:'linear-gradient(135deg,#54677C,#1F98A9)'},
+];
+const friendRequests = [
+  {id:'r1', name:'Priya', mutuals:3, note:'3 mutual friends, incl. Meera'},
+  {id:'r2', name:'Devansh', mutuals:1, note:'1 mutual friend, incl. Arjun'},
+];
+
+const newsItems = [
+  {id:'n1', source:'Delhi Metro Times', category:'Local', title:"Gurugram's indie tech scene is quietly booming", body:'A dozen new meetups have started in Cyber Hub this quarter, mostly organised outside the big conference circuit.'},
+  {id:'n2', source:'The Hauz Khas Journal', category:'Food', title:'Five new cafés worth the detour this month', body:'From filter-coffee bars to a nursery-adjacent brunch spot, the neighbourhood keeps adding places worth a Saturday morning.'},
+  {id:'n3', source:'Citywalk Weekly', category:'Entertainment', title:'Saket galleries lean into open-studio weekends', body:'Champa Gali is expanding its open-studio program, with more artists opening their doors on Sundays.'},
+  {id:'n4', source:'Delhi Outdoors', category:'Outdoors', title:'Sunder Nursery adds a new evening walking loop', body:'A quieter path through the gardens opens this month, timed for the cooler evening hours.'},
+  {id:'n5', source:'Gurugram Now', category:'Technology', title:'Cyber Hub rooftop scene keeps expanding', body:'Three new rooftop venues have opened this year, each leaning into a different crowd — from live music to quiet after-work drinks.'},
+];
+
+const TAGS = ['Chill','Group-friendly','Good for work','Date spot','Budget','Live music','Outdoors','Late night'];
+
+const state = {
+  savedPlaces:new Set(['p1']),
+  savedEvents:new Set(['e2']),
+  activeConvo:'c1',
+  mapLayer:'all',
+  activeDistrict:null,
+  eventFilter:'All',
+  homeFilter:'All',
+  activePlace:null,
+  postRating:4,
+  postTags:new Set(),
+};
+
+/* =========================================================
+   ANALYTICS (mock — logs to console, per spec §29)
+========================================================= */
+function track(eventName, data){ console.log('[analytics]', eventName, data||{}); }
+
+/* =========================================================
+   TOAST
+========================================================= */
+function toast(msg){
+  const host=document.getElementById('toastHost');
+  const t=document.createElement('div'); t.className='toast'; t.textContent=msg;
+  host.appendChild(t);
+  setTimeout(()=>t.remove(), 2600);
+}
+
+/* =========================================================
+   AUTH
+========================================================= */
+const toLogin=document.getElementById('toLogin'), toSignup=document.getElementById('toSignup');
+const nameField=document.getElementById('nameField'), authSubmitBtn=document.getElementById('authSubmitBtn');
+toLogin.onclick=()=>{toLogin.classList.add('active'); toSignup.classList.remove('active'); nameField.style.display='none'; authSubmitBtn.textContent='Log in';};
+toSignup.onclick=()=>{toSignup.classList.add('active'); toLogin.classList.remove('active'); nameField.style.display='block'; authSubmitBtn.textContent='Create account';};
+document.getElementById('authForm').addEventListener('submit', e=>{
+  e.preventDefault();
+  const nm = document.getElementById('fName').value.trim();
+  const email = document.getElementById('fEmail').value.trim();
+  const displayName = nm || (email.split('@')[0] || 'You');
+  document.getElementById('profName').textContent = displayName;
+  const initial = displayName[0].toUpperCase();
+  document.getElementById('profAv').textContent = initial;
+  document.getElementById('topAvatar').textContent = initial;
+  document.getElementById('auth').style.display='none';
+  document.getElementById('app').classList.add('on');
+  track('onboarding_completed',{name:displayName});
+  initMap();
+});
+
+/* =========================================================
+   NAV — bottom tabbar matches spec: HOME · EXPLORE · +CREATE · MAP · CIRCLE
+   Everything else (Discover, Districts, Events, News, Messages, Profile, Settings)
+   is reached contextually via Explore tiles, the topbar icons, or the desktop sidenav.
+========================================================= */
+const NAV_PRIMARY = [
+  {id:'home', label:'Home', ic:'🏠'},
+  {id:'explore', label:'Explore', ic:'🧭'},
+  {id:'create', label:'Create', ic:'✚', action:true, cls:'createBtn'},
+  {id:'map', label:'Map', ic:'🗺️'},
+  {id:'circle', label:'Circle', ic:'👥'},
+];
+const NAV_SECONDARY = [
+  {id:'discover', label:'Swipe discovery', ic:'🔀'},
+  {id:'districts', label:'Districts', ic:'📍'},
+  {id:'events', label:'Events', ic:'📅'},
+  {id:'news', label:'News', ic:'📰'},
+  {id:'messages', label:'Messages', ic:'💬'},
+  {id:'profile', label:'Profile', ic:'👤'},
+  {id:'settings', label:'Settings', ic:'⚙️'},
+];
+function buildNavButton(item){
+  const b=document.createElement('button');
+  b.className='navItem'+(item.id==='home'?' active':'')+(item.cls?(' '+item.cls):'');
+  b.dataset.screen=item.id;
+  b.innerHTML=`<span class="ic">${item.ic}</span><span>${item.label}</span>`;
+  if(item.action){ b.onclick=()=>openCreate(); }
+  else { b.onclick=()=>switchScreen(item.id); }
+  return b;
+}
+function buildNav(){
+  const side=document.getElementById('sidenav'), tab=document.getElementById('tabbar');
+  NAV_PRIMARY.forEach(item=>{ side.appendChild(buildNavButton(item)); tab.appendChild(buildNavButton(item)); });
+  const label=document.createElement('div'); label.className='navGroupLabel'; label.textContent='More';
+  side.appendChild(document.createElement('div')).className='navDivider';
+  side.appendChild(label);
+  NAV_SECONDARY.forEach(item=> side.appendChild(buildNavButton(item)));
+}
+buildNav();
+
+function switchScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const target=document.getElementById('screen-'+id);
+  if(!target) return;
+  target.classList.add('active');
+  document.querySelectorAll('.navItem').forEach(n=>n.classList.toggle('active', n.dataset.screen===id));
+  if(id==='map' && window._leafletMap){ setTimeout(()=>window._leafletMap.invalidateSize(),50); }
+}
+document.querySelectorAll('[data-screen]').forEach(el=>{
+  if(el.classList.contains('navItem')) return;
+  el.addEventListener('click', ()=>switchScreen(el.dataset.screen));
+});
+
+/* =========================================================
+   HOME FEED
+========================================================= */
+const homeChipsEl=document.getElementById('homeChips');
+['All','Friends','District','Events','News'].forEach(c=>{
+  const chip=document.createElement('button');
+  chip.className='chip'+(c==='All'?' active':'');
+  chip.textContent=c;
+  chip.onclick=()=>{state.homeFilter=c; document.querySelectorAll('#homeChips .chip').forEach(x=>x.classList.remove('active')); chip.classList.add('active'); renderFeed();};
+  homeChipsEl.appendChild(chip);
+});
+function renderFeed(){
+  const list=document.getElementById('feedList'); list.innerHTML='';
+  const filterMap={'Friends':'friend','District':'district','Events':'event','News':'news'};
+  feed.filter(f=> state.homeFilter==='All' || f.type===filterMap[state.homeFilter]).forEach(f=>{
+    const card=document.createElement('div'); card.className='feedCard';
+    const isSaved = f.place ? state.savedPlaces.has(f.place) : (f.eventId ? state.savedEvents.has(f.eventId) : false);
+    card.innerHTML=`
+      <div class="feedKicker"><span class="dot" style="background:${f.color}"></span>${f.kicker}</div>
+      <h3 ${f.place?`data-place="${f.place}"`:''}>${f.title}</h3><p>${f.body}</p>
+      ${(f.place||f.eventId)?`<div class="feedMeta"><button class="pillBtn ${isSaved?'saved':''}" data-kind="${f.place?'place':'event'}" data-id="${f.place||f.eventId}">${isSaved?'Saved':'Save'}</button>${f.place?`<button class="pillBtn" data-openplace="${f.place}">View place</button>`:''}<button class="pillBtn" data-goto="map">View on map</button></div>`:''}
+    `;
+    list.appendChild(card);
+  });
+  list.querySelectorAll('h3[data-place]').forEach(h=> h.onclick=()=>openPlace(h.dataset.place));
+  list.querySelectorAll('[data-openplace]').forEach(b=> b.onclick=()=>openPlace(b.dataset.openplace));
+  list.querySelectorAll('.pillBtn[data-id]').forEach(btn=>{
+    btn.onclick=()=>{
+      const set = btn.dataset.kind==='place'?state.savedPlaces:state.savedEvents;
+      const id=btn.dataset.id;
+      if(set.has(id)){set.delete(id); btn.classList.remove('saved'); btn.textContent='Save';}
+      else{set.add(id); btn.classList.add('saved'); btn.textContent='Saved'; track(btn.dataset.kind==='place'?'place_saved':'event_saved',{id});}
+      renderProfileTab();
+    };
+  });
+  list.querySelectorAll('.pillBtn[data-goto]').forEach(btn=>btn.onclick=()=>switchScreen(btn.dataset.goto));
+}
+renderFeed();
+
+/* =========================================================
+   EXPLORE
+========================================================= */
+function placeTileHtml(p){
+  return `<div class="exploreTile" data-place="${p.id}"><div class="et-img" style="background:linear-gradient(160deg, ${p.color}77, #14171A 90%)"></div><div class="et-body"><h5>${p.name}</h5><span>${p.category} · ★${p.rating}</span></div></div>`;
+}
+function eventTileHtml(e){
+  return `<div class="exploreTile" data-event="${e.id}"><div class="et-img" style="background:linear-gradient(160deg, #54677C77, #14171A 90%)"></div><div class="et-body"><h5>${e.title}</h5><span>${e.date} · ${e.category}</span></div></div>`;
+}
+function renderExplore(){
+  document.getElementById('exploreNearby').innerHTML = places.slice(0,6).map(placeTileHtml).join('');
+  document.getElementById('exploreTrending').innerHTML = [places[2],places[8],places[4],places[6]].map(placeTileHtml).join('');
+  document.getElementById('exploreFriends').innerHTML = [places[0],places[9],places[1]].map(placeTileHtml).join('');
+  document.getElementById('exploreActivities').innerHTML = events.slice(0,5).map(eventTileHtml).join('');
+  document.querySelectorAll('#screen-explore [data-place]').forEach(t=>t.onclick=()=>openPlace(t.dataset.place));
+  document.querySelectorAll('#screen-explore [data-event]').forEach(t=>t.onclick=()=>{ switchScreen('events'); toast('Jump to Events for details'); });
+}
+renderExplore();
+
+/* =========================================================
+   DISCOVER (SWIPE)
+========================================================= */
+let deck=[...places, ...events.map(e=>({id:e.id,name:e.title,category:e.category,color:'#54677C',friend:e.friends,note:e.note,isEvent:true}))];
+const stackEl=document.getElementById('cardStack'), sigFeed=document.getElementById('signalFeed');
+function renderStack(){
+  stackEl.innerHTML='';
+  if(deck.length===0){
+    stackEl.innerHTML=`<div class="swipe-card" style="display:flex;align-items:center;justify-content:center;background:var(--paper-dim);"><p style="padding:24px;text-align:center;color:var(--ink-soft);">That's every card for now — check back after your feed updates.</p></div>`;
+    return;
+  }
+  deck.slice(0,3).forEach((p,i)=>{
+    const el=document.createElement('div'); el.className='swipe-card';
+    el.style.zIndex=10-i;
+    el.style.transform=`translateY(${i*8}px) scale(${1-i*0.035})`;
+    el.style.opacity = i===2?0.5:1;
+    el.innerHTML=`<div class="photo" style="background:linear-gradient(160deg, ${p.color}66, #14171A 88%)"></div>
+      <div class="card-body"><h4>${p.name}</h4><p>${p.note}</p><span class="swipe-tag">${p.friend||p.category}</span></div>`;
+    if(i===0) attachDrag(el,p);
+    stackEl.appendChild(el);
+  });
+}
+function decideCard(dir,p){
+  sigFeed.textContent = dir==='right' ? `✓ learned: more like "${p.name}" and places your friends visit` : `✓ learned: fewer cards like "${p.name}"`;
+  track(dir==='right'?'swipe_right':'swipe_left',{id:p.id});
+  if(dir==='right'){ if(p.isEvent) state.savedEvents.add(p.id); else state.savedPlaces.add(p.id); renderProfileTab(); renderFeed(); }
+  deck.shift(); renderStack();
+}
+function attachDrag(el,p){
+  let startX=0,dx=0,dragging=false;
+  el.addEventListener('pointerdown', e=>{dragging=true; startX=e.clientX; el.setPointerCapture(e.pointerId); el.style.transition='none';});
+  el.addEventListener('pointermove', e=>{ if(!dragging) return; dx=e.clientX-startX; el.style.transform=`translateX(${dx}px) rotate(${dx/18}deg)`;});
+  const release=()=>{
+    if(!dragging) return; dragging=false; el.style.transition='';
+    if(dx>90){el.style.transform='translateX(500px) rotate(20deg)'; el.style.opacity=0; setTimeout(()=>decideCard('right',p),240);}
+    else if(dx<-90){el.style.transform='translateX(-500px) rotate(-20deg)'; el.style.opacity=0; setTimeout(()=>decideCard('left',p),240);}
+    else{el.style.transform='';}
+    dx=0;
+  };
+  el.addEventListener('pointerup', release);
+  el.addEventListener('pointerleave', ()=>{if(dragging) release();});
+}
+document.getElementById('btnLeft').onclick=()=>{ if(deck[0]) decideCard('left',deck[0]); };
+document.getElementById('btnRight').onclick=()=>{ if(deck[0]) decideCard('right',deck[0]); };
+renderStack();
+
+/* =========================================================
+   MAP
+========================================================= */
+let markersLayer;
+function initMap(){
+  if(window._leafletMap) return;
+  const map=L.map('leafletMap',{zoomControl:false}).setView([28.58,77.19],12);
+  L.control.zoom({position:'bottomright'}).addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'&copy; OpenStreetMap contributors', maxZoom:19
+  }).addTo(map);
+  window._leafletMap=map;
+  markersLayer=L.layerGroup().addTo(map);
+  renderMapMarkers();
+
+  const dScroll=document.getElementById('districtScroll');
+  const allChip=document.createElement('button'); allChip.className='districtChip active'; allChip.textContent='All districts';
+  allChip.onclick=()=>{state.activeDistrict=null; document.querySelectorAll('.districtChip').forEach(c=>c.classList.remove('active')); allChip.classList.add('active'); map.setView([28.58,77.19],12); renderMapMarkers();};
+  dScroll.appendChild(allChip);
+  districts.forEach(d=>{
+    const chip=document.createElement('button'); chip.className='districtChip'; chip.textContent=d.name;
+    chip.onclick=()=>{
+      state.activeDistrict=d.id;
+      document.querySelectorAll('.districtChip').forEach(c=>c.classList.remove('active')); chip.classList.add('active');
+      map.flyTo([d.lat,d.lng],14.5,{duration:0.8});
+      renderMapMarkers();
+      openSheet(`<div class="feedKicker"><span class="dot" style="background:${d.color}"></span>DISTRICT</div><h3>${d.name}</h3><p style="color:var(--ink-soft);font-size:13.5px;margin-top:6px;">${d.desc}</p>`);
+    };
+    dScroll.appendChild(chip);
+  });
+
+  const layerChips=document.getElementById('mapLayerChips');
+  [['all','All'],['places','Places'],['events','Events'],['friends','Friends']].forEach(([key,label])=>{
+    const chip=document.createElement('button'); chip.className='chip'+(key==='all'?' active':''); chip.textContent=label;
+    chip.onclick=()=>{state.mapLayer=key; document.querySelectorAll('#mapLayerChips .chip').forEach(c=>c.classList.remove('active')); chip.classList.add('active'); renderMapMarkers();};
+    layerChips.appendChild(chip);
+  });
+}
+function renderMapMarkers(){
+  markersLayer.clearLayers();
+  const showPlaces = state.mapLayer==='all'||state.mapLayer==='places'||state.mapLayer==='friends';
+  const showEvents = state.mapLayer==='all'||state.mapLayer==='events';
+  if(showPlaces){
+    places.filter(p=> !state.activeDistrict || p.district===state.activeDistrict).forEach(p=>{
+      const m=L.circleMarker([p.lat,p.lng],{radius:9,color:p.color,fillColor:p.color,fillOpacity:0.9,weight:2}).addTo(markersLayer);
+      m.on('click',()=>{ openSheet(placeSheetHtml(p)); track('place_opened',{id:p.id}); });
+    });
+  }
+  if(showEvents){
+    events.filter(e=> !state.activeDistrict || e.district===state.activeDistrict).forEach(e=>{
+      const m=L.circleMarker([e.lat,e.lng],{radius:9,color:'#54677C',fillColor:'#54677C',fillOpacity:0.9,weight:2,dashArray:'2,2'}).addTo(markersLayer);
+      m.on('click',()=>openSheet(eventSheetHtml(e)));
+    });
+  }
+}
+function placeSheetHtml(p){
+  const isSaved=state.savedPlaces.has(p.id);
+  return `<div class="feedKicker"><span class="dot" style="background:${p.color}"></span>${p.category.toUpperCase()}</div>
+    <h3>${p.name}</h3><p style="color:var(--ink-soft);font-size:13.5px;margin-top:4px;">${p.note}</p>
+    <p style="font-size:12.5px;color:${p.color};margin-top:8px;font-weight:600;">${p.friend}</p>
+    <div class="feedMeta"><button class="pillBtn ${isSaved?'saved':''}" onclick="toggleSavePlace('${p.id}')">${isSaved?'Saved':'Save'}</button>
+    <button class="pillBtn" onclick="openPlace('${p.id}')">Full page</button>
+    <button class="pillBtn" onclick="window.open('https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lng}#map=17/${p.lat}/${p.lng}','_blank')">Directions</button></div>`;
+}
+function eventSheetHtml(e){
+  const isSaved=state.savedEvents.has(e.id);
+  return `<div class="feedKicker"><span class="dot" style="background:#54677C"></span>${e.category.toUpperCase()} · ${e.date}</div>
+    <h3>${e.title}</h3><p style="color:var(--ink-soft);font-size:13.5px;margin-top:4px;">${e.note}</p>
+    <p style="font-size:12.5px;color:#54677C;margin-top:8px;font-weight:600;">${e.friends}</p>
+    <div class="feedMeta"><button class="pillBtn ${isSaved?'saved':''}" onclick="toggleSaveEvent('${e.id}')">${isSaved?'Interested':'Interested?'}</button></div>`;
+}
+function toggleSavePlace(id){ state.savedPlaces.has(id)?state.savedPlaces.delete(id):state.savedPlaces.add(id); if(document.getElementById('mapSheet').classList.contains('show')) openSheet(placeSheetHtml(places.find(p=>p.id===id))); if(state.activePlace===id) renderPlaceDetail(id); track('place_saved',{id}); renderFeed(); renderProfileTab(); }
+function toggleSaveEvent(id){ state.savedEvents.has(id)?state.savedEvents.delete(id):state.savedEvents.add(id); if(document.getElementById('mapSheet').classList.contains('show')) openSheet(eventSheetHtml(events.find(e=>e.id===id))); track('event_saved',{id}); renderEvents(); renderProfileTab(); }
+function openSheet(html){ document.getElementById('mapSheetBody').innerHTML=html; document.getElementById('mapSheet').classList.add('show'); }
+document.getElementById('mapSheetClose').onclick=()=>document.getElementById('mapSheet').classList.remove('show');
+
+/* =========================================================
+   PLACE DETAIL — a place is a persistent object; posts are experiences about it
+========================================================= */
+function openPlace(id){
+  state.activePlace=id;
+  renderPlaceDetail(id);
+  switchScreen('place');
+  track('place_opened',{id});
+}
+function renderPlaceDetail(id){
+  const p=places.find(x=>x.id===id); if(!p) return;
+  const isSaved=state.savedPlaces.has(id);
+  const dist=districts.find(d=>d.id===p.district);
+  const relatedPosts = feed.filter(f=>f.place===id);
+  const friendRatings = [
+    {name:'Meera', stars:5, note:'Went twice already.'},
+    {name:'Arjun', stars:4, note:'Great, but goes fast on weekends.'},
+  ];
+  const html = `
+    <button class="pillBtn" onclick="switchScreen('explore')" style="margin-bottom:14px;">← Back</button>
+    <div class="placeHero" style="background:linear-gradient(155deg, ${p.color}88, #14171A 92%)"></div>
+    <div class="placeHead">
+      <div><h2>${p.name}</h2><p class="screenSub" style="margin:4px 0 0;">${p.category} · ${dist?dist.name:''} · ${p.address}</p></div>
+      <div class="ratingPill">★ ${p.rating}</div>
+    </div>
+    <div class="feedMeta" style="margin:14px 0 6px;">
+      <button class="pillBtn ${isSaved?'saved':''}" onclick="toggleSavePlace('${p.id}')">${isSaved?'Saved':'Save'}</button>
+      <button class="pillBtn" onclick="openCreate('${p.id}')">Post an experience</button>
+      <button class="pillBtn" onclick="toast('Link copied (mock)'); track('place_shared',{id:'${p.id}'})">Share</button>
+      <button class="pillBtn" onclick="switchScreen('map'); setTimeout(()=>openSheet(placeSheetHtml(places.find(x=>x.id==='${p.id}'))),80)">View on map</button>
+    </div>
+    <h3 style="font-size:15px; margin:22px 0 6px;">Friend ratings</h3>
+    ${friendRatings.map(r=>`<div class="friendRatingRow"><span class="miniAv">${r.name[0]}</span><div><strong>${r.name}</strong> — ${'★'.repeat(r.stars)}<div style="color:var(--ink-soft);font-size:12.5px;">${r.note}</div></div></div>`).join('')}
+    <h3 style="font-size:15px; margin:22px 0 6px;">Recent experiences</h3>
+    ${relatedPosts.length ? relatedPosts.map(r=>`<div class="feedCard"><div class="feedKicker"><span class="dot" style="background:${r.color}"></span>${r.kicker}</div><p>${r.body}</p></div>`).join('') : `<p class="screenSub">No posts yet — be the first to share what it was like.</p>`}
+    <h3 style="font-size:15px; margin:22px 0 6px;">Nearby events</h3>
+    ${events.filter(e=>e.district===p.district).slice(0,2).map(e=>`<div class="eventCard"><div class="eventDate"><div class="d">${e.date.split(' ')[1]}</div><div class="m">${e.date.split(' ')[0]}</div></div><div class="eventBody"><h3>${e.title}</h3><p>${e.note}</p></div></div>`).join('') || `<p class="screenSub">Nothing scheduled nearby right now.</p>`}
+  `;
+  document.getElementById('placeDetailBody').innerHTML=html;
+}
+
+/* =========================================================
+   EVENTS SCREEN
+========================================================= */
+const eventChipsEl=document.getElementById('eventChips');
+['All','Food','Gaming','Technology','Entertainment'].forEach(c=>{
+  const chip=document.createElement('button'); chip.className='chip'+(c==='All'?' active':''); chip.textContent=c;
+  chip.onclick=()=>{state.eventFilter=c; document.querySelectorAll('#eventChips .chip').forEach(x=>x.classList.remove('active')); chip.classList.add('active'); renderEvents();};
+  eventChipsEl.appendChild(chip);
+});
+function renderEvents(){
+  const list=document.getElementById('eventList'); list.innerHTML='';
+  events.filter(e=>state.eventFilter==='All'||e.category===state.eventFilter).forEach(e=>{
+    const isSaved=state.savedEvents.has(e.id);
+    const [mon,day]=e.date.split(' ');
+    const card=document.createElement('div'); card.className='eventCard';
+    card.innerHTML=`<div class="eventDate"><div class="d">${day}</div><div class="m">${mon}</div></div>
+      <div class="eventBody" style="flex:1;"><h3>${e.title}</h3><p>${e.note}</p><p style="color:#54677C;font-weight:600;margin-top:4px;">${e.friends}</p></div>
+      <button class="pillBtn ${isSaved?'saved':''}" style="align-self:center;" data-id="${e.id}">${isSaved?'Interested':'Interested?'}</button>`;
+    card.querySelector('.pillBtn').onclick=()=>toggleSaveEvent(e.id);
+    list.appendChild(card);
+  });
+}
+renderEvents();
+
+/* =========================================================
+   NEWS
+========================================================= */
+function renderNews(){
+  const list=document.getElementById('newsList'); list.innerHTML='';
+  newsItems.forEach(n=>{
+    const card=document.createElement('div'); card.className='newsCard';
+    card.innerHTML=`<div class="src">${n.source} · ${n.category}</div><h3>${n.title}</h3><p>${n.body}</p>
+      <div class="feedMeta"><button class="pillBtn" data-a="more" data-id="${n.id}">More like this</button><button class="pillBtn" data-a="less" data-id="${n.id}">Show less</button></div>`;
+    list.appendChild(card);
+  });
+  list.querySelectorAll('[data-a]').forEach(btn=>{
+    btn.onclick=()=>{ track(btn.dataset.a==='more'?'swipe_right':'swipe_left',{news:btn.dataset.id}); toast(btn.dataset.a==='more'?"Got it — more like this":"Got it — less like this"); };
+  });
+}
+renderNews();
+
+/* =========================================================
+   CIRCLE — friends, trust, requests, mute/unfollow/block
+========================================================= */
+function renderCircle(){
+  const req=document.getElementById('reqSection');
+  req.innerHTML = friendRequests.length ? `<h3 style="font-size:15px; margin-bottom:8px;">Friend requests</h3>` + friendRequests.map(r=>`
+    <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#1F98A9,#DB8236)">${r.name[0]}</div>
+    <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.name}</h4><p style="font-size:12px;color:var(--ink-soft);">${r.note}</p></div>
+    <div class="friendActions"><button class="pillBtn primary" data-acc="${r.id}">Accept</button><button class="pillBtn" data-dec="${r.id}">Decline</button></div></div>`).join('') : '';
+  req.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{ toast('Friend request accepted'); b.closest('.reqCard').remove(); });
+  req.querySelectorAll('[data-dec]').forEach(b=>b.onclick=()=>{ toast('Request declined'); b.closest('.reqCard').remove(); });
+
+  const list=document.getElementById('friendsList'); list.innerHTML='';
+  friends.forEach(f=>{
+    const row=document.createElement('div'); row.className='friendRow';
+    row.innerHTML=`<div class="friendAv" style="background:${f.avatarBg}">${f.name[0]}</div>
+      <div><h4>${f.name}</h4><p>${f.mutuals} mutual friends · ${f.note}</p></div>
+      <div class="friendActions">
+        <button class="pillBtn" data-msg="${f.name}">Message</button>
+        <div class="menuPop"><button class="pillBtn" data-menu>⋯</button>
+          <div class="menuList">
+            <button data-mute="${f.id}">Mute</button>
+            <button data-unfollow="${f.id}">Unfollow</button>
+            <button data-block="${f.id}">Block</button>
+            <button data-report="${f.id}">Report</button>
+          </div>
+        </div>
+      </div>`;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('[data-msg]').forEach(b=>b.onclick=()=>{ switchScreen('messages'); toast(`Opening chat with ${b.dataset.msg}`); track('chat_started',{with:b.dataset.msg}); });
+  list.querySelectorAll('[data-menu]').forEach(b=>{
+    b.onclick=(ev)=>{ ev.stopPropagation(); const pop=b.closest('.menuPop'); document.querySelectorAll('.menuPop.open').forEach(m=>{if(m!==pop) m.classList.remove('open');}); pop.classList.toggle('open'); };
+  });
+  document.addEventListener('click', ()=>document.querySelectorAll('.menuPop.open').forEach(m=>m.classList.remove('open')));
+  list.querySelectorAll('[data-mute]').forEach(b=>b.onclick=()=>toast('Muted — you won\'t see their activity in your feed'));
+  list.querySelectorAll('[data-unfollow]').forEach(b=>b.onclick=()=>toast('Unfollowed'));
+  list.querySelectorAll('[data-block]').forEach(b=>b.onclick=()=>toast('Blocked'));
+  list.querySelectorAll('[data-report]').forEach(b=>{ b.onclick=()=>{ toast('Report submitted'); track('report_submitted',{friendId:b.dataset.report}); }; });
+}
+renderCircle();
+
+/* =========================================================
+   MESSAGES
+========================================================= */
+function renderConvoList(){
+  const list=document.getElementById('convoList'); list.innerHTML='';
+  conversations.forEach(c=>{
+    const last=c.messages[c.messages.length-1];
+    const preview = last.shared ? `📍 ${last.shared.title}` : last.text;
+    const el=document.createElement('div'); el.className='convoItem'+(c.id===state.activeConvo?' active':'');
+    el.innerHTML=`<div class="convoAvatar">${c.name[0]}</div><div><h4>${c.name}</h4><p>${preview}</p></div>`;
+    el.onclick=()=>{ state.activeConvo=c.id; renderConvoList(); renderThread(); document.getElementById('msgWrap').classList.add('threadOpen'); track('chat_started',{convo:c.id}); };
+    list.appendChild(el);
+  });
+}
+function renderThread(){
+  const c=conversations.find(x=>x.id===state.activeConvo);
+  document.getElementById('threadTitle').textContent=c.name;
+  const box=document.getElementById('threadMsgs'); box.innerHTML='';
+  const pinned=document.getElementById('pinnedRow');
+  const sharedItems=c.messages.filter(m=>m.shared);
+  if(c.isGroup && sharedItems.length){
+    pinned.style.display='block';
+    pinned.textContent = `📌 ${sharedItems.length} pinned — shared places & events for this plan`;
+  } else { pinned.style.display='none'; }
+  c.messages.forEach(m=>{
+    const row=document.createElement('div'); row.className='msgRow'+(m.from==='me'?' me':'');
+    if(m.shared){
+      row.innerHTML=`<div class="sharedCard" data-place="${m.shared.place||''}" data-event="${m.shared.eventId||''}"><div class="sc-img" style="background:${m.shared.color}55"></div><div class="sc-body"><h5>${m.shared.title}</h5><span>${m.shared.sub}</span></div></div>`;
+    }else{
+      row.innerHTML=`<div class="bubble">${m.name?`<strong style="display:block;font-size:11px;opacity:.6;margin-bottom:2px;">${m.name}</strong>`:''}${m.text}</div>`;
+    }
+    box.appendChild(row);
+  });
+  box.querySelectorAll('.sharedCard').forEach(card=>{
+    card.onclick=()=>{ if(card.dataset.place) openPlace(card.dataset.place); else if(card.dataset.event) switchScreen('events'); };
+  });
+  box.scrollTop=box.scrollHeight;
+}
+document.getElementById('sendBtn').onclick=sendMsg;
+document.getElementById('msgInput').addEventListener('keydown', e=>{ if(e.key==='Enter') sendMsg(); });
+function sendMsg(){
+  const input=document.getElementById('msgInput'); const val=input.value.trim();
+  if(!val) return;
+  conversations.find(c=>c.id===state.activeConvo).messages.push({from:'me', text:val});
+  input.value=''; renderThread(); renderConvoList();
+}
+document.getElementById('backBtn').onclick=()=>document.getElementById('msgWrap').classList.remove('threadOpen');
+renderConvoList(); renderThread();
+
+/* =========================================================
+   CREATE POST — "a post says I went here; the place stays the same for everyone"
+========================================================= */
+const createOverlay=document.getElementById('createOverlay');
+function buildPostForm(){
+  const sel=document.getElementById('postPlace'); sel.innerHTML='';
+  places.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; sel.appendChild(o); });
+  const stars=document.getElementById('postStars'); stars.innerHTML='';
+  for(let i=1;i<=5;i++){ const s=document.createElement('span'); s.textContent='★'; s.dataset.v=i; if(i<=state.postRating) s.classList.add('on'); s.onclick=()=>{ state.postRating=i; buildPostForm(); }; stars.appendChild(s); }
+  const tagsEl=document.getElementById('postTags'); tagsEl.innerHTML='';
+  TAGS.forEach(t=>{ const b=document.createElement('button'); b.className='tagChip'+(state.postTags.has(t)?' on':''); b.textContent=t; b.onclick=()=>{ state.postTags.has(t)?state.postTags.delete(t):state.postTags.add(t); buildPostForm(); }; tagsEl.appendChild(b); });
+}
+function openCreate(placeId){
+  buildPostForm();
+  if(placeId) document.getElementById('postPlace').value=placeId;
+  createOverlay.classList.add('show');
+}
+createOverlay.addEventListener('click', e=>{ if(e.target===createOverlay) createOverlay.classList.remove('show'); });
+document.getElementById('postSubmit').onclick=()=>{
+  const text=document.getElementById('postText').value.trim();
+  const placeId=document.getElementById('postPlace').value;
+  const p=places.find(x=>x.id===placeId);
+  if(!text){ toast('Say a little about what it was like first'); return; }
+  feed.unshift({type:'friend', color:p.color, kicker:'You posted', title:p.name, body:`"${text}" · ${'★'.repeat(state.postRating)}${state.postTags.size?' · '+[...state.postTags].join(', '):''}`, place:p.id});
+  renderFeed();
+  track('post_created',{place:p.id, rating:state.postRating, tags:[...state.postTags]});
+  document.getElementById('postText').value='';
+  state.postTags=new Set();
+  createOverlay.classList.remove('show');
+  switchScreen('home');
+  toast('Posted to your circle');
+};
+
+/* =========================================================
+   PROFILE
+========================================================= */
+const interestsEl=document.getElementById('profInterests');
+['Food','Outdoors','Gaming','Technology','Live music'].forEach(i=>{
+  const s=document.createElement('span'); s.className='interestChip'; s.textContent=i; interestsEl.appendChild(s);
+});
+document.querySelectorAll('#profileTabs button').forEach(btn=>{
+  btn.onclick=()=>{ document.querySelectorAll('#profileTabs button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderProfileTab(btn.dataset.t); };
+});
+function renderProfileTab(which){
+  which = which || document.querySelector('#profileTabs button.active').dataset.t;
+  const el=document.getElementById('profileTabContent');
+  if(which==='saved'){
+    const items=[...places.filter(p=>state.savedPlaces.has(p.id))];
+    el.innerHTML = items.length ? `<div class="savedGrid">${items.map(p=>`<div class="savedTile" data-place="${p.id}"><div class="st-img" style="background:${p.color}55"></div><div class="st-body"><h5>${p.name}</h5></div></div>`).join('')}</div>` : `<p class="screenSub">Nothing saved yet — swipe right on Discover or save a place on the map.</p>`;
+    el.querySelectorAll('[data-place]').forEach(t=>t.onclick=()=>openPlace(t.dataset.place));
+  } else if(which==='events'){
+    const items=events.filter(e=>state.savedEvents.has(e.id));
+    el.innerHTML = items.length ? `<div class="savedGrid">${items.map(e=>`<div class="savedTile"><div class="st-img" style="background:#54677C55"></div><div class="st-body"><h5>${e.title}</h5></div></div>`).join('')}</div>` : `<p class="screenSub">No events marked interested yet.</p>`;
+  } else {
+    const posts=feed.filter(f=>f.kicker==='You posted');
+    el.innerHTML = posts.length ? posts.map(p=>`<div class="feedCard"><div class="feedKicker"><span class="dot" style="background:${p.color}"></span>${p.kicker}</div><h3>${p.title}</h3><p>${p.body}</p></div>`).join('') : `<p class="screenSub">Your posted experiences will show up here after your first visit.</p>`;
+  }
+}
+renderProfileTab('saved');
+
+/* =========================================================
+   SEARCH
+========================================================= */
+const searchBtn=document.getElementById('searchBtn'), searchOverlay=document.getElementById('searchOverlay'), searchInput=document.getElementById('searchInput');
+searchBtn.onclick=()=>{ searchOverlay.classList.add('show'); searchInput.value=''; renderSearch(''); searchInput.focus(); };
+searchOverlay.onclick=e=>{ if(e.target===searchOverlay) searchOverlay.classList.remove('show'); };
+searchInput.addEventListener('input', ()=>renderSearch(searchInput.value.toLowerCase()));
+function renderSearch(q){
+  const res=document.getElementById('searchResults'); res.innerHTML='';
+  const rows=[];
+  places.forEach(p=>{ if(!q||p.name.toLowerCase().includes(q)) rows.push({type:'Place', label:p.name, sub:p.category, go:()=>openPlace(p.id)}); });
+  events.forEach(e=>{ if(!q||e.title.toLowerCase().includes(q)) rows.push({type:'Event', label:e.title, sub:e.date, go:()=>switchScreen('events')}); });
+  districts.forEach(d=>{ if(!q||d.name.toLowerCase().includes(q)) rows.push({type:'District', label:d.name, sub:d.desc, go:()=>switchScreen('districts')}); });
+  friends.forEach(f=>{ if(q && f.name.toLowerCase().includes(q)) rows.push({type:'Person', label:f.name, sub:'Friend', go:()=>switchScreen('circle')}); });
+  if(rows.length===0){ res.innerHTML=`<p class="screenSub" style="margin-top:10px;">No matches yet — try a place, district or friend's name.</p>`; return; }
+  rows.slice(0,25).forEach(r=>{
+    const row=document.createElement('div'); row.className='searchRow';
+    row.innerHTML=`<span>${r.label} <span style="color:var(--ink-soft);font-weight:400;">— ${r.sub}</span></span><span class="type">${r.type}</span>`;
+    row.onclick=()=>{ r.go(); searchOverlay.classList.remove('show'); };
+    res.appendChild(row);
+  });
+}
+
+/* =========================================================
+   NOTIFICATIONS
+========================================================= */
+const notifBtn=document.getElementById('notifBtn'), notifDrawer=document.getElementById('notifDrawer'), notifOverlay=document.getElementById('notifOverlay');
+function renderNotifs(){
+  document.getElementById('notifList').innerHTML = notifications.map(n=>`<div class="notifItem">${n.text}<div class="nt">${n.time}</div></div>`).join('');
+}
+renderNotifs();
+notifBtn.onclick=()=>{ notifDrawer.classList.add('show'); notifOverlay.classList.add('show'); document.getElementById('notifBadge').style.display='none'; };
+notifOverlay.onclick=()=>{ notifDrawer.classList.remove('show'); notifOverlay.classList.remove('show'); };
+
+document.getElementById('profileBtn').onclick=()=>switchScreen('profile');
+document.getElementById('settingsBtn').onclick=()=>switchScreen('settings');
+
+/* =========================================================
+   THEME TOGGLE
+========================================================= */
+const themeBtn=document.getElementById('themeBtn');
+const settingsThemeToggle=document.getElementById('settingsThemeToggle');
+function applyTheme(dark){
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  themeBtn.textContent = dark ? '☀️' : '🌙';
+  settingsThemeToggle.classList.toggle('on', dark);
+}
+function toggleTheme(){ applyTheme(document.documentElement.dataset.theme !== 'dark'); }
+themeBtn.onclick = toggleTheme;
+settingsThemeToggle.onclick = toggleTheme;
+applyTheme(false);
+
+/* =========================================================
+   SETTINGS
+========================================================= */
+['toggleLive','toggleFriendActivity','toggleDigest','toggleDiscoverable'].forEach(id=>{
+  const el=document.getElementById(id);
+  el.onclick=()=>el.classList.toggle('on');
+});
+document.getElementById('logoutBtn').onclick=()=>{
+  document.getElementById('app').classList.remove('on');
+  document.getElementById('auth').style.display='flex';
+  document.getElementById('authForm').reset();
+  switchScreen('home');
+};
+
+/* =========================================================
+   DISTRICTS SCREEN
+========================================================= */
+function renderDistrictsScreen(){
+  const list=document.getElementById('districtList'); list.innerHTML='';
+  districts.forEach(d=>{
+    const placeCount = places.filter(p=>p.district===d.id).length;
+    const eventCount = events.filter(e=>e.district===d.id).length;
+    const card=document.createElement('div'); card.className='districtCard';
+    card.innerHTML=`<div class="dc-band" style="background:${d.color}"></div>
+      <div class="dc-body">
+        <h3>${d.name}</h3><p>${d.desc}</p>
+        <div class="dc-meta">${placeCount} PLACES · ${eventCount} EVENTS</div>
+        <div class="feedMeta"><button class="pillBtn" data-id="${d.id}">Explore on map</button></div>
+      </div>`;
+    card.querySelector('.pillBtn').onclick=()=>{
+      switchScreen('map');
+      setTimeout(()=>{
+        const chip=[...document.querySelectorAll('.districtChip')].find(c=>c.textContent===d.name);
+        if(chip) chip.click();
+      },80);
+    };
+    list.appendChild(card);
+  });
+}
+renderDistrictsScreen();
+
+/* =========================================================
+   VOICE CALL MODAL
+========================================================= */
+const callOverlay=document.getElementById('callOverlay');
+let callTimerInterval=null, callSeconds=0, callMuted=false, callSpeaker=false;
+document.getElementById('callBtn').onclick=()=>{
+  const c=conversations.find(x=>x.id===state.activeConvo);
+  document.getElementById('callName').textContent=c.name;
+  document.getElementById('callAvatar').textContent=c.name[0];
+  document.getElementById('callStatus').textContent='Calling…';
+  callSeconds=0; document.getElementById('callTimer').textContent='00:00';
+  callOverlay.classList.add('show');
+  setTimeout(()=>{
+    document.getElementById('callStatus').textContent='Connected';
+    clearInterval(callTimerInterval);
+    callTimerInterval=setInterval(()=>{
+      callSeconds++;
+      const m=String(Math.floor(callSeconds/60)).padStart(2,'0');
+      const s=String(callSeconds%60).padStart(2,'0');
+      document.getElementById('callTimer').textContent=`${m}:${s}`;
+    },1000);
+  },1200);
+};
+document.getElementById('callEnd').onclick=()=>{
+  clearInterval(callTimerInterval); callOverlay.classList.remove('show');
+  callMuted=false; callSpeaker=false;
+  document.getElementById('callMute').classList.remove('active');
+  document.getElementById('callSpeaker').classList.remove('active');
+};
+document.getElementById('callMute').onclick=(e)=>{ callMuted=!callMuted; e.currentTarget.classList.toggle('active', callMuted); };
+document.getElementById('callSpeaker').onclick=(e)=>{ callSpeaker=!callSpeaker; e.currentTarget.classList.toggle('active', callSpeaker); };
+
+/* =========================================================
+   PWA-READY: inline manifest + service worker registration (§22)
+   Kept inline so the single file stays self-contained; a real deploy
+   would move these into manifest.json / service-worker.js on disk.
+========================================================= */
+try{
+  const manifest = {
+    name:'Social Circle', short_name:'Circle', start_url:'.', display:'standalone',
+    background_color:'#FBFAF7', theme_color:'#14171A',
+    icons:[{src:LOGO_SRC, sizes:'100x100', type:'image/svg+xml'}]
+  };
+  const manifestBlob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+  const link=document.createElement('link'); link.rel='manifest'; link.href=URL.createObjectURL(manifestBlob);
+  document.head.appendChild(link);
+  if('serviceWorker' in navigator){
+    const swCode = "self.addEventListener('fetch', e => {}); self.addEventListener('install', e => self.skipWaiting());";
+    const swBlob = new Blob([swCode], {type:'application/javascript'});
+    navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(()=>{});
+  }
+}catch(err){ /* PWA registration is best-effort in this prototype */ }
+</script>
+</body>
+</html>
