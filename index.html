@@ -252,6 +252,8 @@ img{display:block; max-width:100%;}
 #callOverlay{position:fixed; inset:0; background:rgba(10,12,14,0.6); z-index:300; display:none; align-items:center; justify-content:center;}
 #callOverlay.show{display:flex;}
 .callCard{width:100%; max-width:320px; background:var(--ink); color:var(--paper); border-radius:24px; padding:36px 26px; text-align:center;}
+.callVideoFrame{display:none; height:150px; border-radius:16px; margin-bottom:16px; align-items:flex-end; justify-content:center; background-size:cover; background-position:center; transition:opacity .2s;}
+.callCard.videoMode .callAvatar{width:56px; height:56px; font-size:20px; margin-bottom:10px;}
 .callAvatar{width:88px; height:88px; border-radius:50%; margin:0 auto 16px; background:linear-gradient(135deg,var(--teal),var(--coral)); display:flex; align-items:center; justify-content:center; font-size:30px; font-weight:700;}
 .callStatus{font-size:13px; color:#9AA1A8; margin-top:4px;}
 .callTimer{font-family:'IBM Plex Mono',monospace; font-size:14px; margin-top:6px; color:#9AA1A8;}
@@ -276,7 +278,7 @@ img{display:block; max-width:100%;}
 .actionTile .ic{display:flex;}
 .actionTile .ic svg{width:22px; height:22px;}
 svg{display:block;}
-.iconBtn svg, .pillBtn svg, .navItem .ic svg, .swipe-btn svg, .callBtn svg, .closeX svg, .backBtn svg{vertical-align:middle;}
+.iconBtn svg, .pillBtn svg, .navItem .ic svg, .swipe-btn svg, .callBtn svg, .closeX svg, .backBtn svg{vertical-align:middle; flex-shrink:0;}
 .pillBtn, .backBtn{display:inline-flex; align-items:center; gap:6px;}
 .starMini{display:inline-flex; gap:2px; color:var(--gold); vertical-align:-3px;}
 .ratingPill{display:inline-flex; align-items:center; gap:4px; color:var(--gold);}
@@ -290,6 +292,9 @@ svg{display:block;}
 .friendRow p{font-size:12px; color:var(--ink-soft); margin-top:2px;}
 .friendActions{display:flex; gap:6px; margin-left:auto;}
 .reqCard{border:1px solid var(--line); border-radius:14px; padding:14px; display:flex; align-items:center; gap:12px; margin-bottom:10px; background:#fff;}
+.emptyState{text-align:center; padding:36px 20px; color:var(--ink-soft);}
+.emptyState p{font-size:14px; margin-top:6px;}
+.emptyState .emptySub{font-size:12.5px; max-width:320px; margin:6px auto 0;}
 .menuPop{position:relative; display:inline-block;}
 .menuPop .menuList{display:none; position:absolute; right:0; top:38px; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 22px rgba(0,0,0,.1); z-index:20; overflow:hidden;}
 .menuPop.open .menuList{display:block;}
@@ -482,7 +487,11 @@ svg{display:block;}
   <section class="screen" id="screen-news">
     <div class="screenInner">
       <h2 class="screenTitle">News</h2>
-      <p class="screenSub">Personalised from your interests and location — source always shown, tap through to read. Swipe right for more like this, left for less. <span id="newsAsOf" style="color:var(--ink-soft);"></span></p>
+      <p class="screenSub">Personalised from your interests and location — source always shown, tap through to read. Swipe right for more like this, left for less.</p>
+      <div class="feedMeta" style="margin-bottom:14px;">
+        <button class="pillBtn" id="newsRefreshBtn"><span data-icon="explore"></span>Refresh</button>
+        <span id="newsAsOf" style="font-size:12px; color:var(--ink-soft); align-self:center;"></span>
+      </div>
       <div class="discoverWrap">
         <div class="card-stack" id="newsStack"></div>
         <div class="swipe-controls">
@@ -524,6 +533,7 @@ svg{display:block;}
         <div class="threadHeader">
           <span style="display:flex;align-items:center;"><button class="backBtn" id="backBtn"><span data-icon="back"></span> Back</button><span id="threadTitle"></span></span>
           <button class="iconBtn" id="callBtn" title="Voice call"></button>
+          <button class="iconBtn" id="videoCallBtn" title="Video call (optional)"></button>
         </div>
         <div class="pinnedRow" id="pinnedRow" style="display:none;"></div>
         <div class="threadMsgs" id="threadMsgs"></div>
@@ -598,12 +608,14 @@ svg{display:block;}
 <!-- VOICE CALL MODAL -->
 <div id="callOverlay">
   <div class="callCard">
+    <div class="callVideoFrame" id="callVideoFrame"></div>
     <div class="callAvatar" id="callAvatar">M</div>
-    <h3 id="callName">Meera</h3>
+    <h3 id="callName">Friend</h3>
     <div class="callStatus" id="callStatus">Calling…</div>
     <div class="callTimer" id="callTimer">00:00</div>
     <div class="callControls">
       <button class="callBtn" id="callMute" title="Mute"></button>
+      <button class="callBtn" id="callCamera" title="Camera"></button>
       <button class="callBtn end" id="callEnd" title="End call"></button>
       <button class="callBtn" id="callSpeaker" title="Speaker"></button>
     </div>
@@ -654,6 +666,7 @@ const ICONS = {
   search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
   bell: '<path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/>',
   phone: '<path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1.9.3 1.8.6 2.7a2 2 0 01-.4 2.1L8 9.9a16 16 0 006 6l1.4-1.4a2 2 0 012.1-.4c.9.3 1.8.5 2.7.6a2 2 0 011.8 2.2z"/>',
+  video: '<rect x="2" y="6" width="14" height="12" rx="2"/><path d="M23 7.5l-7 4.5 7 4.5v-9z"/>',
   close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
   heart: '<path d="M12 21s-7.2-4.5-9.5-8.8C.8 8.6 2.3 5 6 5c2 0 3.3 1 4 2 .7-1 2-2 4-2 3.7 0 5.2 3.6 3.5 7.2C19.2 16.5 12 21 12 21z"/>',
   moon: '<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>',
@@ -677,7 +690,7 @@ function photoUrl(seed, w, h){
 function wireStaticIcons(){
   const map = {
     searchBtn:'search', settingsBtn:'settings', btnLeft:'close', btnRight:'heart',
-    mapSheetClose:'close', callBtn:'phone', callMute:'mic', callEnd:'close', callSpeaker:'volume',
+    mapSheetClose:'close', callBtn:'phone', videoCallBtn:'video', callMute:'mic', callEnd:'close', callSpeaker:'volume', callCamera:'video',
     newsLeft:'close', newsRight:'heart'
   };
   Object.keys(map).forEach(id=>{ const el=document.getElementById(id); if(el) el.innerHTML = icon(map[id]); });
@@ -703,88 +716,50 @@ const districts = [
 ];
 
 const places = [
-  {id:'p1', name:'Kunzum Travel Café', district:'hk', lat:28.5540, lng:77.1946, category:'Café', color:'#1F98A9', rating:4.6, address:'Hauz Khas Village Rd, Delhi', friend:'Kritin went here and loved it', note:'Chai, maps on the wall, and a table full of trip planning.'},
-  {id:'p2', name:'Late Night Dhaba Run', district:'cp', lat:28.6320, lng:77.2180, category:'Food', color:'#E15A42', rating:4.4, address:'Inner Circle, Connaught Place', friend:'Meera and Zoya went twice this month', note:'Open past midnight, loud, exactly what the group chat asked for.'},
+  {id:'p1', name:'Kunzum Travel Café', district:'hk', lat:28.5540, lng:77.1946, category:'Café', color:'#1F98A9', rating:4.6, address:'Hauz Khas Village Rd, Delhi', friend:'Recommended by people you follow', note:'Chai, maps on the wall, and a table full of trip planning.'},
+  {id:'p2', name:'Late Night Dhaba Run', district:'cp', lat:28.6320, lng:77.2180, category:'Food', color:'#E15A42', rating:4.4, address:'Inner Circle, Connaught Place', friend:'A few friends went twice this month', note:'Open past midnight, loud, exactly what the group chat asked for.'},
   {id:'p3', name:'Sunder Nursery', district:'gk', lat:28.5980, lng:77.2500, category:'Outdoors', color:'#DB8236', rating:4.8, address:'Nizamuddin, Delhi', friend:'3 friends went this month', note:'A quiet loop through the gardens — good for a slow Sunday.'},
   {id:'p4', name:'Cyber Hub Rooftop', district:'dlf', lat:28.4955, lng:77.0900, category:'Nightlife', color:'#54677C', rating:4.3, address:'Cyber Hub, Gurugram', friend:'Popular with your circle', note:'Rooftop, good playlist, easy to find a table before 8.'},
-  {id:'p5', name:'Hauz Khas Lake Deck', district:'hz', lat:28.5565, lng:77.2010, category:'Outdoors', color:'#CE9A2E', rating:4.7, address:'Deer Park Rd, Hauz Khas Village', friend:'Arjun saved this last week', note:'Best at golden hour, right by the fort ruins.'},
+  {id:'p5', name:'Hauz Khas Lake Deck', district:'hz', lat:28.5565, lng:77.2010, category:'Outdoors', color:'#CE9A2E', rating:4.7, address:'Deer Park Rd, Hauz Khas Village', friend:'Saved by a friend last week', note:'Best at golden hour, right by the fort ruins.'},
   {id:'p6', name:'Indie Gaming Lounge', district:'hk', lat:28.5520, lng:77.1960, category:'Activity', color:'#2C9464', rating:4.5, address:'Hauz Khas Main Rd', friend:'Matches your interests', note:'A monthly meetup two friends have attended twice.'},
   {id:'p7', name:'Select Citywalk Rooftop', district:'sk', lat:28.5280, lng:77.2190, category:'Food', color:'#2C9464', rating:4.2, address:'District Centre, Saket', friend:'2 friends went after work', note:'Easy pre-movie dinner spot, always crowded after 8.'},
   {id:'p8', name:'Third Wave Coffee', district:'ip', lat:28.5215, lng:77.1560, category:'Café', color:'#E15A42', rating:4.5, address:'Vasant Kunj Market', friend:'Your circle rates this highly', note:'Good for working from, plug points at every table.'},
-  {id:'p9', name:'Champa Gali Art Walk', district:'sk', lat:28.5300, lng:77.2010, category:'Outdoors', color:'#DB8236', rating:4.6, address:'Champa Gali, Saidulajab', friend:'Zoya posted about this last week', note:'A maze of studios and small galleries, best on weekends.'},
-  {id:'p10', name:'CP Inner Circle Bookshops', district:'cp', lat:28.6330, lng:77.2195, category:'Activity', color:'#54677C', rating:4.4, address:'Inner Circle, Connaught Place', friend:'Arjun goes most weekends', note:'Secondhand stacks worth an hour of getting lost in.'},
+  {id:'p9', name:'Champa Gali Art Walk', district:'sk', lat:28.5300, lng:77.2010, category:'Outdoors', color:'#DB8236', rating:4.6, address:'Champa Gali, Saidulajab', friend:'A friend posted about this last week', note:'A maze of studios and small galleries, best on weekends.'},
+  {id:'p10', name:'CP Inner Circle Bookshops', district:'cp', lat:28.6330, lng:77.2195, category:'Activity', color:'#54677C', rating:4.4, address:'Inner Circle, Connaught Place', friend:'A friend goes most weekends', note:'Secondhand stacks worth an hour of getting lost in.'},
 ];
 
 const events = [
   {id:'e1', title:'Indie Gaming Meetup', date:'AUG 30', category:'Gaming', district:'hk', lat:28.5525, lng:77.1955, note:'Board games, indie devs demoing builds, snacks included.', friends:'2 friends interested', saved:false},
-  {id:'e2', title:'Delhi Food Crawl', date:'SEP 02', category:'Food', district:'gk', lat:28.5498, lng:77.2430, note:'A guided crawl through five stalls in Greater Kailash.', friends:'Meera is going', saved:true},
+  {id:'e2', title:'Delhi Food Crawl', date:'SEP 02', category:'Food', district:'gk', lat:28.5498, lng:77.2430, note:'A guided crawl through five stalls in Greater Kailash.', friends:'Someone in your circle is going', saved:true},
   {id:'e3', title:'Rooftop Tech Meetup', date:'SEP 05', category:'Technology', district:'dlf', lat:28.4958, lng:77.0895, note:'Lightning talks on local startups, open bar after.', friends:'4 mutuals saved this', saved:false},
-  {id:'e4', title:'Live Music at the Lake', date:'SEP 07', category:'Entertainment', district:'hz', lat:28.5568, lng:77.2015, note:'An acoustic set right on the Hauz Khas lake deck.', friends:'Arjun and Zoya saved this', saved:false},
-  {id:'e5', title:'Champa Gali Studio Walk', date:'SEP 09', category:'Entertainment', district:'sk', lat:28.5302, lng:77.2015, note:'Open studios, small-batch prints, coffee carts along the lane.', friends:'Meera is going', saved:false},
+  {id:'e4', title:'Live Music at the Lake', date:'SEP 07', category:'Entertainment', district:'hz', lat:28.5568, lng:77.2015, note:'An acoustic set right on the Hauz Khas lake deck.', friends:'A couple of friends saved this', saved:false},
+  {id:'e5', title:'Champa Gali Studio Walk', date:'SEP 09', category:'Entertainment', district:'sk', lat:28.5302, lng:77.2015, note:'Open studios, small-batch prints, coffee carts along the lane.', friends:'Someone in your circle is going', saved:false},
   {id:'e6', title:'Weeknight Trivia', date:'SEP 11', category:'Entertainment', district:'ip', lat:28.5218, lng:77.1565, note:'Teams of four, prizes are mostly bragging rights.', friends:'3 friends interested', saved:false},
-  {id:'e7', title:'CP Book Swap', date:'SEP 13', category:'Technology', district:'cp', lat:28.6332, lng:77.2200, note:'Bring three, take three — mostly sci-fi and design books.', friends:'Arjun saved this', saved:false},
+  {id:'e7', title:'CP Book Swap', date:'SEP 13', category:'Technology', district:'cp', lat:28.6332, lng:77.2200, note:'Bring three, take three — mostly sci-fi and design books.', friends:'A friend saved this', saved:false},
   {id:'e8', title:'Food Photography Walk', date:'SEP 14', category:'Food', district:'sk', lat:28.5283, lng:77.2192, note:'A slow walk through Select Citywalk stalls, phones only.', friends:'2 mutuals saved this', saved:false},
 ];
 
 let feed = [
-  {type:'friend', color:'#1F98A9', kicker:'Kritin recommends', title:'Kunzum Travel Café', body:'"Best chai in Hauz Khas, and the wall maps are worth the trip alone."', place:'p1'},
+  {type:'friend', color:'#1F98A9', kicker:'A friend recommends', title:'Kunzum Travel Café', body:'"Best chai in Hauz Khas, and the wall maps are worth the trip alone."', place:'p1'},
   {type:'district', color:'#DB8236', kicker:'Trending in Greater Kailash', title:'Sunder Nursery is having a moment', body:'12 posts from your circle this week — mostly weekend morning walks.', place:'p3'},
   {type:'event', color:'#54677C', kicker:'Event near you', title:'Rooftop Tech Meetup — Sep 5', body:'4 mutual friends have already saved this one.', eventId:'e3'},
-  {type:'friend', color:'#2C9464', kicker:'Meera and Zoya went together', title:'Late Night Dhaba Run', body:'"We went back two weeks in a row. Get the paratha."', place:'p2'},
+  {type:'friend', color:'#2C9464', kicker:'Two friends went together', title:'Late Night Dhaba Run', body:'"We went back two weeks in a row. Get the paratha."', place:'p2'},
   {type:'news', color:'#CE9A2E', kicker:'Technology · Delhi', title:"Gurugram's indie tech scene is quietly booming", body:'A dozen new meetups have started in Cyber Hub this quarter.'},
-  {type:'friend', color:'#DB8236', kicker:'Zoya posted an experience', title:'Champa Gali Art Walk', body:'"Found a print I\'m still thinking about. Go on a weekday if you can."', place:'p9'},
+  {type:'friend', color:'#DB8236', kicker:'A friend posted an experience', title:'Champa Gali Art Walk', body:'"Found a print I\'m still thinking about. Go on a weekday if you can."', place:'p9'},
   {type:'district', color:'#2C9464', kicker:'Active this week in Saket', title:'Select Citywalk Rooftop is picking up', body:'Three friends went after work this week — easy pre-movie stop.', place:'p7'},
-  {type:'event', color:'#E15A42', kicker:'Arjun sent you this', title:'CP Book Swap — Sep 13', body:'Bring three, take three. Mostly sci-fi and design books.', eventId:'e7'},
-  {type:'friend', color:'#54677C', kicker:'Arjun goes most weekends', title:'CP Inner Circle Bookshops', body:'"Secondhand stacks worth an hour of getting lost in."', place:'p10'},
+  {type:'event', color:'#E15A42', kicker:'A friend sent you this', title:'CP Book Swap — Sep 13', body:'Bring three, take three. Mostly sci-fi and design books.', eventId:'e7'},
+  {type:'friend', color:'#54677C', kicker:'A friend goes most weekends', title:'CP Inner Circle Bookshops', body:'"Secondhand stacks worth an hour of getting lost in."', place:'p10'},
 ];
 
-const conversations = [
-  {id:'c1', name:'Meera', isGroup:false, unread:1, messages:[
-    {from:'them', text:'You have to try the new dhaba, seriously.'},
-    {from:'me', text:'Sending it to the group?'},
-    {shared:{title:'Late Night Dhaba Run', sub:'Food · Connaught Place', color:'#E15A42', place:'p2'}}
-  ]},
-  {id:'c2', name:'Weekend Plans Crew', isGroup:true, unread:0, messages:[
-    {from:'them', name:'Arjun', text:'Lake deck this Saturday?'},
-    {shared:{title:'Hauz Khas Lake Deck', sub:'Outdoors · Hauz Khas Village', color:'#CE9A2E', place:'p5'}},
-    {from:'me', text:'In. Golden hour?'},
-  ]},
-  {id:'c3', name:'Zoya', isGroup:false, unread:0, messages:[
-    {from:'them', text:'Saved the rooftop meetup for us.'},
-    {shared:{title:'Rooftop Tech Meetup', sub:'Sep 5 · Cyber Hub', color:'#54677C', eventId:'e3'}},
-  ]},
-  {id:'c4', name:'Arjun', isGroup:false, unread:2, messages:[
-    {from:'them', text:'CP bookshops this weekend? Been meaning to go.'},
-    {from:'them', text:'Also found a book swap event nearby.'},
-    {shared:{title:'CP Book Swap', sub:'Sep 13 · Connaught Place', color:'#E15A42', eventId:'e7'}},
-  ]},
-  {id:'c5', name:'Foodies Only', isGroup:true, unread:0, messages:[
-    {from:'them', name:'Zoya', text:'Champa Gali food walk on the 14th?'},
-    {shared:{title:'Food Photography Walk', sub:'Sep 14 · Saket', color:'#DB8236', eventId:'e8'}},
-    {from:'them', name:'Kritin', text:'In, obviously.'},
-  ]},
-];
+const conversations = [];
 
 const notifications = [
-  {text:'Kritin recommended Kunzum Travel Café.', time:'2h ago'},
   {text:'2 friends are interested in Rooftop Tech Meetup.', time:'5h ago'},
-  {text:'Weekend Plans Crew — new message from Arjun.', time:'Yesterday'},
   {text:'Sunder Nursery is trending in your district.', time:'2 days ago'},
-  {text:'Arjun sent you the CP Book Swap event.', time:'2 days ago'},
-  {text:'Zoya posted an experience at Champa Gali.', time:'3 days ago'},
-  {text:'Foodies Only — 3 new messages.', time:'4 days ago'},
 ];
 
-const friends = [
-  {id:'f1', name:'Meera', mutuals:6, note:'Shares your taste in food spots', avatarBg:'linear-gradient(135deg,#CE9A2E,#E15A42)'},
-  {id:'f2', name:'Arjun', mutuals:9, note:'Shares 3 saved places with you', avatarBg:'linear-gradient(135deg,#1F98A9,#2C9464)'},
-  {id:'f3', name:'Zoya', mutuals:4, note:'Recently posted near Saket', avatarBg:'linear-gradient(135deg,#E15A42,#DB8236)'},
-  {id:'f4', name:'Kritin', mutuals:12, note:'Founding member of your circle', avatarBg:'linear-gradient(135deg,#54677C,#1F98A9)'},
-];
-const friendRequests = [
-  {id:'r1', name:'Priya', mutuals:3, note:'3 mutual friends, incl. Meera'},
-  {id:'r2', name:'Devansh', mutuals:1, note:'1 mutual friend, incl. Arjun'},
-];
+const friends = [];
+const friendRequests = [];
 
 const newsItems = [
   {id:'n1', source:'Times of India', category:'Civic', title:'NCRTC signs solar power deal to meet 60% of Namo Bharat corridor\u2019s requirement', body:'The corridor operator has tied up solar capacity to power a majority of the Delhi\u2013Meerut RRTS line, part of a wider push to green the network.', url:'https://c.newsnow.com/A/1322977346?-49731:2467204922'},
@@ -804,7 +779,7 @@ const TAGS = ['Chill','Group-friendly','Good for work','Date spot','Budget','Liv
 const state = {
   savedPlaces:new Set(['p1']),
   savedEvents:new Set(['e2']),
-  activeConvo:'c1',
+  activeConvo:null,
   mapLayer:'all',
   activeDistrict:null,
   eventFilter:'All',
@@ -1111,16 +1086,12 @@ function renderPlaceDetail(id){
   const isSaved=state.savedPlaces.has(id);
   const dist=districts.find(d=>d.id===p.district);
   const relatedPosts = feed.filter(f=>f.place===id);
-  const friendRatings = [
-    {name:'Meera', stars:5, note:'Went twice already.'},
-    {name:'Arjun', stars:4, note:'Great, but goes fast on weekends.'},
-  ];
   const html = `
-    <button class="pillBtn" onclick="switchScreen('explore')" style="margin-bottom:14px;">← Back</button>
+    <button class="pillBtn" onclick="switchScreen('explore')" style="margin-bottom:14px;">${icon('back',14)} Back</button>
     <div class="placeHero" style="background-image:linear-gradient(160deg, ${p.color}44, rgba(20,23,26,.4)), url('${photoUrl(p.id,800,400)}'); background-size:cover; background-position:center;"></div>
     <div class="placeHead">
-      <div><h2>${p.name}</h2><p class="screenSub" style="margin:4px 0 0;">${p.category} · ${dist?dist.name:''} · ${p.address}</p></div>
-      <div class="ratingPill"><span data-icon="star" style="display:inline-flex;vertical-align:-3px;margin-right:3px;"></span>${p.rating}</div>
+      <div><h2>${p.name}</h2><p class="screenSub" style="margin:4px 0 0;">${p.category} \u00b7 ${dist?dist.name:''} \u00b7 ${p.address}</p></div>
+      <div class="ratingPill">${icon('star',14)} ${p.rating}</div>
     </div>
     <div class="feedMeta" style="margin:14px 0 6px;">
       <button class="pillBtn ${isSaved?'saved':''}" onclick="toggleSavePlace('${p.id}')">${isSaved?'Saved':'Save'}</button>
@@ -1129,7 +1100,7 @@ function renderPlaceDetail(id){
       <button class="pillBtn" onclick="switchScreen('map'); setTimeout(()=>openSheet(placeSheetHtml(places.find(x=>x.id==='${p.id}'))),80)">View on map</button>
     </div>
     <h3 style="font-size:15px; margin:22px 0 6px;">Friend ratings</h3>
-    ${friendRatings.map(r=>`<div class="friendRatingRow"><span class="miniAv">${r.name[0]}</span><div><strong>${r.name}</strong> — <span class="starMini" data-stars="${r.stars}"></span><div style="color:var(--ink-soft);font-size:12.5px;">${r.note}</div></div></div>`).join('')}
+    <p class="screenSub" style="margin-top:-4px;">No friends yet, so no ratings from your circle here \u2014 this fills in once you add people in Circle.</p>
     <h3 style="font-size:15px; margin:22px 0 6px;">Recent experiences</h3>
     ${relatedPosts.length ? relatedPosts.map(r=>`<div class="feedCard"><div class="feedKicker"><span class="dot" style="background:${r.color}"></span>${r.kicker}</div><p>${r.body}</p></div>`).join('') : `<p class="screenSub">No posts yet — be the first to share what it was like.</p>`}
     <h3 style="font-size:15px; margin:22px 0 6px;">Nearby events</h3>
@@ -1167,7 +1138,58 @@ renderEvents();
 ========================================================= */
 let newsDeck=[...newsItems];
 const newsStackEl=document.getElementById('newsStack'), newsSignalEl=document.getElementById('newsSignal');
-const newsAsOfEl=document.getElementById('newsAsOf'); if(newsAsOfEl) newsAsOfEl.textContent = `As of ${NEWS_AS_OF}.`;
+const newsAsOfEl=document.getElementById('newsAsOf'); if(newsAsOfEl) newsAsOfEl.textContent = `Showing saved headlines as of ${NEWS_AS_OF}.`;
+
+/* Live refresh: pulls current RSS from Times of India / Indian Express / The Hindu via a
+   CORS-friendly RSS-to-JSON relay (no key needed). Falls back to the bundled list above
+   if the network call fails or the environment blocks it — the app never breaks either way. */
+const LIVE_FEEDS = [
+  {source:'Times of India', rss:'https://timesofindia.indiatimes.com/rssfeeds/-2128838597.cms'},
+  {source:'Indian Express', rss:'https://indianexpress.com/section/cities/delhi/feed/'},
+  {source:'The Hindu', rss:'https://www.thehindu.com/news/cities/Delhi/feeder/default.rss'},
+];
+function stripHtml(s){ const d=document.createElement('div'); d.innerHTML=s||''; return (d.textContent||'').trim(); }
+async function fetchLiveNews(){
+  const btn=document.getElementById('newsRefreshBtn');
+  if(btn) btn.disabled=true;
+  if(newsAsOfEl) newsAsOfEl.textContent='Refreshing…';
+  try{
+    const results = await Promise.all(LIVE_FEEDS.map(f=>
+      fetch('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(f.rss))
+        .then(r=>r.ok?r.json():null)
+        .then(j=>({source:f.source, items:(j&&j.items)||[]}))
+        .catch(()=>({source:f.source, items:[]}))
+    ));
+    const merged = [];
+    results.forEach(r=>{
+      r.items.slice(0,4).forEach((it,i)=>{
+        merged.push({
+          id:'live-'+r.source.replace(/\s+/g,'')+'-'+i,
+          source:r.source, category:'News',
+          title: stripHtml(it.title).slice(0,140),
+          body: stripHtml(it.description).slice(0,220),
+          url: it.link,
+          img: it.thumbnail || (it.enclosure && it.enclosure.link) || null
+        });
+      });
+    });
+    if(merged.length){
+      newsDeck = merged;
+      if(newsAsOfEl) newsAsOfEl.textContent = 'Live — refreshed just now.';
+      toast('News refreshed');
+    } else {
+      newsDeck = [...newsItems];
+      if(newsAsOfEl) newsAsOfEl.textContent = `Live refresh unavailable — showing saved headlines as of ${NEWS_AS_OF}.`;
+    }
+  } catch(err){
+    newsDeck = [...newsItems];
+    if(newsAsOfEl) newsAsOfEl.textContent = `Live refresh unavailable — showing saved headlines as of ${NEWS_AS_OF}.`;
+  }
+  if(btn) btn.disabled=false;
+  renderNewsStack();
+}
+document.getElementById('newsRefreshBtn').onclick=fetchLiveNews;
+
 function renderNewsStack(){
   newsStackEl.innerHTML='';
   if(newsDeck.length===0){
@@ -1179,7 +1201,7 @@ function renderNewsStack(){
     el.style.zIndex=10-i;
     el.style.transform=`translateY(${i*8}px) scale(${1-i*0.035})`;
     el.style.opacity = i===2?0.5:1;
-    el.innerHTML=`<div class="nc-photo" style="background-image:linear-gradient(0deg, rgba(20,23,26,.15), rgba(20,23,26,.15)), url('${photoUrl(n.id,500,700)}'); background-size:cover; background-position:center;"></div>
+    el.innerHTML=`<div class="nc-photo" style="background-image:linear-gradient(0deg, rgba(20,23,26,.15), rgba(20,23,26,.15)), url('${n.img || photoUrl(n.id,500,700)}'); background-size:cover; background-position:center;"></div>
       <div class="nc-body"><div class="src"><span>${n.source} \u00b7 ${n.category}</span><a class="readLink" href="${n.url}" target="_blank" rel="noopener" onclick="event.stopPropagation(); track('news_opened',{id:'${n.id}'});">${icon('share',12)} Read</a></div><h4>${n.title}</h4><p>${n.body}</p></div>`;
     if(i===0) attachNewsDrag(el,n);
     newsStackEl.appendChild(el);
@@ -1207,6 +1229,7 @@ function attachNewsDrag(el,n){
 document.getElementById('newsLeft').onclick=()=>{ if(newsDeck[0]) decideNews('left',newsDeck[0]); };
 document.getElementById('newsRight').onclick=()=>{ if(newsDeck[0]) decideNews('right',newsDeck[0]); };
 renderNewsStack();
+fetchLiveNews();
 
 /* =========================================================
    CIRCLE — friends, trust, requests, mute/unfollow/block
@@ -1221,6 +1244,16 @@ function renderCircle(){
   req.querySelectorAll('[data-dec]').forEach(b=>b.onclick=()=>{ toast('Request declined'); b.closest('.reqCard').remove(); });
 
   const list=document.getElementById('friendsList'); list.innerHTML='';
+  if(friends.length===0){
+    list.innerHTML = `<div class="emptyState">
+      <p>No friends yet — this circle is empty.</p>
+      <p class="emptySub">Invite people you know; once they join, their saves and recommendations will start showing up here and in your Home feed.</p>
+      <button class="pillBtn primary" id="inviteBtn" style="margin-top:10px;">Invite a friend</button>
+    </div>`;
+    const invBtn=document.getElementById('inviteBtn');
+    if(invBtn) invBtn.onclick=()=>{ toast('Invite link copied (mock)'); track('invite_sent',{}); };
+    return;
+  }
   friends.forEach(f=>{
     const row=document.createElement('div'); row.className='friendRow';
     row.innerHTML=`<div class="friendAv" style="background:${f.avatarBg}">${f.name[0]}</div>
@@ -1255,6 +1288,10 @@ renderCircle();
 ========================================================= */
 function renderConvoList(){
   const list=document.getElementById('convoItems'); list.innerHTML='';
+  if(conversations.length===0){
+    list.innerHTML = `<div class="emptyState"><p>No conversations yet.</p><p class="emptySub">Start one from a friend's profile in Circle, or create a group.</p></div>`;
+    return;
+  }
   conversations.forEach(c=>{
     const last=c.messages[c.messages.length-1];
     const preview = last.shared ? (icon('pin',12) + ' ' + last.shared.title) : last.text;
@@ -1264,7 +1301,10 @@ function renderConvoList(){
     list.appendChild(el);
   });
 }
-document.getElementById('newGroupBtn').onclick=()=>openNewGroup();
+document.getElementById('newGroupBtn').onclick=()=>{
+  if(friends.length<2){ toast('Add at least two friends before starting a group'); return; }
+  openNewGroup();
+};
 function openNewGroup(){
   const chosen = new Set();
   const rows = friends.map(f=>`<label class="groupPickRow"><input type="checkbox" value="${f.id}"> <span class="friendAv" style="background:${f.avatarBg}; width:32px; height:32px; font-size:12px;">${f.name[0]}</span> ${f.name}</label>`).join('');
@@ -1295,6 +1335,15 @@ function openNewGroup(){
 document.getElementById('groupOverlay').addEventListener('click', e=>{ if(e.target.id==='groupOverlay') e.currentTarget.classList.remove('show'); });
 function renderThread(){
   const c=conversations.find(x=>x.id===state.activeConvo);
+  const threadPane=document.getElementById('threadPane');
+  if(!c){
+    document.getElementById('threadTitle').textContent='';
+    document.getElementById('threadMsgs').innerHTML = `<div class="emptyState"><p>No conversation selected yet.</p></div>`;
+    document.getElementById('pinnedRow').style.display='none';
+    threadPane.classList.add('noConvo');
+    return;
+  }
+  threadPane.classList.remove('noConvo');
   document.getElementById('threadTitle').textContent=c.name;
   const box=document.getElementById('threadMsgs'); box.innerHTML='';
   const pinned=document.getElementById('pinnedRow');
@@ -1321,7 +1370,7 @@ document.getElementById('sendBtn').onclick=sendMsg;
 document.getElementById('msgInput').addEventListener('keydown', e=>{ if(e.key==='Enter') sendMsg(); });
 function sendMsg(){
   const input=document.getElementById('msgInput'); const val=input.value.trim();
-  if(!val) return;
+  if(!val || !state.activeConvo) return;
   conversations.find(c=>c.id===state.activeConvo).messages.push({from:'me', text:val});
   input.value=''; renderThread(); renderConvoList();
 }
@@ -1509,17 +1558,33 @@ function renderDistrictsScreen(){
 renderDistrictsScreen();
 
 /* =========================================================
-   VOICE CALL MODAL
+   VOICE / VIDEO CALL MODAL
 ========================================================= */
 const callOverlay=document.getElementById('callOverlay');
-let callTimerInterval=null, callSeconds=0, callMuted=false, callSpeaker=false;
-document.getElementById('callBtn').onclick=()=>{
+let callTimerInterval=null, callSeconds=0, callMuted=false, callSpeaker=false, callCameraOn=true;
+function startCall(isVideo){
   const c=conversations.find(x=>x.id===state.activeConvo);
+  if(!c){ toast('Open a conversation first'); return; }
   document.getElementById('callName').textContent=c.name;
   document.getElementById('callAvatar').textContent=c.name[0];
   document.getElementById('callStatus').textContent='Calling…';
   callSeconds=0; document.getElementById('callTimer').textContent='00:00';
+  callCameraOn=true;
+  const videoFrame=document.getElementById('callVideoFrame');
+  const cameraBtn=document.getElementById('callCamera');
+  if(isVideo){
+    videoFrame.style.display='flex';
+    videoFrame.style.backgroundImage = `linear-gradient(160deg, rgba(31,152,169,.35), rgba(20,23,26,.75)), url('${photoUrl(c.id,400,260)}')`;
+    cameraBtn.style.display='flex';
+    cameraBtn.classList.remove('active');
+    document.querySelector('.callCard').classList.add('videoMode');
+  } else {
+    videoFrame.style.display='none';
+    cameraBtn.style.display='none';
+    document.querySelector('.callCard').classList.remove('videoMode');
+  }
   callOverlay.classList.add('show');
+  track(isVideo?'video_call_started':'voice_call_started',{convo:c.id});
   setTimeout(()=>{
     document.getElementById('callStatus').textContent='Connected';
     clearInterval(callTimerInterval);
@@ -1530,15 +1595,19 @@ document.getElementById('callBtn').onclick=()=>{
       document.getElementById('callTimer').textContent=`${m}:${s}`;
     },1000);
   },1200);
-};
+}
+document.getElementById('callBtn').onclick=()=>startCall(false);
+document.getElementById('videoCallBtn').onclick=()=>startCall(true);
 document.getElementById('callEnd').onclick=()=>{
   clearInterval(callTimerInterval); callOverlay.classList.remove('show');
   callMuted=false; callSpeaker=false;
   document.getElementById('callMute').classList.remove('active');
   document.getElementById('callSpeaker').classList.remove('active');
+  document.getElementById('callCamera').classList.remove('active');
 };
 document.getElementById('callMute').onclick=(e)=>{ callMuted=!callMuted; e.currentTarget.classList.toggle('active', callMuted); };
 document.getElementById('callSpeaker').onclick=(e)=>{ callSpeaker=!callSpeaker; e.currentTarget.classList.toggle('active', callSpeaker); };
+document.getElementById('callCamera').onclick=(e)=>{ callCameraOn=!callCameraOn; e.currentTarget.classList.toggle('active', !callCameraOn); document.getElementById('callVideoFrame').style.opacity = callCameraOn?1:0.15; };
 </script>
 </body>
 </html>
