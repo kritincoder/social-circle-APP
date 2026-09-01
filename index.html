@@ -129,19 +129,26 @@ img{display:block; max-width:100%;}
 
 /* ============ SWIPE / DISCOVER ============ */
 .discoverWrap{display:flex; flex-direction:column; align-items:center;}
-.card-stack{position:relative; height:420px; width:100%; max-width:330px;}
-.swipe-card{position:absolute; inset:0; border-radius:20px; overflow:hidden; border:1px solid var(--line); display:flex; flex-direction:column; justify-content:flex-end; cursor:grab; user-select:none; touch-action:none; transition:transform .35s cubic-bezier(.2,.7,.3,1), opacity .35s; box-shadow:0 10px 30px rgba(0,0,0,.06);}
+.card-stack{position:relative; width:min(94vw, 360px); height:min(58vh, 460px); max-width:360px; margin:0 auto;}
+@media(min-width:461px){ .card-stack{ height:460px; } }
+.swipe-card{position:absolute; inset:0; border-radius:20px; overflow:hidden; border:1px solid var(--line); display:flex; flex-direction:column; justify-content:flex-end; cursor:grab; user-select:none; touch-action:none; transition:transform .35s cubic-bezier(.2,.7,.3,1), opacity .35s; box-shadow:0 14px 34px rgba(20,23,26,.14);}
+.swipe-card:active{cursor:grabbing;}
 .swipe-card .photo{position:absolute; inset:0;}
 .swipe-card .card-body{position:relative; padding:20px; background:linear-gradient(0deg, rgba(0,0,0,.78), transparent 65%); color:#fff;}
 .swipe-card h4{font-family:'Fraunces',serif; font-size:20px; font-weight:500;}
 .swipe-card p{font-size:13px; color:#E7E7E7; margin-top:4px;}
 .swipe-tag{display:inline-block; margin-top:9px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:4px 9px; border-radius:100px; background:rgba(255,255,255,.18);}
-.swipe-controls{display:flex; justify-content:center; gap:16px; margin-top:22px;}
-.swipe-btn{width:52px; height:52px; border-radius:50%; border:1.5px solid var(--line); background:#fff; font-size:20px;}
+.swipe-stamp{position:absolute; top:20px; padding:6px 14px; border:3px solid; border-radius:8px; font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:15px; letter-spacing:.06em; text-transform:uppercase; opacity:0; pointer-events:none; transition:opacity .05s linear; z-index:5;}
+.swipe-stamp.like{ left:16px; color:var(--green); border-color:var(--green); transform:rotate(-14deg);}
+.swipe-stamp.nope{ right:16px; color:var(--coral); border-color:var(--coral); transform:rotate(14deg);}
+.swipe-controls{display:flex; justify-content:center; gap:18px; margin-top:22px;}
+.swipe-btn{width:58px; height:58px; border-radius:50%; border:1.5px solid var(--line); background:#fff; font-size:20px; transition:transform .15s, border-color .15s, color .15s;}
 .swipe-btn:hover{transform:translateY(-2px);}
+.swipe-btn:active{transform:scale(.92);}
 .swipe-btn.reject:hover{border-color:var(--coral); color:var(--coral);}
 .swipe-btn.accept:hover{border-color:var(--green); color:var(--green);}
-.signalFeed{margin-top:16px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--green); min-height:18px;}
+.signalFeed{margin-top:16px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--green); min-height:18px; text-align:center;}
+.swipe-hint{font-size:11.5px; color:var(--ink-soft); margin-top:6px; text-align:center;}
 
 /* ============ MAP ============ */
 #mapScreen .screenInner{padding:0; max-width:none;}
@@ -248,17 +255,27 @@ img{display:block; max-width:100%;}
 .logoutBtn{margin-top:26px; padding:12px 22px; border-radius:100px; border:1.5px solid var(--coral); background:none; color:var(--coral); font-weight:700; font-size:13.5px;}
 .logoutBtn:hover{background:var(--coral); color:#fff;}
 
-/* ============ VOICE CALL MODAL ============ */
-#callOverlay{position:fixed; inset:0; background:rgba(10,12,14,0.6); z-index:300; display:none; align-items:center; justify-content:center;}
+/* ============ VOICE / VIDEO CALL MODAL ============ */
+#callOverlay{position:fixed; inset:0; background:rgba(10,12,14,0.72); z-index:300; display:none; align-items:center; justify-content:center; backdrop-filter:blur(4px);}
 #callOverlay.show{display:flex;}
-.callCard{width:100%; max-width:320px; background:var(--ink); color:var(--paper); border-radius:24px; padding:36px 26px; text-align:center;}
-.callVideoFrame{display:none; height:150px; border-radius:16px; margin-bottom:16px; align-items:flex-end; justify-content:center; background-size:cover; background-position:center; transition:opacity .2s;}
-.callCard.videoMode .callAvatar{width:56px; height:56px; font-size:20px; margin-bottom:10px;}
-.callAvatar{width:88px; height:88px; border-radius:50%; margin:0 auto 16px; background:linear-gradient(135deg,var(--teal),var(--coral)); display:flex; align-items:center; justify-content:center; font-size:30px; font-weight:700;}
-.callStatus{font-size:13px; color:#9AA1A8; margin-top:4px;}
+.callCard{position:relative; width:100%; max-width:320px; background:linear-gradient(165deg,#1b1e23,#0f1114); color:var(--paper); border-radius:26px; padding:36px 26px; text-align:center; overflow:hidden; box-shadow:0 30px 70px rgba(0,0,0,.5); transition:padding .25s;}
+.callCard.videoMode{padding:0 0 26px; max-width:340px;}
+.callVideoFrame{display:none; height:220px; border-radius:0; margin-bottom:16px; position:relative; align-items:flex-end; justify-content:center; background-size:cover; background-position:center; transition:opacity .2s;}
+.callCard.videoMode .callVideoFrame.on{display:flex;}
+.callVideoFrame .selfView{position:absolute; top:14px; right:14px; width:58px; height:78px; border-radius:10px; background:#2A2E34; border:2px solid rgba(255,255,255,.55); background-size:cover; background-position:center; box-shadow:0 6px 16px rgba(0,0,0,.4);}
+.callCard.videoMode .callAvatar{width:0; height:0; margin:0; overflow:hidden;}
+.callCard.videoMode .callBody{padding:0 26px;}
+.callBody{padding-top:0;}
+.callAvatar{width:92px; height:92px; border-radius:50%; margin:0 auto 16px; background:linear-gradient(135deg,var(--teal),var(--coral)); display:flex; align-items:center; justify-content:center; font-size:32px; font-weight:700; position:relative; z-index:2;}
+.callCard.ringing .callAvatar{animation: ringPulse 1.3s ease-in-out infinite;}
+@keyframes ringPulse{ 0%,100%{box-shadow:0 0 0 0 rgba(31,152,169,.55);} 50%{box-shadow:0 0 0 18px rgba(31,152,169,0);} }
+.callStatus{font-size:13px; color:#9AA1A8; margin-top:4px; display:flex; align-items:center; justify-content:center; gap:6px;}
+.callStatus .ringDot{width:6px; height:6px; border-radius:50%; background:var(--teal); animation:ringBlink 1s infinite;}
+@keyframes ringBlink{ 0%,100%{opacity:.25;} 50%{opacity:1;} }
 .callTimer{font-family:'IBM Plex Mono',monospace; font-size:14px; margin-top:6px; color:#9AA1A8;}
-.callControls{display:flex; justify-content:center; gap:16px; margin-top:30px;}
-.callBtn{width:54px; height:54px; border-radius:50%; border:none; font-size:20px; background:#2A2E34; color:#fff;}
+.callControls{display:flex; justify-content:center; gap:16px; margin-top:30px; flex-wrap:wrap;}
+.callBtn{width:56px; height:56px; border-radius:50%; border:none; font-size:20px; background:#2A2E34; color:#fff; display:flex; align-items:center; justify-content:center; transition:background .15s, transform .1s;}
+.callBtn:active{transform:scale(.92);}
 .callBtn.end{background:var(--coral);}
 .callBtn.active{background:var(--teal);}
 
@@ -302,7 +319,8 @@ svg{display:block;}
 .menuList button:hover{background:var(--paper-dim);}
 
 /* ============ NEWS ============ */
-.news-card{position:absolute; inset:0; border-radius:20px; overflow:hidden; border:1px solid var(--line); background:var(--card-bg); display:flex; flex-direction:column; justify-content:flex-end; cursor:grab; user-select:none; touch-action:none; transition:transform .35s cubic-bezier(.2,.7,.3,1), opacity .35s; box-shadow:0 10px 30px rgba(0,0,0,.06);}
+.news-card{position:absolute; inset:0; border-radius:20px; overflow:hidden; border:1px solid var(--line); background:var(--card-bg); display:flex; flex-direction:column; justify-content:flex-end; cursor:grab; user-select:none; touch-action:none; transition:transform .35s cubic-bezier(.2,.7,.3,1), opacity .35s; box-shadow:0 14px 34px rgba(20,23,26,.14);}
+.news-card:active{cursor:grabbing;}
 .news-card .nc-photo{position:absolute; inset:0;}
 .news-card .nc-body{position:relative; padding:20px; background:linear-gradient(0deg, rgba(20,23,26,.92), rgba(20,23,26,.55) 60%, transparent); color:#fff;}
 .news-card .src{font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; color:#C9CDD2; letter-spacing:.04em; display:flex; align-items:center; gap:6px; justify-content:space-between;}
@@ -441,6 +459,7 @@ svg{display:block;}
           <button class="swipe-btn accept" id="btnRight"></button>
         </div>
         <div class="signalFeed" id="signalFeed">&nbsp;</div>
+        <div class="swipe-hint">Drag the card, or use the buttons</div>
       </div>
     </div>
   </section>
@@ -499,6 +518,7 @@ svg{display:block;}
           <button class="swipe-btn accept" id="newsRight"></button>
         </div>
         <div class="signalFeed" id="newsSignal">&nbsp;</div>
+        <div class="swipe-hint">Drag the card, or use the buttons</div>
       </div>
     </div>
   </section>
@@ -533,7 +553,7 @@ svg{display:block;}
         <div class="threadHeader">
           <span style="display:flex;align-items:center;"><button class="backBtn" id="backBtn"><span data-icon="back"></span> Back</button><span id="threadTitle"></span></span>
           <button class="iconBtn" id="callBtn" title="Voice call"></button>
-          <button class="iconBtn" id="videoCallBtn" title="Video call (optional)"></button>
+          <button class="iconBtn" id="videoCallBtn" title="Video call"></button>
         </div>
         <div class="pinnedRow" id="pinnedRow" style="display:none;"></div>
         <div class="threadMsgs" id="threadMsgs"></div>
@@ -605,19 +625,21 @@ svg{display:block;}
   </div>
 </div>
 
-<!-- VOICE CALL MODAL -->
+<!-- VOICE / VIDEO CALL MODAL -->
 <div id="callOverlay">
   <div class="callCard">
     <div class="callVideoFrame" id="callVideoFrame"></div>
-    <div class="callAvatar" id="callAvatar">M</div>
-    <h3 id="callName">Friend</h3>
-    <div class="callStatus" id="callStatus">Calling…</div>
-    <div class="callTimer" id="callTimer">00:00</div>
-    <div class="callControls">
-      <button class="callBtn" id="callMute" title="Mute"></button>
-      <button class="callBtn" id="callCamera" title="Camera"></button>
-      <button class="callBtn end" id="callEnd" title="End call"></button>
-      <button class="callBtn" id="callSpeaker" title="Speaker"></button>
+    <div class="callBody">
+      <div class="callAvatar" id="callAvatar">M</div>
+      <h3 id="callName">Friend</h3>
+      <div class="callStatus" id="callStatus"><span class="ringDot" id="ringDot"></span><span id="callStatusText">Calling…</span></div>
+      <div class="callTimer" id="callTimer">00:00</div>
+      <div class="callControls">
+        <button class="callBtn" id="callMute" title="Mute"></button>
+        <button class="callBtn" id="callCamera" title="Camera"></button>
+        <button class="callBtn end" id="callEnd" title="End call"></button>
+        <button class="callBtn" id="callSpeaker" title="Speaker"></button>
+      </div>
     </div>
   </div>
 </div>
@@ -678,6 +700,7 @@ const ICONS = {
   share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/>',
   directions: '<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
   mic: '<path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v1a7 7 0 01-14 0v-1"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>',
+  micOff: '<line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 005.1 2.1"/><path d="M15 5.3V4a3 3 0 00-5.9-.8"/><path d="M19 10v1a7 7 0 01-.6 2.9"/><path d="M5 10v1a7 7 0 007 7c.9 0 1.7-.2 2.5-.5"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>',
   volume: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a4.5 4.5 0 010 7"/><path d="M19 5a9 9 0 010 14"/>',
 };
 function icon(name, size){
@@ -699,6 +722,8 @@ function wireStaticIcons(){
   document.querySelectorAll('[data-icon]').forEach(el=>{ el.innerHTML = icon(el.dataset.icon); });
   const themeBtn=document.getElementById('themeBtn');
   if(themeBtn) themeBtn.innerHTML = icon('moon');
+  const authThemeBtn=document.getElementById('authThemeBtn');
+  if(authThemeBtn) authThemeBtn.innerHTML = icon('moon');
 }
 wireStaticIcons();
 
@@ -771,7 +796,7 @@ const newsItems = [
 ];
 
 /* News is a snapshot pulled from Times of India / Indian Express / The Hindu on the day this prototype
-   was built. In production this list is fetched live and refreshed on a schedule (see roadmap §10). */
+   was built. In production this list is fetched live and refreshed on a schedule. */
 const NEWS_AS_OF = 'Aug 29, 2026';
 
 const TAGS = ['Chill','Group-friendly','Good for work','Date spot','Budget','Live music','Outdoors','Late night'];
@@ -787,10 +812,12 @@ const state = {
   activePlace:null,
   postRating:4,
   postTags:new Set(),
+  darkMode:false,
+  settings:{liveLocation:false, friendActivity:true, digest:false, discoverable:true},
 };
 
 /* =========================================================
-   ANALYTICS (mock — logs to console, per spec §29)
+   ANALYTICS (mock — logs to console)
 ========================================================= */
 function track(eventName, data){ console.log('[analytics]', eventName, data||{}); }
 
@@ -802,6 +829,47 @@ function toast(msg){
   const t=document.createElement('div'); t.className='toast'; t.textContent=msg;
   host.appendChild(t);
   setTimeout(()=>t.remove(), 2600);
+}
+
+/* =========================================================
+   PERSISTENCE — key/value storage (personal, this device/account only)
+   Note: a real backend (e.g. Postgres) can't be reached directly from a
+   browser-based artifact. This uses the built-in storage API as the
+   equivalent persistence layer so saved places, settings and theme survive
+   a refresh. See the chat reply for notes on wiring this to real Postgres.
+========================================================= */
+function shuffleArr(a){ const arr=[...a]; for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+
+async function persistState(){
+  try{
+    if(!window.storage) return;
+    await window.storage.set('sc-settings', JSON.stringify({
+      darkMode: state.darkMode,
+      settings: state.settings,
+      savedPlaces: [...state.savedPlaces],
+      savedEvents: [...state.savedEvents]
+    }), false);
+  }catch(err){ /* storage unavailable this session — app still works, just won't persist */ }
+}
+async function loadPersistedState(){
+  try{
+    if(!window.storage) return;
+    const res = await window.storage.get('sc-settings', false);
+    if(res && res.value){
+      const d = JSON.parse(res.value);
+      if(d.darkMode) applyTheme(true);
+      if(d.settings){
+        state.settings = {...state.settings, ...d.settings};
+        document.getElementById('toggleLive').classList.toggle('on', !!state.settings.liveLocation);
+        document.getElementById('toggleFriendActivity').classList.toggle('on', !!state.settings.friendActivity);
+        document.getElementById('toggleDigest').classList.toggle('on', !!state.settings.digest);
+        document.getElementById('toggleDiscoverable').classList.toggle('on', !!state.settings.discoverable);
+      }
+      if(Array.isArray(d.savedPlaces)) state.savedPlaces = new Set(d.savedPlaces);
+      if(Array.isArray(d.savedEvents)) state.savedEvents = new Set(d.savedEvents);
+      renderFeed(); renderEvents(); renderProfileTab();
+    }
+  }catch(err){ /* first run, or storage unavailable */ }
 }
 
 /* =========================================================
@@ -824,12 +892,11 @@ document.getElementById('authForm').addEventListener('submit', e=>{
   document.getElementById('app').classList.add('on');
   track('onboarding_completed',{name:displayName});
   initMap();
+  loadPersistedState();
 });
 
 /* =========================================================
-   NAV — bottom tabbar matches spec: HOME · EXPLORE · +CREATE · MAP · CIRCLE
-   Everything else (Discover, Districts, Events, News, Messages, Profile, Settings)
-   is reached contextually via Explore tiles, the topbar icons, or the desktop sidenav.
+   NAV
 ========================================================= */
 const NAV_PRIMARY = [
   {id:'home', label:'Home', ic:'home'},
@@ -873,6 +940,7 @@ function switchScreen(id){
   target.classList.add('active');
   document.querySelectorAll('.navItem').forEach(n=>n.classList.toggle('active', n.dataset.screen===id));
   if(id==='map' && window._gmap){ setTimeout(()=>google.maps.event.trigger(window._gmap, 'resize'),50); }
+  if(id==='news' && newsDeck.length<2){ fetchLiveNews(true); }
 }
 document.querySelectorAll('[data-screen]').forEach(el=>{
   if(el.classList.contains('navItem')) return;
@@ -911,7 +979,7 @@ function renderFeed(){
       const id=btn.dataset.id;
       if(set.has(id)){set.delete(id); btn.classList.remove('saved'); btn.textContent='Save';}
       else{set.add(id); btn.classList.add('saved'); btn.textContent='Saved'; track(btn.dataset.kind==='place'?'place_saved':'event_saved',{id});}
-      renderProfileTab();
+      renderProfileTab(); persistState();
     };
   });
   list.querySelectorAll('.pillBtn[data-goto]').forEach(btn=>btn.onclick=()=>switchScreen(btn.dataset.goto));
@@ -938,14 +1006,16 @@ function renderExplore(){
 renderExplore();
 
 /* =========================================================
-   DISCOVER (SWIPE)
+   DISCOVER (SWIPE) — larger responsive stack, drag-follow stamps
 ========================================================= */
 let deck=[...places, ...events.map(e=>({id:e.id,name:e.title,category:e.category,color:'#54677C',friend:e.friends,note:e.note,isEvent:true}))];
 const stackEl=document.getElementById('cardStack'), sigFeed=document.getElementById('signalFeed');
 function renderStack(){
   stackEl.innerHTML='';
   if(deck.length===0){
-    stackEl.innerHTML=`<div class="swipe-card" style="display:flex;align-items:center;justify-content:center;background:var(--paper-dim);"><p style="padding:24px;text-align:center;color:var(--ink-soft);">That's every card for now — check back after your feed updates.</p></div>`;
+    stackEl.innerHTML=`<div class="swipe-card" style="display:flex;align-items:center;justify-content:center;background:var(--paper-dim);"><div style="padding:24px;text-align:center;color:var(--ink-soft);"><p>That's every card for now.</p><button class="pillBtn primary" style="margin-top:12px;" id="reloadDeckBtn">Start over</button></div></div>`;
+    const rb=document.getElementById('reloadDeckBtn');
+    if(rb) rb.onclick=()=>{ deck=shuffleArr([...places, ...events.map(e=>({id:e.id,name:e.title,category:e.category,color:'#54677C',friend:e.friends,note:e.note,isEvent:true}))]); renderStack(); };
     return;
   }
   deck.slice(0,3).forEach((p,i)=>{
@@ -954,6 +1024,7 @@ function renderStack(){
     el.style.transform=`translateY(${i*8}px) scale(${1-i*0.035})`;
     el.style.opacity = i===2?0.5:1;
     el.innerHTML=`<div class="photo" style="background-image:linear-gradient(180deg, rgba(20,23,26,.15), rgba(20,23,26,.85)), url('${photoUrl(p.id,500,700)}'); background-size:cover; background-position:center;"></div>
+      ${i===0?'<div class="swipe-stamp like">Keep</div><div class="swipe-stamp nope">Pass</div>':''}
       <div class="card-body"><h4>${p.name}</h4><p>${p.note}</p><span class="swipe-tag">${p.friend||p.category}</span></div>`;
     if(i===0) attachDrag(el,p);
     stackEl.appendChild(el);
@@ -962,18 +1033,27 @@ function renderStack(){
 function decideCard(dir,p){
   sigFeed.textContent = dir==='right' ? `✓ learned: more like "${p.name}" and places your friends visit` : `✓ learned: fewer cards like "${p.name}"`;
   track(dir==='right'?'swipe_right':'swipe_left',{id:p.id});
-  if(dir==='right'){ if(p.isEvent) state.savedEvents.add(p.id); else state.savedPlaces.add(p.id); renderProfileTab(); renderFeed(); }
+  if(dir==='right'){ if(p.isEvent) state.savedEvents.add(p.id); else state.savedPlaces.add(p.id); renderProfileTab(); renderFeed(); persistState(); }
   deck.shift(); renderStack();
 }
 function attachDrag(el,p){
   let startX=0,dx=0,dragging=false;
+  const likeEl=()=>el.querySelector('.swipe-stamp.like');
+  const nopeEl=()=>el.querySelector('.swipe-stamp.nope');
   el.addEventListener('pointerdown', e=>{dragging=true; startX=e.clientX; el.setPointerCapture(e.pointerId); el.style.transition='none';});
-  el.addEventListener('pointermove', e=>{ if(!dragging) return; dx=e.clientX-startX; el.style.transform=`translateX(${dx}px) rotate(${dx/18}deg)`;});
+  el.addEventListener('pointermove', e=>{
+    if(!dragging) return; dx=e.clientX-startX;
+    const rot=Math.max(-20,Math.min(20,dx/12));
+    el.style.transform=`translateX(${dx}px) rotate(${rot}deg)`;
+    const t=Math.min(1, Math.abs(dx)/100);
+    if(dx>0){ if(likeEl())likeEl().style.opacity=t; if(nopeEl())nopeEl().style.opacity=0; }
+    else{ if(nopeEl())nopeEl().style.opacity=t; if(likeEl())likeEl().style.opacity=0; }
+  });
   const release=()=>{
     if(!dragging) return; dragging=false; el.style.transition='';
-    if(dx>90){el.style.transform='translateX(500px) rotate(20deg)'; el.style.opacity=0; setTimeout(()=>decideCard('right',p),240);}
-    else if(dx<-90){el.style.transform='translateX(-500px) rotate(-20deg)'; el.style.opacity=0; setTimeout(()=>decideCard('left',p),240);}
-    else{el.style.transform='';}
+    if(dx>90){el.style.transform='translateX(600px) rotate(24deg)'; el.style.opacity=0; setTimeout(()=>decideCard('right',p),220);}
+    else if(dx<-90){el.style.transform='translateX(-600px) rotate(-24deg)'; el.style.opacity=0; setTimeout(()=>decideCard('left',p),220);}
+    else{el.style.transform=''; if(likeEl())likeEl().style.opacity=0; if(nopeEl())nopeEl().style.opacity=0;}
     dx=0;
   };
   el.addEventListener('pointerup', release);
@@ -1067,13 +1147,13 @@ function eventSheetHtml(e){
     <p style="font-size:12.5px;color:#54677C;margin-top:8px;font-weight:600;">${e.friends}</p>
     <div class="feedMeta"><button class="pillBtn ${isSaved?'saved':''}" onclick="toggleSaveEvent('${e.id}')">${isSaved?'Interested':'Interested?'}</button></div>`;
 }
-function toggleSavePlace(id){ state.savedPlaces.has(id)?state.savedPlaces.delete(id):state.savedPlaces.add(id); if(document.getElementById('mapSheet').classList.contains('show')) openSheet(placeSheetHtml(places.find(p=>p.id===id))); if(state.activePlace===id) renderPlaceDetail(id); track('place_saved',{id}); renderFeed(); renderProfileTab(); }
-function toggleSaveEvent(id){ state.savedEvents.has(id)?state.savedEvents.delete(id):state.savedEvents.add(id); if(document.getElementById('mapSheet').classList.contains('show')) openSheet(eventSheetHtml(events.find(e=>e.id===id))); track('event_saved',{id}); renderEvents(); renderProfileTab(); }
+function toggleSavePlace(id){ state.savedPlaces.has(id)?state.savedPlaces.delete(id):state.savedPlaces.add(id); if(document.getElementById('mapSheet').classList.contains('show')) openSheet(placeSheetHtml(places.find(p=>p.id===id))); if(state.activePlace===id) renderPlaceDetail(id); track('place_saved',{id}); renderFeed(); renderProfileTab(); persistState(); }
+function toggleSaveEvent(id){ state.savedEvents.has(id)?state.savedEvents.delete(id):state.savedEvents.add(id); if(document.getElementById('mapSheet').classList.contains('show')) openSheet(eventSheetHtml(events.find(e=>e.id===id))); track('event_saved',{id}); renderEvents(); renderProfileTab(); persistState(); }
 function openSheet(html){ document.getElementById('mapSheetBody').innerHTML=html; document.getElementById('mapSheet').classList.add('show'); }
 document.getElementById('mapSheetClose').onclick=()=>document.getElementById('mapSheet').classList.remove('show');
 
 /* =========================================================
-   PLACE DETAIL — a place is a persistent object; posts are experiences about it
+   PLACE DETAIL
 ========================================================= */
 function openPlace(id){
   state.activePlace=id;
@@ -1134,25 +1214,23 @@ function renderEvents(){
 renderEvents();
 
 /* =========================================================
-   NEWS
+   NEWS — live fetch with a rotating, always-fresh-looking fallback
 ========================================================= */
 let newsDeck=[...newsItems];
 const newsStackEl=document.getElementById('newsStack'), newsSignalEl=document.getElementById('newsSignal');
 const newsAsOfEl=document.getElementById('newsAsOf'); if(newsAsOfEl) newsAsOfEl.textContent = `Showing saved headlines as of ${NEWS_AS_OF}.`;
 
-/* Live refresh: pulls current RSS from Times of India / Indian Express / The Hindu via a
-   CORS-friendly RSS-to-JSON relay (no key needed). Falls back to the bundled list above
-   if the network call fails or the environment blocks it — the app never breaks either way. */
 const LIVE_FEEDS = [
   {source:'Times of India', rss:'https://timesofindia.indiatimes.com/rssfeeds/-2128838597.cms'},
   {source:'Indian Express', rss:'https://indianexpress.com/section/cities/delhi/feed/'},
   {source:'The Hindu', rss:'https://www.thehindu.com/news/cities/Delhi/feeder/default.rss'},
 ];
 function stripHtml(s){ const d=document.createElement('div'); d.innerHTML=s||''; return (d.textContent||'').trim(); }
-async function fetchLiveNews(){
+
+async function fetchLiveNews(silent){
   const btn=document.getElementById('newsRefreshBtn');
   if(btn) btn.disabled=true;
-  if(newsAsOfEl) newsAsOfEl.textContent='Refreshing…';
+  if(!silent && newsAsOfEl) newsAsOfEl.textContent='Refreshing…';
   try{
     const results = await Promise.all(LIVE_FEEDS.map(f=>
       fetch('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(f.rss))
@@ -1164,7 +1242,7 @@ async function fetchLiveNews(){
     results.forEach(r=>{
       r.items.slice(0,4).forEach((it,i)=>{
         merged.push({
-          id:'live-'+r.source.replace(/\s+/g,'')+'-'+i,
+          id:'live-'+r.source.replace(/\s+/g,'')+'-'+i+'-'+Date.now(),
           source:r.source, category:'News',
           title: stripHtml(it.title).slice(0,140),
           body: stripHtml(it.description).slice(0,220),
@@ -1174,26 +1252,29 @@ async function fetchLiveNews(){
       });
     });
     if(merged.length){
-      newsDeck = merged;
-      if(newsAsOfEl) newsAsOfEl.textContent = 'Live — refreshed just now.';
-      toast('News refreshed');
+      newsDeck = shuffleArr(merged);
+      if(newsAsOfEl) newsAsOfEl.textContent = 'Live — refreshed ' + new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) + '.';
+      if(!silent) toast('News refreshed');
     } else {
-      newsDeck = [...newsItems];
-      if(newsAsOfEl) newsAsOfEl.textContent = `Live refresh unavailable — showing saved headlines as of ${NEWS_AS_OF}.`;
+      newsDeck = shuffleArr(newsItems);
+      if(newsAsOfEl) newsAsOfEl.textContent = `Live refresh unavailable right now — showing headlines from ${NEWS_AS_OF} (reshuffled).`;
+      if(!silent) toast('Live refresh unavailable — showing saved headlines');
     }
   } catch(err){
-    newsDeck = [...newsItems];
-    if(newsAsOfEl) newsAsOfEl.textContent = `Live refresh unavailable — showing saved headlines as of ${NEWS_AS_OF}.`;
+    newsDeck = shuffleArr(newsItems);
+    if(newsAsOfEl) newsAsOfEl.textContent = `Live refresh unavailable right now — showing headlines from ${NEWS_AS_OF} (reshuffled).`;
+    if(!silent) toast('Live refresh unavailable — showing saved headlines');
   }
   if(btn) btn.disabled=false;
   renderNewsStack();
 }
-document.getElementById('newsRefreshBtn').onclick=fetchLiveNews;
+document.getElementById('newsRefreshBtn').onclick=()=>fetchLiveNews(false);
 
 function renderNewsStack(){
   newsStackEl.innerHTML='';
   if(newsDeck.length===0){
-    newsStackEl.innerHTML=`<div class="news-card" style="display:flex;align-items:center;justify-content:center;background:var(--paper-dim);"><p style="padding:24px;text-align:center;color:var(--ink-soft);">That's everything for now — check back later for more stories.</p></div>`;
+    newsStackEl.innerHTML=`<div class="news-card" style="display:flex;align-items:center;justify-content:center;background:var(--paper-dim);"><div style="padding:24px;text-align:center;color:var(--ink-soft);"><p>That's everything for now.</p><button class="pillBtn primary" style="margin-top:12px;" id="moreNewsBtn">Get more stories</button></div></div>`;
+    const mb=document.getElementById('moreNewsBtn'); if(mb) mb.onclick=()=>fetchLiveNews(false);
     return;
   }
   newsDeck.slice(0,3).forEach((n,i)=>{
@@ -1202,6 +1283,7 @@ function renderNewsStack(){
     el.style.transform=`translateY(${i*8}px) scale(${1-i*0.035})`;
     el.style.opacity = i===2?0.5:1;
     el.innerHTML=`<div class="nc-photo" style="background-image:linear-gradient(0deg, rgba(20,23,26,.15), rgba(20,23,26,.15)), url('${n.img || photoUrl(n.id,500,700)}'); background-size:cover; background-position:center;"></div>
+      ${i===0?'<div class="swipe-stamp like">More</div><div class="swipe-stamp nope">Less</div>':''}
       <div class="nc-body"><div class="src"><span>${n.source} \u00b7 ${n.category}</span><a class="readLink" href="${n.url}" target="_blank" rel="noopener" onclick="event.stopPropagation(); track('news_opened',{id:'${n.id}'});">${icon('share',12)} Read</a></div><h4>${n.title}</h4><p>${n.body}</p></div>`;
     if(i===0) attachNewsDrag(el,n);
     newsStackEl.appendChild(el);
@@ -1210,17 +1292,27 @@ function renderNewsStack(){
 function decideNews(dir,n){
   newsSignalEl.textContent = dir==='right' ? `learned: more ${n.category.toLowerCase()} stories like this` : `learned: fewer stories like this`;
   track(dir==='right'?'swipe_right':'swipe_left',{news:n.id});
-  newsDeck.shift(); renderNewsStack();
+  newsDeck.shift();
+  if(newsDeck.length===0) fetchLiveNews(true); else renderNewsStack();
 }
 function attachNewsDrag(el,n){
   let startX=0,dx=0,dragging=false;
+  const likeEl=()=>el.querySelector('.swipe-stamp.like');
+  const nopeEl=()=>el.querySelector('.swipe-stamp.nope');
   el.addEventListener('pointerdown', e=>{ if(e.target.closest('.readLink')) return; dragging=true; startX=e.clientX; el.setPointerCapture(e.pointerId); el.style.transition='none';});
-  el.addEventListener('pointermove', e=>{ if(!dragging) return; dx=e.clientX-startX; el.style.transform=`translateX(${dx}px) rotate(${dx/18}deg)`;});
+  el.addEventListener('pointermove', e=>{
+    if(!dragging) return; dx=e.clientX-startX;
+    const rot=Math.max(-20,Math.min(20,dx/12));
+    el.style.transform=`translateX(${dx}px) rotate(${rot}deg)`;
+    const t=Math.min(1, Math.abs(dx)/100);
+    if(dx>0){ if(likeEl())likeEl().style.opacity=t; if(nopeEl())nopeEl().style.opacity=0; }
+    else{ if(nopeEl())nopeEl().style.opacity=t; if(likeEl())likeEl().style.opacity=0; }
+  });
   const release=()=>{
     if(!dragging) return; dragging=false; el.style.transition='';
-    if(dx>90){el.style.transform='translateX(500px) rotate(20deg)'; el.style.opacity=0; setTimeout(()=>decideNews('right',n),240);}
-    else if(dx<-90){el.style.transform='translateX(-500px) rotate(-20deg)'; el.style.opacity=0; setTimeout(()=>decideNews('left',n),240);}
-    else{el.style.transform='';}
+    if(dx>90){el.style.transform='translateX(600px) rotate(24deg)'; el.style.opacity=0; setTimeout(()=>decideNews('right',n),220);}
+    else if(dx<-90){el.style.transform='translateX(-600px) rotate(-24deg)'; el.style.opacity=0; setTimeout(()=>decideNews('left',n),220);}
+    else{el.style.transform=''; if(likeEl())likeEl().style.opacity=0; if(nopeEl())nopeEl().style.opacity=0;}
     dx=0;
   };
   el.addEventListener('pointerup', release);
@@ -1229,10 +1321,11 @@ function attachNewsDrag(el,n){
 document.getElementById('newsLeft').onclick=()=>{ if(newsDeck[0]) decideNews('left',newsDeck[0]); };
 document.getElementById('newsRight').onclick=()=>{ if(newsDeck[0]) decideNews('right',newsDeck[0]); };
 renderNewsStack();
-fetchLiveNews();
+fetchLiveNews(true);
+setInterval(()=>fetchLiveNews(true), 180000);
 
 /* =========================================================
-   CIRCLE — friends, trust, requests, mute/unfollow/block
+   CIRCLE
 ========================================================= */
 function renderCircle(){
   const req=document.getElementById('reqSection');
@@ -1306,7 +1399,6 @@ document.getElementById('newGroupBtn').onclick=()=>{
   openNewGroup();
 };
 function openNewGroup(){
-  const chosen = new Set();
   const rows = friends.map(f=>`<label class="groupPickRow"><input type="checkbox" value="${f.id}"> <span class="friendAv" style="background:${f.avatarBg}; width:32px; height:32px; font-size:12px;">${f.name[0]}</span> ${f.name}</label>`).join('');
   const html = `
     <h3 style="font-size:18px;">New group</h3>
@@ -1378,7 +1470,122 @@ document.getElementById('backBtn').onclick=()=>document.getElementById('msgWrap'
 renderConvoList(); renderThread();
 
 /* =========================================================
-   CREATE POST — "a post says I went here; the place stays the same for everyone"
+   VOICE / VIDEO CALLS — synthesized ringtone, ring→connect flow
+========================================================= */
+let audioCtx=null;
+function getAudioCtx(){
+  if(!audioCtx){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(AC) audioCtx = new AC();
+  }
+  return audioCtx;
+}
+let ringInterval=null;
+function startRingtone(){
+  stopRingtone();
+  const ctx=getAudioCtx();
+  if(!ctx) return;
+  if(ctx.state==='suspended') ctx.resume();
+  const playPulse=()=>{
+    const now=ctx.currentTime;
+    [0,0.42].forEach(off=>{
+      const osc=ctx.createOscillator(); const gain=ctx.createGain();
+      osc.type='sine'; osc.frequency.value=440;
+      gain.gain.setValueAtTime(0, now+off);
+      gain.gain.linearRampToValueAtTime(0.14, now+off+0.02);
+      gain.gain.linearRampToValueAtTime(0.0001, now+off+0.36);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(now+off); osc.stop(now+off+0.4);
+    });
+  };
+  playPulse();
+  ringInterval=setInterval(playPulse, 2000);
+}
+function stopRingtone(){ if(ringInterval){ clearInterval(ringInterval); ringInterval=null; } }
+
+let callTimerInt=null, callSeconds=0, callRingTimeout=null;
+let callState={muted:false, camera:true, speaker:false, video:false};
+function updateCallButtons(){
+  const muteBtn=document.getElementById('callMute');
+  muteBtn.classList.toggle('active', callState.muted);
+  muteBtn.innerHTML = icon(callState.muted?'micOff':'mic');
+  const camBtn=document.getElementById('callCamera');
+  camBtn.style.display = callState.video ? 'flex':'none';
+  camBtn.classList.toggle('active', callState.camera);
+  document.getElementById('callSpeaker').classList.toggle('active', callState.speaker);
+}
+function openCall(name, isVideo){
+  const displayName = name || 'Friend';
+  document.getElementById('callName').textContent=displayName;
+  document.getElementById('callAvatar').textContent=displayName[0].toUpperCase();
+  document.getElementById('callStatusText').textContent='Calling…';
+  document.getElementById('callTimer').textContent='00:00';
+  document.getElementById('ringDot').style.display='inline-block';
+  callSeconds=0;
+  callState={muted:false, camera:true, speaker:false, video:!!isVideo};
+  const card=document.querySelector('#callOverlay .callCard');
+  card.classList.add('ringing');
+  card.classList.toggle('videoMode', !!isVideo);
+  const frame=document.getElementById('callVideoFrame');
+  if(isVideo){
+    frame.classList.add('on');
+    frame.style.opacity=1;
+    frame.style.backgroundImage = `url('${photoUrl(displayName+'-video',420,280)}')`;
+    frame.innerHTML = `<div class="selfView" style="background-image:url('${photoUrl('me-self',140,190)}')"></div>`;
+  } else {
+    frame.classList.remove('on'); frame.innerHTML='';
+  }
+  updateCallButtons();
+  document.getElementById('callOverlay').classList.add('show');
+  startRingtone();
+  track(isVideo?'video_call_started':'call_started', {with:displayName});
+  if(callTimerInt){ clearInterval(callTimerInt); callTimerInt=null; }
+  if(callRingTimeout) clearTimeout(callRingTimeout);
+  callRingTimeout=setTimeout(()=>{
+    if(!document.getElementById('callOverlay').classList.contains('show')) return;
+    stopRingtone();
+    card.classList.remove('ringing');
+    document.getElementById('ringDot').style.display='none';
+    document.getElementById('callStatusText').textContent = isVideo?'Video call':'Voice call';
+    callTimerInt=setInterval(()=>{
+      callSeconds++;
+      const m=String(Math.floor(callSeconds/60)).padStart(2,'0');
+      const s=String(callSeconds%60).padStart(2,'0');
+      document.getElementById('callTimer').textContent=m+':'+s;
+    },1000);
+  }, 2600);
+}
+function endCall(){
+  stopRingtone();
+  if(callRingTimeout){ clearTimeout(callRingTimeout); callRingTimeout=null; }
+  if(callTimerInt){ clearInterval(callTimerInt); callTimerInt=null; }
+  document.getElementById('callOverlay').classList.remove('show');
+  const card=document.querySelector('#callOverlay .callCard');
+  card.classList.remove('ringing','videoMode');
+  track('call_ended', {seconds:callSeconds});
+}
+document.getElementById('callMute').onclick=()=>{ callState.muted=!callState.muted; updateCallButtons(); toast(callState.muted?'Muted':'Unmuted'); };
+document.getElementById('callSpeaker').onclick=()=>{ callState.speaker=!callState.speaker; updateCallButtons(); toast(callState.speaker?'Speaker on':'Speaker off'); };
+document.getElementById('callCamera').onclick=()=>{
+  if(!callState.video) return;
+  callState.camera=!callState.camera; updateCallButtons();
+  document.getElementById('callVideoFrame').style.opacity = callState.camera?1:0.15;
+  toast(callState.camera?'Camera on':'Camera off');
+};
+document.getElementById('callEnd').onclick=endCall;
+document.getElementById('callBtn').onclick=()=>{
+  const c=conversations.find(x=>x.id===state.activeConvo);
+  if(!c){ toast('Open a conversation first'); return; }
+  openCall(c.name, false);
+};
+document.getElementById('videoCallBtn').onclick=()=>{
+  const c=conversations.find(x=>x.id===state.activeConvo);
+  if(!c){ toast('Open a conversation first'); return; }
+  openCall(c.name, true);
+};
+
+/* =========================================================
+   CREATE POST
 ========================================================= */
 const createOverlay=document.getElementById('createOverlay');
 function buildPostForm(){
@@ -1452,162 +1659,105 @@ function renderProfileTab(which){
     el.innerHTML = items.length ? `<div class="savedGrid">${items.map(e=>`<div class="savedTile"><div class="st-img" style="background-image:linear-gradient(160deg, #54677C33, rgba(20,23,26,.3)), url('${photoUrl(e.id,300,200)}'); background-size:cover; background-position:center;"></div><div class="st-body"><h5>${e.title}</h5></div></div>`).join('')}</div>` : `<p class="screenSub">No events marked interested yet.</p>`;
   } else {
     const posts=feed.filter(f=>f.kicker==='You posted');
-    el.innerHTML = posts.length ? posts.map(p=>`<div class="feedCard"><div class="feedKicker"><span class="dot" style="background:${p.color}"></span>${p.kicker}</div><h3>${p.title}</h3><p>${p.body}</p></div>`).join('') : `<p class="screenSub">Your posted experiences will show up here after your first visit.</p>`;
+    el.innerHTML = posts.length ? posts.map(p=>`<div class="feedCard"><div class="feedKicker"><span class="dot" style="background:${p.color}"></span>${p.kicker}</div><h3>${p.title}</h3><p>${p.body}</p></div>`).join('') : `<p class="screenSub">Your posts will show up here once you share an experience.</p>`;
   }
 }
-renderProfileTab('saved');
-
-/* =========================================================
-   SEARCH
-========================================================= */
-const searchBtn=document.getElementById('searchBtn'), searchOverlay=document.getElementById('searchOverlay'), searchInput=document.getElementById('searchInput');
-searchBtn.onclick=()=>{ searchOverlay.classList.add('show'); searchInput.value=''; renderSearch(''); searchInput.focus(); };
-searchOverlay.onclick=e=>{ if(e.target===searchOverlay) searchOverlay.classList.remove('show'); };
-searchInput.addEventListener('input', ()=>renderSearch(searchInput.value.toLowerCase()));
-function renderSearch(q){
-  const res=document.getElementById('searchResults'); res.innerHTML='';
-  const rows=[];
-  places.forEach(p=>{ if(!q||p.name.toLowerCase().includes(q)) rows.push({type:'Place', label:p.name, sub:p.category, go:()=>openPlace(p.id)}); });
-  events.forEach(e=>{ if(!q||e.title.toLowerCase().includes(q)) rows.push({type:'Event', label:e.title, sub:e.date, go:()=>switchScreen('events')}); });
-  districts.forEach(d=>{ if(!q||d.name.toLowerCase().includes(q)) rows.push({type:'District', label:d.name, sub:d.desc, go:()=>switchScreen('districts')}); });
-  friends.forEach(f=>{ if(q && f.name.toLowerCase().includes(q)) rows.push({type:'Person', label:f.name, sub:'Friend', go:()=>switchScreen('circle')}); });
-  if(rows.length===0){ res.innerHTML=`<p class="screenSub" style="margin-top:10px;">No matches yet — try a place, district or friend's name.</p>`; return; }
-  rows.slice(0,25).forEach(r=>{
-    const row=document.createElement('div'); row.className='searchRow';
-    row.innerHTML=`<span>${r.label} <span style="color:var(--ink-soft);font-weight:400;">— ${r.sub}</span></span><span class="type">${r.type}</span>`;
-    row.onclick=()=>{ r.go(); searchOverlay.classList.remove('show'); };
-    res.appendChild(row);
-  });
-}
-
-/* =========================================================
-   NOTIFICATIONS
-========================================================= */
-const notifBtn=document.getElementById('notifBtn'), notifDrawer=document.getElementById('notifDrawer'), notifOverlay=document.getElementById('notifOverlay');
-function renderNotifs(){
-  document.getElementById('notifList').innerHTML = notifications.map(n=>`<div class="notifItem">${n.text}<div class="nt">${n.time}</div></div>`).join('');
-}
-renderNotifs();
-notifBtn.onclick=()=>{ notifDrawer.classList.add('show'); notifOverlay.classList.add('show'); document.getElementById('notifBadge').style.display='none'; };
-notifOverlay.onclick=()=>{ notifDrawer.classList.remove('show'); notifOverlay.classList.remove('show'); };
-
-document.getElementById('profileBtn').onclick=()=>switchScreen('profile');
-document.getElementById('settingsBtn').onclick=()=>switchScreen('settings');
-
-/* =========================================================
-   THEME TOGGLE
-========================================================= */
-const themeBtn=document.getElementById('themeBtn');
-const authThemeBtn=document.getElementById('authThemeBtn');
-const settingsThemeToggle=document.getElementById('settingsThemeToggle');
-function applyTheme(dark){
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  themeBtn.innerHTML = icon(dark ? 'sun' : 'moon');
-  authThemeBtn.innerHTML = icon(dark ? 'sun' : 'moon');
-  settingsThemeToggle.classList.toggle('on', dark);
-}
-function toggleTheme(){ applyTheme(document.documentElement.dataset.theme !== 'dark'); }
-themeBtn.onclick = toggleTheme;
-authThemeBtn.onclick = toggleTheme;
-settingsThemeToggle.onclick = toggleTheme;
-applyTheme(false);
-
-/* =========================================================
-   SETTINGS
-========================================================= */
-['toggleLive','toggleFriendActivity','toggleDigest','toggleDiscoverable'].forEach(id=>{
-  const el=document.getElementById(id);
-  el.onclick=()=>el.classList.toggle('on');
-});
-document.getElementById('logoutBtn').onclick=()=>{
-  document.getElementById('app').classList.remove('on');
-  document.getElementById('auth').style.display='flex';
-  document.getElementById('authForm').reset();
-  switchScreen('home');
-};
+renderProfileTab();
 
 /* =========================================================
    DISTRICTS SCREEN
 ========================================================= */
-function renderDistrictsScreen(){
+function renderDistrictList(){
   const list=document.getElementById('districtList'); list.innerHTML='';
   districts.forEach(d=>{
-    const placeCount = places.filter(p=>p.district===d.id).length;
-    const districtEvents = events.filter(e=>e.district===d.id);
+    const dEvents = events.filter(e=>e.district===d.id).slice(0,2);
     const card=document.createElement('div'); card.className='districtCard';
-    const upcomingHtml = districtEvents.length
-      ? `<div class="dc-events">${districtEvents.map(e=>`<div class="dc-event-row"><span class="dc-event-date">${e.date}</span><span>${e.title}</span></div>`).join('')}</div>`
-      : `<p style="font-size:12.5px; color:var(--ink-soft); margin-top:8px;">Nothing scheduled here right now.</p>`;
-    card.innerHTML=`<div class="dc-band" style="background:${d.color}"></div>
+    card.innerHTML=`<div class="dc-band" style="background:${d.color};"></div>
       <div class="dc-body">
         <h3>${d.name}</h3><p>${d.desc}</p>
-        <div class="dc-meta">${placeCount} PLACES \u00b7 ${districtEvents.length} EVENTS</div>
-        ${upcomingHtml}
-        <div class="feedMeta"><button class="pillBtn" data-id="${d.id}">Explore on map</button></div>
+        <div class="dc-meta">${places.filter(p=>p.district===d.id).length} places \u00b7 ${events.filter(e=>e.district===d.id).length} events</div>
+        ${dEvents.length?`<div class="dc-events">${dEvents.map(e=>`<div class="dc-event-row"><span class="dc-event-date">${e.date}</span><span>${e.title}</span></div>`).join('')}</div>`:''}
+        <div class="feedMeta" style="margin-top:10px;"><button class="pillBtn" data-d="${d.id}">View on map</button></div>
       </div>`;
-    card.querySelector('.pillBtn').onclick=()=>{
-      switchScreen('map');
-      setTimeout(()=>{
-        const chip=[...document.querySelectorAll('.districtChip')].find(c=>c.textContent===d.name);
-        if(chip) chip.click();
-      },80);
-    };
     list.appendChild(card);
   });
+  list.querySelectorAll('[data-d]').forEach(b=>{
+    b.onclick=()=>{
+      switchScreen('map');
+      setTimeout(()=>{
+        const chip=[...document.querySelectorAll('.districtChip')].find(c=>c.textContent===districts.find(x=>x.id===b.dataset.d).name);
+        if(chip) chip.click();
+      }, 100);
+    };
+  });
 }
-renderDistrictsScreen();
+renderDistrictList();
 
 /* =========================================================
-   VOICE / VIDEO CALL MODAL
+   SETTINGS + THEME
 ========================================================= */
-const callOverlay=document.getElementById('callOverlay');
-let callTimerInterval=null, callSeconds=0, callMuted=false, callSpeaker=false, callCameraOn=true;
-function startCall(isVideo){
-  const c=conversations.find(x=>x.id===state.activeConvo);
-  if(!c){ toast('Open a conversation first'); return; }
-  document.getElementById('callName').textContent=c.name;
-  document.getElementById('callAvatar').textContent=c.name[0];
-  document.getElementById('callStatus').textContent='Calling…';
-  callSeconds=0; document.getElementById('callTimer').textContent='00:00';
-  callCameraOn=true;
-  const videoFrame=document.getElementById('callVideoFrame');
-  const cameraBtn=document.getElementById('callCamera');
-  if(isVideo){
-    videoFrame.style.display='flex';
-    videoFrame.style.backgroundImage = `linear-gradient(160deg, rgba(31,152,169,.35), rgba(20,23,26,.75)), url('${photoUrl(c.id,400,260)}')`;
-    cameraBtn.style.display='flex';
-    cameraBtn.classList.remove('active');
-    document.querySelector('.callCard').classList.add('videoMode');
-  } else {
-    videoFrame.style.display='none';
-    cameraBtn.style.display='none';
-    document.querySelector('.callCard').classList.remove('videoMode');
-  }
-  callOverlay.classList.add('show');
-  track(isVideo?'video_call_started':'voice_call_started',{convo:c.id});
-  setTimeout(()=>{
-    document.getElementById('callStatus').textContent='Connected';
-    clearInterval(callTimerInterval);
-    callTimerInterval=setInterval(()=>{
-      callSeconds++;
-      const m=String(Math.floor(callSeconds/60)).padStart(2,'0');
-      const s=String(callSeconds%60).padStart(2,'0');
-      document.getElementById('callTimer').textContent=`${m}:${s}`;
-    },1000);
-  },1200);
+function applyTheme(dark){
+  document.documentElement.setAttribute('data-theme', dark?'dark':'light');
+  document.getElementById('themeBtn').innerHTML = icon(dark?'sun':'moon');
+  document.getElementById('authThemeBtn').innerHTML = icon(dark?'sun':'moon');
+  document.getElementById('settingsThemeToggle').classList.toggle('on', dark);
+  state.darkMode=dark;
+  persistState();
 }
-document.getElementById('callBtn').onclick=()=>startCall(false);
-document.getElementById('videoCallBtn').onclick=()=>startCall(true);
-document.getElementById('callEnd').onclick=()=>{
-  clearInterval(callTimerInterval); callOverlay.classList.remove('show');
-  callMuted=false; callSpeaker=false;
-  document.getElementById('callMute').classList.remove('active');
-  document.getElementById('callSpeaker').classList.remove('active');
-  document.getElementById('callCamera').classList.remove('active');
+document.getElementById('themeBtn').onclick=()=>applyTheme(!state.darkMode);
+document.getElementById('authThemeBtn').onclick=()=>applyTheme(!state.darkMode);
+document.getElementById('settingsThemeToggle').onclick=()=>applyTheme(!state.darkMode);
+[['toggleLive','liveLocation'],['toggleFriendActivity','friendActivity'],['toggleDigest','digest'],['toggleDiscoverable','discoverable']].forEach(([id,key])=>{
+  const el=document.getElementById(id);
+  el.onclick=()=>{
+    el.classList.toggle('on');
+    state.settings[key]=el.classList.contains('on');
+    persistState();
+    toast(el.classList.contains('on')?'Turned on':'Turned off');
+  };
+});
+document.getElementById('logoutBtn').onclick=()=>{
+  endCall();
+  document.getElementById('app').classList.remove('on');
+  document.getElementById('auth').style.display='flex';
+  toast('Logged out');
 };
-document.getElementById('callMute').onclick=(e)=>{ callMuted=!callMuted; e.currentTarget.classList.toggle('active', callMuted); };
-document.getElementById('callSpeaker').onclick=(e)=>{ callSpeaker=!callSpeaker; e.currentTarget.classList.toggle('active', callSpeaker); };
-document.getElementById('callCamera').onclick=(e)=>{ callCameraOn=!callCameraOn; e.currentTarget.classList.toggle('active', !callCameraOn); document.getElementById('callVideoFrame').style.opacity = callCameraOn?1:0.15; };
+
+/* =========================================================
+   SEARCH OVERLAY
+========================================================= */
+document.getElementById('searchBtn').onclick=()=>{ document.getElementById('searchOverlay').classList.add('show'); document.getElementById('searchInput').value=''; document.getElementById('searchResults').innerHTML=''; document.getElementById('searchInput').focus(); };
+document.getElementById('searchOverlay').addEventListener('click', e=>{ if(e.target.id==='searchOverlay') e.currentTarget.classList.remove('show'); });
+document.getElementById('searchInput').addEventListener('input', e=>{
+  const q=e.target.value.trim().toLowerCase();
+  const results=document.getElementById('searchResults');
+  if(!q){ results.innerHTML=''; return; }
+  const rows=[];
+  places.filter(p=>p.name.toLowerCase().includes(q)).slice(0,5).forEach(p=>rows.push({label:p.name, type:'Place', action:()=>{document.getElementById('searchOverlay').classList.remove('show'); openPlace(p.id);}}));
+  events.filter(ev=>ev.title.toLowerCase().includes(q)).slice(0,5).forEach(ev=>rows.push({label:ev.title, type:'Event', action:()=>{document.getElementById('searchOverlay').classList.remove('show'); switchScreen('events');}}));
+  districts.filter(d=>d.name.toLowerCase().includes(q)).slice(0,5).forEach(d=>rows.push({label:d.name, type:'District', action:()=>{document.getElementById('searchOverlay').classList.remove('show'); switchScreen('districts');}}));
+  friends.filter(f=>f.name.toLowerCase().includes(q)).slice(0,5).forEach(f=>rows.push({label:f.name, type:'Person', action:()=>{document.getElementById('searchOverlay').classList.remove('show'); switchScreen('circle');}}));
+  results.innerHTML = rows.length ? rows.map((r,i)=>`<div class="searchRow" data-i="${i}">${r.label}<span class="type">${r.type}</span></div>`).join('') : `<p class="screenSub" style="padding:10px 6px;">No matches for "${q}".</p>`;
+  results.querySelectorAll('.searchRow').forEach((el,i)=> el.onclick=()=>rows[i].action());
+});
+
+/* =========================================================
+   NOTIFICATIONS DRAWER
+========================================================= */
+function renderNotifs(){
+  const list=document.getElementById('notifList');
+  list.innerHTML = notifications.length ? notifications.map(n=>`<div class="notifItem">${n.text}<div class="nt">${n.time}</div></div>`).join('') : `<div class="emptyState"><p>You're all caught up.</p></div>`;
+}
+renderNotifs();
+document.getElementById('notifBtn').onclick=()=>{
+  document.getElementById('notifDrawer').classList.add('show');
+  document.getElementById('notifOverlay').classList.add('show');
+  const badge=document.getElementById('notifBadge'); if(badge) badge.style.display='none';
+};
+document.getElementById('notifOverlay').onclick=()=>{
+  document.getElementById('notifDrawer').classList.remove('show');
+  document.getElementById('notifOverlay').classList.remove('show');
+};
 </script>
 </body>
 </html>
