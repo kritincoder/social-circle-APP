@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Social Circle</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAxM-KHzmW00p9uMO-FBxFkCIk0Aa5lh-g&libraries=marker&loading=async" async defer></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAxM-KHzmW00p9uMO-FBxFkCIk0Aa5lh-g&libraries=marker,places&loading=async" async defer></script>
 <style>
 :root{
   --ink:#14171A; --ink-soft:#5A6067; --paper:#FBFAF7; --paper-dim:#F0EEE8; --line:#E3E0D8;
@@ -33,6 +33,7 @@ h1,h2,h3,h4{font-family:'Fraunces',serif; font-weight:500;}
 button{font-family:inherit; cursor:pointer;}
 input,textarea{font-family:inherit;}
 img{display:block; max-width:100%;}
+input, textarea, select{ background:var(--card-bg); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
 ::-webkit-scrollbar{width:6px; height:6px;}
 ::-webkit-scrollbar-thumb{background:var(--line); border-radius:10px;}
 
@@ -115,7 +116,7 @@ img{display:block; max-width:100%;}
 .chip.active{background:var(--ink); color:var(--paper); border-color:var(--ink);}
 
 /* ============ FEED ============ */
-.feedCard{border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px; background:#fff; cursor:default;}
+.feedCard{border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px; background:var(--card-bg); cursor:default;}
 .feedKicker{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ink-soft); margin-bottom:10px;}
 .dot{width:6px; height:6px; border-radius:50%;}
 .feedCard h3{font-size:17px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;}
@@ -142,7 +143,7 @@ img{display:block; max-width:100%;}
 .swipe-stamp.like{ left:16px; color:var(--green); border-color:var(--green); transform:rotate(-14deg);}
 .swipe-stamp.nope{ right:16px; color:var(--coral); border-color:var(--coral); transform:rotate(14deg);}
 .swipe-controls{display:flex; justify-content:center; gap:18px; margin-top:22px;}
-.swipe-btn{width:58px; height:58px; border-radius:50%; border:1.5px solid var(--line); background:#fff; font-size:20px; transition:transform .15s, border-color .15s, color .15s;}
+.swipe-btn{width:58px; height:58px; border-radius:50%; border:1.5px solid var(--line); background:var(--card-bg); font-size:20px; transition:transform .15s, border-color .15s, color .15s;}
 .swipe-btn:hover{transform:translateY(-2px);}
 .swipe-btn:active{transform:scale(.92);}
 .swipe-btn.reject:hover{border-color:var(--coral); color:var(--coral);}
@@ -154,20 +155,20 @@ img{display:block; max-width:100%;}
 #mapScreen .screenInner{padding:0; max-width:none;}
 .mapTop{position:absolute; top:76px; left:0; right:0; z-index:20; padding:0 16px; display:flex; flex-direction:column; gap:10px;}
 .districtScroll{display:flex; gap:8px; overflow-x:auto;}
-.districtChip{flex-shrink:0; padding:8px 14px; border-radius:100px; background:#fff; border:1px solid var(--line); font-size:12.5px; font-weight:600; box-shadow:0 3px 10px rgba(0,0,0,.05);}
+.districtChip{flex-shrink:0; padding:8px 14px; border-radius:100px; background:var(--card-bg); border:1px solid var(--line); font-size:12.5px; font-weight:600; box-shadow:0 3px 10px rgba(0,0,0,.05);}
 .districtChip.active{background:var(--ink); color:#fff; border-color:var(--ink);}
 #googleMap{position:absolute; top:var(--topbar-h); left:0; right:0; bottom:0;}
 .mapLegend{position:absolute; right:14px; bottom:96px; z-index:20; background:var(--card-bg); border:1px solid var(--line); border-radius:12px; padding:8px 12px; display:flex; gap:14px; font-size:11.5px; color:var(--ink-soft); box-shadow:0 4px 14px rgba(0,0,0,.06);}
 .mapLegend span{display:flex; align-items:center; gap:6px;}
 .mapLegend i{width:9px; height:9px; border-radius:50%; display:inline-block;}
 @media(max-width:860px){ .mapLegend{bottom:calc(var(--tabbar-h) + 14px);} }
-.mapSheet{position:absolute; left:16px; right:16px; bottom:16px; z-index:30; background:#fff; border-radius:18px; border:1px solid var(--line); box-shadow:0 12px 30px rgba(0,0,0,.12); padding:18px; display:none; max-width:400px;}
+.mapSheet{position:absolute; left:16px; right:16px; bottom:16px; z-index:30; background:var(--card-bg); border-radius:18px; border:1px solid var(--line); box-shadow:0 12px 30px rgba(0,0,0,.12); padding:18px; display:none; max-width:400px;}
 .mapSheet.show{display:block;}
 .mapSheet .closeX{position:absolute; top:10px; right:10px; border:none; background:none; font-size:14px; color:var(--ink-soft);}
 @media(max-width:860px){ .mapTop{top:72px;} }
 
 /* ============ EVENTS ============ */
-.eventCard{display:flex; gap:14px; border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:12px; background:#fff;}
+.eventCard{display:flex; gap:14px; border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:12px; background:var(--card-bg);}
 .eventDate{flex-shrink:0; width:56px; text-align:center; background:var(--paper-dim); border-radius:12px; padding:8px 0;}
 .eventDate .d{font-family:'Fraunces',serif; font-size:20px; font-weight:600;}
 .eventDate .m{font-size:10px; color:var(--ink-soft); text-transform:uppercase;}
@@ -191,7 +192,7 @@ img{display:block; max-width:100%;}
 .msgRow.me{justify-content:flex-end;}
 .bubble{max-width:60%; padding:10px 14px; border-radius:16px; background:var(--paper-dim); font-size:14px;}
 .msgRow.me .bubble{background:var(--ink); color:var(--paper);}
-.sharedCard{max-width:260px; border:1px solid var(--line); border-radius:14px; overflow:hidden; background:#fff; cursor:pointer;}
+.sharedCard{max-width:260px; border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--card-bg); cursor:pointer;}
 .sharedCard .sc-img{height:80px;}
 .sharedCard .sc-body{padding:10px 12px;}
 .sharedCard h5{font-size:13.5px;}
@@ -211,7 +212,7 @@ img{display:block; max-width:100%;}
 .profileTabs button{background:none; border:none; padding:10px 0; font-size:13.5px; font-weight:600; color:var(--ink-soft); border-bottom:2px solid transparent;}
 .profileTabs button.active{color:var(--ink); border-color:var(--ink);}
 .savedGrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px;}
-.savedTile{border:1px solid var(--line); border-radius:14px; overflow:hidden; background:#fff; cursor:pointer;}
+.savedTile{border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--card-bg); cursor:pointer;}
 .savedTile .st-img{height:90px;}
 .savedTile .st-body{padding:10px;}
 .savedTile h5{font-size:12.5px;}
@@ -219,14 +220,26 @@ img{display:block; max-width:100%;}
 /* ============ SEARCH OVERLAY ============ */
 #searchOverlay{position:fixed; inset:0; background:rgba(20,23,26,0.5); z-index:200; display:none;}
 #searchOverlay.show{display:block;}
-.searchPanel{max-width:600px; margin:70px auto 0; background:#fff; border-radius:18px; padding:20px; max-height:75vh; display:flex; flex-direction:column;}
+.searchPanel{max-width:600px; margin:70px auto 0; background:var(--card-bg); border-radius:18px; padding:20px; max-height:75vh; display:flex; flex-direction:column;}
 .searchPanel input{width:100%; padding:13px 16px; border-radius:12px; border:1px solid var(--line); font-size:15px;}
 .searchResults{margin-top:14px; overflow-y:auto;}
 .searchRow{display:flex; justify-content:space-between; align-items:center; padding:11px 6px; border-bottom:1px solid var(--paper-dim); font-size:14px; cursor:pointer;}
 .searchRow span.type{font-size:11px; color:var(--ink-soft); text-transform:uppercase; font-family:'IBM Plex Mono',monospace;}
 
+/* ============ MOBILE "MORE" DRAWER (sidebar equivalent on small screens) ============ */
+#moreOverlay{position:fixed; inset:0; background:rgba(0,0,0,.28); z-index:210; display:none;}
+#moreOverlay.show{display:block;}
+#moreDrawer{position:fixed; left:0; right:0; bottom:0; background:var(--card-bg); color:var(--ink); z-index:220; border-radius:20px 20px 0 0; padding:10px 18px 22px; transform:translateY(110%); transition:transform .28s ease; max-height:75vh; overflow-y:auto; box-shadow:0 -10px 30px rgba(0,0,0,.18);}
+#moreDrawer.show{transform:translateY(0);}
+#moreDrawer .moreHandle{width:36px; height:4px; border-radius:100px; background:var(--line); margin:6px auto 14px;}
+#moreDrawer h3{font-size:16px; margin-bottom:6px;}
+.moreItem{display:flex; align-items:center; gap:14px; padding:13px 4px; border:none; border-bottom:1px solid var(--paper-dim); font-size:14.5px; font-weight:500; width:100%; background:none; text-align:left; color:var(--ink);}
+.moreItem .ic{width:22px; display:flex; color:var(--ink-soft);}
+.moreItem:last-child{border-bottom:none;}
+@media(min-width:861px){ #moreDrawer, #moreOverlay{display:none !important;} }
+
 /* ============ NOTIFICATIONS DRAWER ============ */
-#notifDrawer{position:fixed; top:0; right:-360px; width:340px; height:100vh; background:#fff; z-index:220; box-shadow:-10px 0 30px rgba(0,0,0,.12); transition:right .3s ease; padding:20px;}
+#notifDrawer{position:fixed; top:0; right:-360px; width:340px; height:100vh; background:var(--card-bg); z-index:220; box-shadow:-10px 0 30px rgba(0,0,0,.12); transition:right .3s ease; padding:20px;}
 #notifDrawer.show{right:0;}
 #notifOverlay{position:fixed; inset:0; background:rgba(0,0,0,0.25); z-index:210; display:none;}
 #notifOverlay.show{display:block;}
@@ -234,7 +247,7 @@ img{display:block; max-width:100%;}
 .notifItem .nt{font-size:11px; color:var(--ink-soft); margin-top:3px;}
 
 /* ============ DISTRICTS SCREEN ============ */
-.districtCard{border:1px solid var(--line); border-radius:16px; overflow:hidden; margin-bottom:14px; background:#fff; display:flex; flex-wrap:wrap;}
+.districtCard{border:1px solid var(--line); border-radius:16px; overflow:hidden; margin-bottom:14px; background:var(--card-bg); display:flex; flex-wrap:wrap;}
 .districtCard .dc-band{width:100%; height:8px;}
 .districtCard .dc-body{padding:18px; flex:1;}
 .districtCard h3{font-size:17px; font-weight:600; font-family:'Inter',sans-serif;}
@@ -285,13 +298,13 @@ img{display:block; max-width:100%;}
 .exploreSectionHead h3{font-size:15.5px; font-weight:600; font-family:'Inter',sans-serif;}
 .exploreSectionHead span{font-size:12px; color:var(--ink-soft); cursor:pointer;}
 .hScroll{display:flex; gap:12px; overflow-x:auto; padding-bottom:6px;}
-.exploreTile{flex-shrink:0; width:190px; border:1px solid var(--line); border-radius:14px; overflow:hidden; background:#fff; cursor:pointer;}
+.exploreTile{flex-shrink:0; width:190px; border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--card-bg); cursor:pointer;}
 .exploreTile .et-img{height:100px;}
 .exploreTile .et-body{padding:11px 12px;}
 .exploreTile h5{font-size:13px; font-weight:600;}
 .exploreTile span{font-size:11.5px; color:var(--ink-soft);}
 .tileGrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px;}
-.actionTile{border:1px solid var(--line); border-radius:14px; padding:16px 14px; background:#fff; text-align:left; display:flex; flex-direction:column; gap:6px;}
+.actionTile{border:1px solid var(--line); border-radius:14px; padding:16px 14px; background:var(--card-bg); text-align:left; display:flex; flex-direction:column; gap:6px;}
 .actionTile .ic{display:flex;}
 .actionTile .ic svg{width:22px; height:22px;}
 svg{display:block;}
@@ -308,14 +321,14 @@ svg{display:block;}
 .friendRow h4{font-size:14px; font-weight:600;}
 .friendRow p{font-size:12px; color:var(--ink-soft); margin-top:2px;}
 .friendActions{display:flex; gap:6px; margin-left:auto;}
-.reqCard{border:1px solid var(--line); border-radius:14px; padding:14px; display:flex; align-items:center; gap:12px; margin-bottom:10px; background:#fff;}
+.reqCard{border:1px solid var(--line); border-radius:14px; padding:14px; display:flex; align-items:center; gap:12px; margin-bottom:10px; background:var(--card-bg);}
 .emptyState{text-align:center; padding:36px 20px; color:var(--ink-soft);}
 .emptyState p{font-size:14px; margin-top:6px;}
 .emptyState .emptySub{font-size:12.5px; max-width:320px; margin:6px auto 0;}
 .menuPop{position:relative; display:inline-block;}
-.menuPop .menuList{display:none; position:absolute; right:0; top:38px; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 22px rgba(0,0,0,.1); z-index:20; overflow:hidden;}
+.menuPop .menuList{display:none; position:absolute; right:0; top:38px; background:var(--card-bg); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 22px rgba(0,0,0,.1); z-index:20; overflow:hidden;}
 .menuPop.open .menuList{display:block;}
-.menuList button{display:block; width:160px; text-align:left; padding:10px 14px; font-size:13px; border:none; background:#fff;}
+.menuList button{display:block; width:160px; text-align:left; padding:10px 14px; font-size:13px; border:none; background:var(--card-bg);}
 .menuList button:hover{background:var(--paper-dim);}
 
 /* ============ NEWS ============ */
@@ -342,7 +355,7 @@ svg{display:block;}
 #groupOverlay{position:fixed; inset:0; background:rgba(20,23,26,.5); z-index:250; display:none; align-items:flex-end; justify-content:center;}
 #groupOverlay.show{display:flex;}
 .groupPickRow{display:flex; align-items:center; gap:10px; font-size:14px; padding:6px 0;}
-.createSheet{width:100%; max-width:520px; background:#fff; border-radius:20px 20px 0 0; padding:22px; max-height:88vh; overflow-y:auto;}
+.createSheet{width:100%; max-width:520px; background:var(--card-bg); border-radius:20px 20px 0 0; padding:22px; max-height:88vh; overflow-y:auto;}
 @media(min-width:861px){ #createOverlay{align-items:center;} #groupOverlay{align-items:center;} .createSheet{border-radius:20px;} }
 .createSheet textarea{width:100%; border:1px solid var(--line); border-radius:12px; padding:12px 14px; font-size:14.5px; min-height:90px; resize:vertical;}
 .createSheet select{width:100%; padding:11px 13px; border-radius:10px; border:1px solid var(--line); font-size:14px; margin-top:6px;}
@@ -613,7 +626,8 @@ svg{display:block;}
     <div class="createLabel">What happened</div>
     <textarea id="postText" placeholder="What was it like?"></textarea>
     <div class="createLabel">Place</div>
-    <select id="postPlace"></select>
+    <input type="text" id="postPlaceSearch" placeholder="Search for the place near you…" autocomplete="off">
+    <p style="font-size:11.5px; color:var(--ink-soft); margin-top:6px;" id="postLocNote">Finding your location so results are nearby…</p>
     <div class="createLabel">Or pin the exact spot on the map</div>
     <div id="postPinMap" style="height:180px; border-radius:12px; border:1px solid var(--line); overflow:hidden;"></div>
     <p style="font-size:11.5px; color:var(--ink-soft); margin-top:6px;" id="postPinNote">Tap the map to drop a pin — useful for a spot that isn't listed yet.</p>
@@ -650,6 +664,14 @@ svg{display:block;}
     <input type="text" id="searchInput" placeholder="Search people, places, events, districts…">
     <div class="searchResults" id="searchResults"></div>
   </div>
+</div>
+
+<!-- MOBILE MORE DRAWER -->
+<div id="moreOverlay"></div>
+<div id="moreDrawer">
+  <div class="moreHandle"></div>
+  <h3>More</h3>
+  <div id="moreList"></div>
 </div>
 
 <!-- NOTIFICATIONS DRAWER -->
@@ -832,44 +854,95 @@ function toast(msg){
 }
 
 /* =========================================================
-   PERSISTENCE — key/value storage (personal, this device/account only)
-   Note: a real backend (e.g. Postgres) can't be reached directly from a
-   browser-based artifact. This uses the built-in storage API as the
-   equivalent persistence layer so saved places, settings and theme survive
-   a refresh. See the chat reply for notes on wiring this to real Postgres.
+   PERSISTENCE
+   Two layers, tried in order, completely transparent to the rest of the app:
+     1) A real backend at /api/* (Express + Postgres — see server.js / schema.sql).
+        This only exists once you deploy this file behind that server, so in
+        the Claude preview these fetch calls simply fail fast and we fall through.
+     2) A local key/value fallback: Claude's artifact storage API when running
+        inside a Claude.ai preview (window.storage), or localStorage once this
+        file is deployed on its own domain (window.storage won't exist there).
+   This means the exact same file works in preview AND in production with
+   real Postgres persistence, with zero configuration.
 ========================================================= */
 function shuffleArr(a){ const arr=[...a]; for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
 
-async function persistState(){
+async function kvGet(key){
+  try{ if(window.storage){ const r=await window.storage.get(key,false); return r?r.value:null; } }catch(e){}
+  try{ return window.localStorage ? localStorage.getItem(key) : null; }catch(e){}
+  return null;
+}
+async function kvSet(key,val){
+  try{ if(window.storage){ await window.storage.set(key,val,false); return; } }catch(e){}
+  try{ if(window.localStorage) localStorage.setItem(key,val); }catch(e){}
+}
+async function getDeviceId(){
+  let id = await kvGet('sc-device-id');
+  if(!id){ id = 'dev-'+Math.random().toString(36).slice(2,10)+Date.now().toString(36); await kvSet('sc-device-id', id); }
+  return id;
+}
+async function apiCall(path, opts){
   try{
-    if(!window.storage) return;
-    await window.storage.set('sc-settings', JSON.stringify({
-      darkMode: state.darkMode,
-      settings: state.settings,
-      savedPlaces: [...state.savedPlaces],
-      savedEvents: [...state.savedEvents]
-    }), false);
-  }catch(err){ /* storage unavailable this session — app still works, just won't persist */ }
+    opts = opts || {};
+    opts.headers = Object.assign({'Content-Type':'application/json','X-Device-Id':await getDeviceId()}, opts.headers||{});
+    const res = await fetch(path, opts);
+    if(!res.ok) return null;
+    return await res.json();
+  }catch(e){ return null; } /* no backend deployed here (e.g. Claude preview) — caller falls back */
+}
+
+async function persistState(){
+  const payload = {
+    darkMode: state.darkMode,
+    settings: state.settings,
+    savedPlaces: [...state.savedPlaces],
+    savedEvents: [...state.savedEvents]
+  };
+  const ok = await apiCall('/api/state', {method:'POST', body:JSON.stringify(payload)});
+  if(!ok) await kvSet('sc-settings', JSON.stringify(payload));
 }
 async function loadPersistedState(){
-  try{
-    if(!window.storage) return;
-    const res = await window.storage.get('sc-settings', false);
-    if(res && res.value){
-      const d = JSON.parse(res.value);
-      if(d.darkMode) applyTheme(true);
-      if(d.settings){
-        state.settings = {...state.settings, ...d.settings};
-        document.getElementById('toggleLive').classList.toggle('on', !!state.settings.liveLocation);
-        document.getElementById('toggleFriendActivity').classList.toggle('on', !!state.settings.friendActivity);
-        document.getElementById('toggleDigest').classList.toggle('on', !!state.settings.digest);
-        document.getElementById('toggleDiscoverable').classList.toggle('on', !!state.settings.discoverable);
-      }
-      if(Array.isArray(d.savedPlaces)) state.savedPlaces = new Set(d.savedPlaces);
-      if(Array.isArray(d.savedEvents)) state.savedEvents = new Set(d.savedEvents);
-      renderFeed(); renderEvents(); renderProfileTab();
+  let d = await apiCall('/api/state', {method:'GET'});
+  if(!d || !d.found){
+    try{ const raw = await kvGet('sc-settings'); if(raw) d = JSON.parse(raw); }catch(e){ d=null; }
+  }
+  if(d){
+    if(d.darkMode) applyTheme(true);
+    if(d.settings){
+      state.settings = {...state.settings, ...d.settings};
+      document.getElementById('toggleLive').classList.toggle('on', !!state.settings.liveLocation);
+      document.getElementById('toggleFriendActivity').classList.toggle('on', !!state.settings.friendActivity);
+      document.getElementById('toggleDigest').classList.toggle('on', !!state.settings.digest);
+      document.getElementById('toggleDiscoverable').classList.toggle('on', !!state.settings.discoverable);
     }
-  }catch(err){ /* first run, or storage unavailable */ }
+    if(Array.isArray(d.savedPlaces)) state.savedPlaces = new Set(d.savedPlaces);
+    if(Array.isArray(d.savedEvents)) state.savedEvents = new Set(d.savedEvents);
+    renderFeed(); renderEvents(); renderProfileTab();
+  }
+}
+
+/* Real clipboard copy (with an execCommand fallback for older/embedded browsers).
+   Used by both the invite link and the place "Share" button — previously these
+   only showed a toast and never actually copied anything real to the clipboard. */
+async function copyToClipboard(text){
+  try{
+    if(navigator.clipboard && window.isSecureContext){ await navigator.clipboard.writeText(text); return true; }
+  }catch(e){}
+  try{
+    const ta=document.createElement('textarea');
+    ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    const ok=document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  }catch(e){ return false; }
+}
+async function getInviteLink(){
+  const r = await apiCall('/api/invite', {method:'POST'});
+  if(r && r.code) return location.origin + location.pathname + '?invite=' + r.code;
+  let code = await kvGet('sc-invite-code');
+  if(!code){ code = Math.random().toString(36).slice(2,8); await kvSet('sc-invite-code', code); }
+  return location.origin + location.pathname + '?invite=' + code;
 }
 
 /* =========================================================
@@ -903,9 +976,12 @@ const NAV_PRIMARY = [
   {id:'explore', label:'Explore', ic:'explore'},
   {id:'create', label:'Create', ic:'plus', action:true, cls:'createBtn'},
   {id:'map', label:'Map', ic:'map'},
-  {id:'circle', label:'Circle', ic:'circle'},
 ];
+/* Everything here lives in the desktop sidenav AND in the mobile "More" drawer,
+   so every screen stays reachable on small viewports (previously these only
+   existed in .sidenav, which is display:none on mobile — that was the bug). */
 const NAV_SECONDARY = [
+  {id:'circle', label:'Circle', ic:'circle'},
   {id:'discover', label:'Swipe discovery', ic:'swipe'},
   {id:'districts', label:'Districts', ic:'pin'},
   {id:'events', label:'Events', ic:'calendar'},
@@ -923,6 +999,8 @@ function buildNavButton(item){
   else { b.onclick=()=>switchScreen(item.id); }
   return b;
 }
+function openMoreDrawer(){ document.getElementById('moreDrawer').classList.add('show'); document.getElementById('moreOverlay').classList.add('show'); }
+function closeMoreDrawer(){ document.getElementById('moreDrawer').classList.remove('show'); document.getElementById('moreOverlay').classList.remove('show'); }
 function buildNav(){
   const side=document.getElementById('sidenav'), tab=document.getElementById('tabbar');
   NAV_PRIMARY.forEach(item=>{ side.appendChild(buildNavButton(item)); tab.appendChild(buildNavButton(item)); });
@@ -930,6 +1008,21 @@ function buildNav(){
   side.appendChild(document.createElement('div')).className='navDivider';
   side.appendChild(label);
   NAV_SECONDARY.forEach(item=> side.appendChild(buildNavButton(item)));
+
+  const moreBtn=document.createElement('button');
+  moreBtn.className='navItem';
+  moreBtn.innerHTML=`<span class="ic">${icon('more')}</span><span>More</span>`;
+  moreBtn.onclick=openMoreDrawer;
+  tab.appendChild(moreBtn);
+
+  const moreList=document.getElementById('moreList');
+  NAV_SECONDARY.forEach(item=>{
+    const b=document.createElement('button'); b.className='moreItem';
+    b.innerHTML=`<span class="ic">${icon(item.ic)}</span><span>${item.label}</span>`;
+    b.onclick=()=>{ switchScreen(item.id); closeMoreDrawer(); };
+    moreList.appendChild(b);
+  });
+  document.getElementById('moreOverlay').onclick=closeMoreDrawer;
 }
 buildNav();
 
@@ -1161,6 +1254,12 @@ function openPlace(id){
   switchScreen('place');
   track('place_opened',{id});
 }
+async function sharePlace(id){
+  const link = location.origin + location.pathname + '?place=' + id;
+  const ok = await copyToClipboard(link);
+  toast(ok ? 'Link copied' : link);
+  track('place_shared',{id});
+}
 function renderPlaceDetail(id){
   const p=places.find(x=>x.id===id); if(!p) return;
   const isSaved=state.savedPlaces.has(id);
@@ -1176,7 +1275,7 @@ function renderPlaceDetail(id){
     <div class="feedMeta" style="margin:14px 0 6px;">
       <button class="pillBtn ${isSaved?'saved':''}" onclick="toggleSavePlace('${p.id}')">${isSaved?'Saved':'Save'}</button>
       <button class="pillBtn" onclick="openCreate('${p.id}')">Post an experience</button>
-      <button class="pillBtn" onclick="toast('Link copied (mock)'); track('place_shared',{id:'${p.id}'})">Share</button>
+      <button class="pillBtn" onclick="sharePlace('${p.id}')">Share</button>
       <button class="pillBtn" onclick="switchScreen('map'); setTimeout(()=>openSheet(placeSheetHtml(places.find(x=>x.id==='${p.id}'))),80)">View on map</button>
     </div>
     <h3 style="font-size:15px; margin:22px 0 6px;">Friend ratings</h3>
@@ -1344,7 +1443,14 @@ function renderCircle(){
       <button class="pillBtn primary" id="inviteBtn" style="margin-top:10px;">Invite a friend</button>
     </div>`;
     const invBtn=document.getElementById('inviteBtn');
-    if(invBtn) invBtn.onclick=()=>{ toast('Invite link copied (mock)'); track('invite_sent',{}); };
+    if(invBtn) invBtn.onclick=async()=>{
+      invBtn.disabled=true;
+      const link = await getInviteLink();
+      const ok = await copyToClipboard(link);
+      invBtn.disabled=false;
+      toast(ok ? 'Invite link copied' : link);
+      track('invite_sent',{});
+    };
     return;
   }
   friends.forEach(f=>{
@@ -1589,49 +1695,107 @@ document.getElementById('videoCallBtn').onclick=()=>{
 ========================================================= */
 const createOverlay=document.getElementById('createOverlay');
 function buildPostForm(){
-  const sel=document.getElementById('postPlace'); sel.innerHTML='';
-  places.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; sel.appendChild(o); });
   const stars=document.getElementById('postStars'); stars.innerHTML='';
   for(let i=1;i<=5;i++){ const s=document.createElement('span'); s.innerHTML=icon('star',22); s.dataset.v=i; if(i<=state.postRating) s.classList.add('on'); s.onclick=()=>{ state.postRating=i; buildPostForm(); }; stars.appendChild(s); }
   const tagsEl=document.getElementById('postTags'); tagsEl.innerHTML='';
   TAGS.forEach(t=>{ const b=document.createElement('button'); b.className='tagChip'+(state.postTags.has(t)?' on':''); b.textContent=t; b.onclick=()=>{ state.postTags.has(t)?state.postTags.delete(t):state.postTags.add(t); buildPostForm(); }; tagsEl.appendChild(b); });
 }
-let postPin=null, postPinMarker=null;
-function initPostPinMap(){
-  if(window._postPinMap || typeof google === 'undefined' || !google.maps) return;
-  const map = new google.maps.Map(document.getElementById('postPinMap'), {
-    center:{lat:28.58,lng:77.19}, zoom:11, disableDefaultUI:true, zoomControl:true,
-    zoomControlOptions:{position:google.maps.ControlPosition.RIGHT_BOTTOM}
+
+/* postChosenPlace is set either by selecting a search result, tapping the
+   map, or arriving here from an existing place's "Post an experience"
+   button — never from a fixed preloaded list. */
+let postChosenPlace=null, postPinMarker=null, postAutocomplete=null, postGeo=null;
+
+function getUserLocation(){
+  return new Promise(resolve=>{
+    if(!navigator.geolocation){ resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos=>resolve({lat:pos.coords.latitude, lng:pos.coords.longitude}),
+      ()=>resolve(null),
+      {timeout:6000}
+    );
   });
-  window._postPinMap = map;
-  map.addListener('click', e=>{
-    postPin = {lat:e.latLng.lat(), lng:e.latLng.lng()};
+}
+function setChosenPlace(place){
+  postChosenPlace = place;
+  if(window._postPinMap){
     if(postPinMarker) postPinMarker.setMap(null);
-    postPinMarker = new google.maps.Marker({position:postPin, map});
-    document.getElementById('postPinNote').textContent = 'Pin set — this exact spot will be attached to your post.';
-  });
+    postPinMarker = new google.maps.Marker({position:{lat:place.lat,lng:place.lng}, map:window._postPinMap});
+    window._postPinMap.panTo({lat:place.lat,lng:place.lng});
+    window._postPinMap.setZoom(15);
+  }
+  document.getElementById('postPinNote').textContent = `Posting about "${place.name}".`;
+}
+async function initPostPinMap(){
+  if(typeof google === 'undefined' || !google.maps) return;
+  if(!postGeo) postGeo = await getUserLocation();
+  const center = postGeo || {lat:28.58,lng:77.19};
+  document.getElementById('postLocNote').textContent = postGeo
+    ? 'Showing places near your current location.'
+    : "Couldn't get your location — showing Delhi. You can still search or pin a spot.";
+  if(!window._postPinMap){
+    const map = new google.maps.Map(document.getElementById('postPinMap'), {
+      center, zoom:14, disableDefaultUI:true, zoomControl:true,
+      zoomControlOptions:{position:google.maps.ControlPosition.RIGHT_BOTTOM}
+    });
+    window._postPinMap = map;
+    map.addListener('click', e=>{
+      const lat=e.latLng.lat(), lng=e.latLng.lng();
+      const geocoder = new google.maps.Geocoder();
+      geocoder.geocode({location:{lat,lng}}, (results, status)=>{
+        const name = (status==='OK' && results[0]) ? results[0].formatted_address : `Pinned spot (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+        setChosenPlace({id:null, name, lat, lng, color:'#1F98A9'});
+        document.getElementById('postPlaceSearch').value = name;
+      });
+    });
+  } else {
+    window._postPinMap.panTo(center);
+  }
+  if(!postAutocomplete && google.maps.places){
+    const input = document.getElementById('postPlaceSearch');
+    postAutocomplete = new google.maps.places.Autocomplete(input, {fields:['name','formatted_address','geometry']});
+    postAutocomplete.bindTo('bounds', window._postPinMap);
+    const circle = new google.maps.Circle({center, radius:20000});
+    postAutocomplete.setBounds(circle.getBounds());
+    postAutocomplete.addListener('place_changed', ()=>{
+      const place = postAutocomplete.getPlace();
+      if(!place.geometry) return;
+      const lat=place.geometry.location.lat(), lng=place.geometry.location.lng();
+      setChosenPlace({id:null, name: place.name || place.formatted_address, lat, lng, color:'#1F98A9'});
+    });
+  }
 }
 function openCreate(placeId){
   buildPostForm();
-  if(placeId) document.getElementById('postPlace').value=placeId;
-  postPin=null;
+  postChosenPlace=null;
   if(postPinMarker){ postPinMarker.setMap(null); postPinMarker=null; }
-  document.getElementById('postPinNote').textContent = 'Tap the map to drop a pin \u2014 useful for a spot that isn\'t listed yet.';
+  const searchInput=document.getElementById('postPlaceSearch');
+  if(placeId){
+    const p=places.find(x=>x.id===placeId);
+    if(p){ searchInput.value=p.name; postChosenPlace={id:p.id, name:p.name, lat:p.lat, lng:p.lng, color:p.color}; }
+  } else {
+    searchInput.value='';
+  }
+  document.getElementById('postPinNote').textContent = postChosenPlace ? `Posting about "${postChosenPlace.name}".` : 'Tap the map to drop a pin, or search above.';
   createOverlay.classList.add('show');
-  setTimeout(()=>{ initPostPinMap(); if(window._postPinMap) google.maps.event.trigger(window._postPinMap,'resize'); }, 60);
+  setTimeout(async()=>{
+    await initPostPinMap();
+    if(window._postPinMap) google.maps.event.trigger(window._postPinMap,'resize');
+    if(postChosenPlace) setChosenPlace(postChosenPlace);
+  }, 60);
 }
 createOverlay.addEventListener('click', e=>{ if(e.target===createOverlay) createOverlay.classList.remove('show'); });
 document.getElementById('postSubmit').onclick=()=>{
   const text=document.getElementById('postText').value.trim();
-  const placeId=document.getElementById('postPlace').value;
-  const p=places.find(x=>x.id===placeId);
   if(!text){ toast('Say a little about what it was like first'); return; }
-  const pinNote = postPin ? ` \u00b7 pinned at ${postPin.lat.toFixed(4)}, ${postPin.lng.toFixed(4)}` : '';
-  feed.unshift({type:'friend', color:p.color, kicker:'You posted', title:p.name, body:`"${text}" \u00b7 Rating ${state.postRating}/5${state.postTags.size?' \u00b7 '+[...state.postTags].join(', '):''}${pinNote}`, place:p.id});
+  if(!postChosenPlace){ toast('Search for a place near you, or drop a pin on the map, first'); return; }
+  const p=postChosenPlace;
+  feed.unshift({type:'friend', color:p.color, kicker:'You posted', title:p.name, body:`"${text}" \u00b7 Rating ${state.postRating}/5${state.postTags.size?' \u00b7 '+[...state.postTags].join(', '):''}`, place:p.id||undefined});
   renderFeed();
-  track('post_created',{place:p.id, rating:state.postRating, tags:[...state.postTags], pin:postPin});
+  track('post_created',{place:p.id||p.name, lat:p.lat, lng:p.lng, rating:state.postRating, tags:[...state.postTags]});
   document.getElementById('postText').value='';
   state.postTags=new Set();
+  postChosenPlace=null;
   createOverlay.classList.remove('show');
   switchScreen('home');
   toast('Posted to your circle');
