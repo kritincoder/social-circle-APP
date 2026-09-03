@@ -398,6 +398,10 @@ svg{display:block;}
         <label>Name</label>
         <input type="text" id="fName" placeholder="Your name" autocomplete="name">
       </div>
+      <div class="field" id="usernameField" style="display:none;">
+        <label>Username</label>
+        <input type="text" id="fUsername" placeholder="your_username" autocomplete="username" minlength="3" maxlength="30">
+      </div>
       <div class="field">
         <label>Email</label>
         <input type="email" id="fEmail" placeholder="you@email.com" autocomplete="email" required>
@@ -407,7 +411,6 @@ svg{display:block;}
         <input type="password" id="fPass" placeholder="••••••••" autocomplete="current-password" required>
       </div>
       <button type="submit" class="authSubmit" id="authSubmitBtn">Log in</button>
-      <button type="button" class="googleBtn" id="googleSignIn"><span class="googleMark">G</span> Continue with Google</button>
     </form>
   </div>
 </div>
@@ -549,6 +552,11 @@ svg{display:block;}
     <div class="screenInner">
       <h2 class="screenTitle">Circle</h2>
       <p class="screenSub">The people whose taste shapes what you see.</p>
+      <div class="field" style="display:flex; gap:8px; margin-bottom:18px;">
+        <input type="search" id="personSearch" placeholder="Search by username or name" autocomplete="off" style="flex:1;">
+        <button class="pillBtn primary" id="personSearchBtn">Search</button>
+      </div>
+      <div id="personSearchResults"></div>
       <div id="reqSection"></div>
       <h3 style="font-size:15px; margin:18px 0 6px;">Your friends</h3>
       <div id="friendsList"></div>
@@ -962,33 +970,36 @@ async function getInviteLink(){
 ========================================================= */
 const toLogin=document.getElementById('toLogin'), toSignup=document.getElementById('toSignup');
 const nameField=document.getElementById('nameField'), authSubmitBtn=document.getElementById('authSubmitBtn');
-toLogin.onclick=()=>{toLogin.classList.add('active'); toSignup.classList.remove('active'); nameField.style.display='none'; authSubmitBtn.textContent='Log in';};
-toSignup.onclick=()=>{toSignup.classList.add('active'); toLogin.classList.remove('active'); nameField.style.display='block'; authSubmitBtn.textContent='Create account';};
-document.getElementById('authForm').addEventListener('submit', e=>{
-  e.preventDefault();
-  const nm = document.getElementById('fName').value.trim();
-  const email = document.getElementById('fEmail').value.trim();
-  const displayName = nm || (email.split('@')[0] || 'You');
-  document.getElementById('profName').textContent = displayName;
-  const initial = displayName[0].toUpperCase();
-  document.getElementById('profAv').textContent = initial;
-  document.getElementById('topAvatar').textContent = initial;
-  document.getElementById('auth').style.display='none';
-  document.getElementById('app').classList.add('on');
-  track('onboarding_completed',{name:displayName});
-  initMap();
-  loadPersistedState();
-});
-document.getElementById('googleSignIn').onclick=()=>{
-  const displayName='Google User';
+const usernameField=document.getElementById('usernameField');
+function setAuthMode(signup){
+  toLogin.classList.toggle('active', !signup); toSignup.classList.toggle('active', signup);
+  nameField.style.display=signup?'block':'none'; usernameField.style.display=signup?'block':'none';
+  authSubmitBtn.textContent=signup?'Create account':'Log in';
+  document.getElementById('fEmail').previousElementSibling.textContent=signup?'Email':'Username or email';
+  document.getElementById('fEmail').type=signup?'email':'text';
+}
+toLogin.onclick=()=>setAuthMode(false);
+toSignup.onclick=()=>setAuthMode(true);
+function enterApp(user){
+  const displayName=user.name || user.username || 'You';
   document.getElementById('profName').textContent=displayName;
-  document.getElementById('profAv').textContent='G';
-  document.getElementById('topAvatar').textContent='G';
-  document.getElementById('auth').style.display='none';
-  document.getElementById('app').classList.add('on');
-  toast('Google sign-in connected');
-  initMap(); loadPersistedState();
-};
+  const initial=displayName[0].toUpperCase(); document.getElementById('profAv').textContent=initial; document.getElementById('topAvatar').textContent=initial;
+  document.getElementById('auth').style.display='none'; document.getElementById('app').classList.add('on');
+  initMap(); loadPersistedState(); loadConnections();
+}
+document.getElementById('authForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  authSubmitBtn.disabled=true;
+  const signup=toSignup.classList.contains('active');
+  const payload=signup ? {name:document.getElementById('fName').value.trim(), username:document.getElementById('fUsername').value.trim(), email:document.getElementById('fEmail').value.trim(), password:document.getElementById('fPass').value} : {identity:document.getElementById('fEmail').value.trim(), password:document.getElementById('fPass').value};
+  const result=await apiCall(signup?'/api/auth/signup':'/api/auth/login',{method:'POST',body:JSON.stringify(payload)});
+  authSubmitBtn.disabled=false;
+  if(!result){ toast('Could not connect to the server.'); return; }
+  if(result.error){ toast(result.error); return; }
+  track(signup?'signup_completed':'login_completed',{username:result.user.username}); enterApp(result.user);
+});
+setAuthMode(false);
+apiCall('/api/auth/me').then(result=>{ if(result && result.user) enterApp(result.user); });
 
 /* =========================================================
    NAV
@@ -1453,9 +1464,9 @@ function renderCircle(){
   req.innerHTML = friendRequests.length ? `<h3 style="font-size:15px; margin-bottom:8px;">Friend requests</h3>` + friendRequests.map(r=>`
     <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#1F98A9,#DB8236)">${r.name[0]}</div>
     <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.name}</h4><p style="font-size:12px;color:var(--ink-soft);">${r.note}</p></div>
-    <div class="friendActions"><button class="pillBtn primary" data-acc="${r.id}">Accept</button><button class="pillBtn" data-dec="${r.id}">Decline</button></div></div>`).join('') : '';
-  req.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{ toast('Friend request accepted'); b.closest('.reqCard').remove(); });
-  req.querySelectorAll('[data-dec]').forEach(b=>b.onclick=()=>{ toast('Request declined'); b.closest('.reqCard').remove(); });
+    <div class="friendActions"><button class="pillBtn primary" data-acc="${r.requestId}">Accept</button><button class="pillBtn" data-dec="${r.requestId}">Decline</button></div></div>`).join('') : '';
+  req.querySelectorAll('[data-acc]').forEach(b=>b.onclick=async()=>{ const result=await apiCall('/api/connections/respond',{method:'POST',body:JSON.stringify({requestId:Number(b.dataset.acc),action:'accept'})}); if(result&&result.ok){ toast('Connection accepted'); loadConnections(); } else toast(result?.error || 'Could not accept request'); });
+  req.querySelectorAll('[data-dec]').forEach(b=>b.onclick=async()=>{ const result=await apiCall('/api/connections/respond',{method:'POST',body:JSON.stringify({requestId:Number(b.dataset.dec),action:'decline'})}); if(result&&result.ok){ toast('Request declined'); loadConnections(); } else toast(result?.error || 'Could not decline request'); });
 
   const list=document.getElementById('friendsList'); list.innerHTML='';
   if(friends.length===0){
@@ -1502,6 +1513,22 @@ function renderCircle(){
   list.querySelectorAll('[data-block]').forEach(b=>b.onclick=()=>toast('Blocked'));
   list.querySelectorAll('[data-report]').forEach(b=>{ b.onclick=()=>{ toast('Report submitted'); track('report_submitted',{friendId:b.dataset.report}); }; });
 }
+async function loadConnections(){
+  const result=await apiCall('/api/connections');
+  if(!result) return;
+  friends.splice(0, friends.length, ...result.users.map(user=>({...user, avatarBg:'linear-gradient(135deg,#1F98A9,#2C9464)', mutuals:0, note:'Connected'})));
+  friendRequests.splice(0, friendRequests.length, ...result.incoming.map(user=>({...user, note:'Wants to join your circle.'})));
+  renderCircle();
+}
+async function searchPeople(){
+  const q=document.getElementById('personSearch').value.trim(); const host=document.getElementById('personSearchResults');
+  if(!q){ host.innerHTML=''; return; }
+  const result=await apiCall('/api/users/search?q='+encodeURIComponent(q));
+  host.innerHTML=result && result.users.length ? result.users.map(user=>`<div class="reqCard"><div class="friendAv">${user.name[0].toUpperCase()}</div><div style="flex:1;"><h4>${user.name}</h4><p style="font-size:12px;color:var(--ink-soft);">@${user.username}</p></div><button class="pillBtn primary" data-connect="${user.id}">Connect</button></div>`).join('') : '<p class="screenSub">No users found.</p>';
+  host.querySelectorAll('[data-connect]').forEach(button=>button.onclick=async()=>{ button.disabled=true; const response=await apiCall('/api/connections/request',{method:'POST',body:JSON.stringify({userId:Number(button.dataset.connect)})}); if(response&&response.ok){ button.textContent='Requested'; toast('Connection request sent'); } else { button.disabled=false; toast(response?.error || 'Could not send request'); } });
+}
+document.getElementById('personSearchBtn').onclick=searchPeople;
+document.getElementById('personSearch').addEventListener('keydown', event=>{ if(event.key==='Enter') searchPeople(); });
 renderCircle();
 
 /* =========================================================
@@ -1904,6 +1931,7 @@ document.getElementById('settingsThemeToggle').onclick=()=>applyTheme(!state.dar
 });
 document.getElementById('logoutBtn').onclick=()=>{
   endCall();
+  apiCall('/api/auth/logout',{method:'POST'});
   document.getElementById('app').classList.remove('on');
   document.getElementById('auth').style.display='flex';
   toast('Logged out');
