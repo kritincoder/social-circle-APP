@@ -1007,7 +1007,7 @@ function enterApp(user){
   document.getElementById('profName').textContent=displayName;
   const initial=displayName[0].toUpperCase(); document.getElementById('profAv').textContent=initial; document.getElementById('topAvatar').textContent=initial;
   document.getElementById('auth').style.display='none'; document.getElementById('app').classList.add('on');
-  document.getElementById('adminBtn').classList.toggle('adminOnly', !user.isAdmin);
+  document.querySelectorAll('.adminOnly').forEach(element=>element.classList.toggle('adminOnly', !user.isAdmin));
   initMap(); loadPersistedState(); loadConnections();
 }
 function escapeHtml(value){ const div=document.createElement('div'); div.textContent=value||''; return div.innerHTML; }
@@ -1060,6 +1060,7 @@ const NAV_SECONDARY = [
   {id:'messages', label:'Messages', ic:'message'},
   {id:'profile', label:'Profile', ic:'profile'},
   {id:'settings', label:'Settings', ic:'settings'},
+  {id:'admin', label:'Admin panel', ic:'settings', cls:'adminOnly'},
 ];
 function buildNavButton(item){
   const b=document.createElement('button');
