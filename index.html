@@ -906,9 +906,10 @@ async function apiCall(path, opts){
     opts = opts || {};
     opts.headers = Object.assign({'Content-Type':'application/json','X-Device-Id':await getDeviceId()}, opts.headers||{});
     const res = await fetch(path, opts);
-    if(!res.ok) return null;
-    return await res.json();
-  }catch(e){ return null; } /* no backend deployed here (e.g. Claude preview) — caller falls back */
+    const body = await res.json().catch(()=>({}));
+    if(!res.ok) return {error:body.error || `Request failed (${res.status})`, status:res.status};
+    return body;
+  }catch(e){ return {error:'Could not connect to the server.'}; }
 }
 
 async function persistState(){
@@ -994,7 +995,6 @@ document.getElementById('authForm').addEventListener('submit', async e=>{
   const payload=signup ? {name:document.getElementById('fName').value.trim(), username:document.getElementById('fUsername').value.trim(), email:document.getElementById('fEmail').value.trim(), password:document.getElementById('fPass').value} : {identity:document.getElementById('fEmail').value.trim(), password:document.getElementById('fPass').value};
   const result=await apiCall(signup?'/api/auth/signup':'/api/auth/login',{method:'POST',body:JSON.stringify(payload)});
   authSubmitBtn.disabled=false;
-  if(!result){ toast('Could not connect to the server.'); return; }
   if(result.error){ toast(result.error); return; }
   track(signup?'signup_completed':'login_completed',{username:result.user.username}); enterApp(result.user);
 });
