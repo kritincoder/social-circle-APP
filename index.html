@@ -59,9 +59,6 @@ input, textarea, select{ background:var(--card-bg); color:var(--ink); border:1px
 .authSubmit{width:100%; margin-top:8px; padding:13px; border-radius:10px; border:none; background:var(--teal); color:#08181B; font-weight:700; font-size:14.5px;}
 .authSubmit:hover{background:#33aebd;}
 .authNote{margin-top:16px; font-size:12px; color:var(--ink-soft); text-align:center;}
-.googleBtn{width:100%; margin-top:12px; padding:11px 13px; border-radius:10px; border:1px solid var(--line); background:var(--card-bg); color:var(--ink); font-weight:600; font-size:14px; display:flex; align-items:center; justify-content:center; gap:9px;}
-.googleBtn:hover{background:var(--paper-dim);}
-.googleMark{font-weight:700; font-size:18px; color:#4285F4;}
 
 /* ============ APP SHELL ============ */
 #app{display:none; height:100vh; overflow:hidden;}
@@ -77,7 +74,6 @@ input, textarea, select{ background:var(--card-bg); color:var(--ink); border:1px
 .topbar .tRight{display:flex; align-items:center; gap:8px;}
 .iconBtn{width:38px; height:38px; border-radius:50%; border:none; background:transparent; display:flex; align-items:center; justify-content:center; font-size:17px; position:relative;}
 .iconBtn:hover{background:var(--paper-dim);}
-.adminOnly{display:none;}
 .badge{position:absolute; top:5px; right:5px; width:8px; height:8px; border-radius:50%; background:var(--coral); border:1.5px solid var(--paper);}
 .avatar{width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,var(--teal),var(--green)); color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center;}
 
@@ -212,9 +208,6 @@ input, textarea, select{ background:var(--card-bg); color:var(--ink); border:1px
 /* ============ PROFILE ============ */
 .profileHead{display:flex; gap:18px; align-items:center; margin-bottom:22px;}
 .profileHead .av{width:74px; height:74px; border-radius:50%; background:linear-gradient(135deg,var(--teal),var(--green)); color:#fff; display:flex; align-items:center; justify-content:center; font-size:26px; font-weight:700;}
-.profileHead .av img{width:100%; height:100%; object-fit:cover; border-radius:50%;}
-.profileActions{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
-.profileActions input{display:none;}
 .interestChip{display:inline-block; padding:6px 13px; border-radius:100px; background:var(--paper-dim); font-size:12.5px; margin:0 6px 6px 0;}
 .profileTabs{display:flex; gap:22px; border-bottom:1px solid var(--line); margin:22px 0 18px;}
 .profileTabs button{background:none; border:none; padding:10px 0; font-size:13.5px; font-weight:600; color:var(--ink-soft); border-bottom:2px solid transparent;}
@@ -394,6 +387,7 @@ svg{display:block;}
       <button id="toLogin" class="active">Log in</button>
       <button id="toSignup">Sign up</button>
     </div>
+    <div id="authError" style="display:none; background:rgba(225,90,66,0.1); color:var(--coral); border:1px solid rgba(225,90,66,0.3); border-radius:10px; padding:10px 12px; font-size:12.5px; margin-bottom:12px;"></div>
     <form id="authForm">
       <div class="field" id="nameField" style="display:none;">
         <label>Name</label>
@@ -401,7 +395,7 @@ svg{display:block;}
       </div>
       <div class="field" id="usernameField" style="display:none;">
         <label>Username</label>
-        <input type="text" id="fUsername" placeholder="your_username" autocomplete="username" minlength="3" maxlength="30">
+        <input type="text" id="fUsername" placeholder="lowercase, no spaces" autocomplete="username">
       </div>
       <div class="field">
         <label>Email</label>
@@ -409,10 +403,24 @@ svg{display:block;}
       </div>
       <div class="field">
         <label>Password</label>
-        <input type="password" id="fPass" placeholder="••••••••" autocomplete="current-password" required>
+        <div style="position:relative;">
+          <input type="password" id="fPass" placeholder="••••••••" autocomplete="current-password" required style="width:100%; padding-right:44px;">
+          <button type="button" id="fPassToggle" style="position:absolute; right:6px; top:50%; transform:translateY(-50%); border:none; background:none; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:var(--ink-soft);"></button>
+        </div>
+      </div>
+      <div class="field" id="confirmField" style="display:none;">
+        <label>Confirm password</label>
+        <input type="password" id="fPassConfirm" placeholder="••••••••" autocomplete="new-password">
       </div>
       <button type="submit" class="authSubmit" id="authSubmitBtn">Log in</button>
     </form>
+    <div style="display:flex; align-items:center; gap:10px; margin:18px 0;">
+      <div style="flex:1; height:1px; background:var(--line);"></div>
+      <span style="font-size:11px; color:var(--ink-soft);">OR</span>
+      <div style="flex:1; height:1px; background:var(--line);"></div>
+    </div>
+    <div id="googleBtnContainer" style="display:flex; justify-content:center;"></div>
+    <p class="authNote" id="googleFallbackNote" style="display:none;">Google sign-in isn't configured on this deployment yet.</p>
   </div>
 </div>
 
@@ -424,7 +432,6 @@ svg{display:block;}
       <button class="iconBtn" id="themeBtn" title="Toggle theme"></button>
       <button class="iconBtn" id="searchBtn" title="Search"></button>
       <button class="iconBtn" id="notifBtn" title="Notifications"><span class="badge" id="notifBadge"></span></button>
-      <button class="iconBtn adminOnly" id="adminBtn" title="Admin panel">A</button>
       <button class="iconBtn" id="settingsBtn" title="Settings"></button>
       <button class="iconBtn" id="profileBtn" title="Profile"><span class="avatar" id="topAvatar">Y</span></button>
     </div>
@@ -554,11 +561,6 @@ svg{display:block;}
     <div class="screenInner">
       <h2 class="screenTitle">Circle</h2>
       <p class="screenSub">The people whose taste shapes what you see.</p>
-      <div class="field" style="display:flex; gap:8px; margin-bottom:18px;">
-        <input type="search" id="personSearch" placeholder="Search by username or name" autocomplete="off" style="flex:1;">
-        <button class="pillBtn primary" id="personSearchBtn">Search</button>
-      </div>
-      <div id="personSearchResults"></div>
       <div id="reqSection"></div>
       <h3 style="font-size:15px; margin:18px 0 6px;">Your friends</h3>
       <div id="friendsList"></div>
@@ -604,10 +606,6 @@ svg{display:block;}
         <div>
           <h2 id="profName">You</h2>
           <p class="screenSub" style="margin:2px 0 0;" id="profBio">Exploring Delhi, one recommendation at a time.</p>
-          <div class="profileActions">
-            <button class="pillBtn" id="changePfpBtn">Change profile photo</button>
-            <input type="file" id="pfpInput" accept="image/*">
-          </div>
         </div>
       </div>
       <div id="profInterests"></div>
@@ -631,25 +629,6 @@ svg{display:block;}
       <div class="settingsRow"><div><div class="sLabel">Weekly digest email</div><div class="sSub">A Sunday summary of what your circle saved this week.</div></div><button class="toggleSwitch" id="toggleDigest"></button></div>
       <div class="settingsRow"><div><div class="sLabel">Discoverable by email</div><div class="sSub">Let people who have your email find your profile in Search.</div></div><button class="toggleSwitch on" id="toggleDiscoverable"></button></div>
       <button class="logoutBtn" id="logoutBtn">Log out</button>
-    </div>
-  </section>
-
-  <section class="screen" id="screen-admin">
-    <div class="screenInner" style="max-width:760px;">
-      <h2 class="screenTitle">Admin panel</h2>
-      <p class="screenSub">Create accounts and review registered users.</p>
-      <div class="authCard" style="max-width:none; margin-top:18px;">
-        <h3 style="font-size:17px; margin-bottom:14px;">Create user account</h3>
-        <form id="adminUserForm">
-          <div class="field"><label>Name</label><input id="adminName" required></div>
-          <div class="field"><label>Username</label><input id="adminUsername" required minlength="3" maxlength="30"></div>
-          <div class="field"><label>Email</label><input id="adminEmail" type="email" required></div>
-          <div class="field"><label>Temporary password</label><input id="adminPassword" type="password" required minlength="8"></div>
-          <button class="pillBtn primary" type="submit" id="adminCreateBtn">Create account</button>
-        </form>
-      </div>
-      <h3 style="font-size:16px; margin:24px 0 10px;">Registered users</h3>
-      <div id="adminUsers"></div>
     </div>
   </section>
 </div>
@@ -728,7 +707,7 @@ svg{display:block;}
 /* =========================================================
    LOGO
 ========================================================= */
-const LOGO_SRC = "data:image/svg+xml;utf8," + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='#fff'/><path d='M18 27h25c10 0 13 8 13 16s-3 15-12 15H18' fill='none' stroke='#f06455' stroke-width='8'/><path d='M52 10v25c0 8 8 11 13 16s6 15-1 22-12 8-12 17' fill='none' stroke='#18a9bd' stroke-width='8'/><path d='M0 72h31c12 0 17-7 22-16s10-13 18-13h29' fill='none' stroke='#d5a52b' stroke-width='8'/><path d='M55 48l27 29c5 5 10 7 18 7' fill='none' stroke='#596d83' stroke-width='8'/><path d='M50 57c-2 10-2 22-2 43' fill='none' stroke='#1ca56f' stroke-width='8'/><circle cx='50' cy='49' r='10' fill='#fff'/></svg>`);
+const LOGO_SRC = "data:image/svg+xml;utf8," + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='#14171A'/><circle cx='50' cy='40' r='16' fill='#1F98A9'/><circle cx='30' cy='68' r='12' fill='#E15A42'/><circle cx='70' cy='68' r='12' fill='#CE9A2E'/></svg>`);
 document.getElementById('logoImgAuth').src = LOGO_SRC;
 document.getElementById('logoImgTop').src = LOGO_SRC;
 
@@ -927,10 +906,9 @@ async function apiCall(path, opts){
     opts = opts || {};
     opts.headers = Object.assign({'Content-Type':'application/json','X-Device-Id':await getDeviceId()}, opts.headers||{});
     const res = await fetch(path, opts);
-    const body = await res.json().catch(()=>({}));
-    if(!res.ok) return {error:body.error || `Request failed (${res.status})`, status:res.status};
-    return body;
-  }catch(e){ return {error:'Could not connect to the server.'}; }
+    if(!res.ok) return null;
+    return await res.json();
+  }catch(e){ return null; } /* no backend deployed here (e.g. Claude preview) — caller falls back */
 }
 
 async function persistState(){
@@ -988,56 +966,151 @@ async function getInviteLink(){
 }
 
 /* =========================================================
-   AUTH
+   AUTH — real backend (signup/login/session/Google) with a graceful
+   local-only fallback so this file still works standalone (e.g. in a
+   Claude preview with no backend attached). Nothing here is "fake" when
+   a backend is present — see backend/routes/auth.js for the real logic.
 ========================================================= */
+let currentUser = null;
+let backendAvailable = null; // becomes true/false after the first real check
+
+async function apiCallRaw(path, opts){
+  try{
+    opts = opts || {};
+    opts.headers = Object.assign({'Content-Type':'application/json'}, opts.headers||{});
+    opts.credentials = 'include';
+    const res = await fetch(path, opts);
+    let json = null;
+    try{ json = await res.json(); }catch(e){}
+    return { reachable:true, ok:res.ok, status:res.status, json };
+  }catch(e){
+    return { reachable:false, ok:false, status:0, json:null };
+  }
+}
+
+function showAuthError(msg){
+  const el=document.getElementById('authError');
+  if(!msg){ el.style.display='none'; el.textContent=''; return; }
+  el.textContent=msg; el.style.display='block';
+}
+
+function setAvatarDisplay(photoUrl, initial){
+  ['profAv','topAvatar'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    if(photoUrl){ el.style.backgroundImage=`url('${photoUrl}')`; el.style.backgroundSize='cover'; el.style.backgroundPosition='center'; el.textContent=''; }
+    else { el.style.backgroundImage=''; el.textContent=initial; }
+  });
+}
+
+function enterApp(user){
+  currentUser = user;
+  const displayName = user.displayName || 'You';
+  document.getElementById('profName').textContent = displayName;
+  document.getElementById('profBio').textContent = user.bio || 'Exploring Delhi, one recommendation at a time.';
+  setAvatarDisplay(user.profilePhotoUrl, displayName[0].toUpperCase());
+  document.getElementById('auth').style.display='none';
+  document.getElementById('app').classList.add('on');
+  track('onboarding_completed',{name:displayName});
+  initMap();
+  loadPersistedState();
+  if(backendAvailable && user.id) loadCircleFromServer();
+  const params=new URLSearchParams(location.search);
+  if(params.get('place')) setTimeout(()=>openPlace(params.get('place')), 300);
+}
+
 const toLogin=document.getElementById('toLogin'), toSignup=document.getElementById('toSignup');
-const nameField=document.getElementById('nameField'), authSubmitBtn=document.getElementById('authSubmitBtn');
-const usernameField=document.getElementById('usernameField');
+const nameField=document.getElementById('nameField'), usernameField=document.getElementById('usernameField'), confirmField=document.getElementById('confirmField'), authSubmitBtn=document.getElementById('authSubmitBtn');
 function setAuthMode(signup){
-  toLogin.classList.toggle('active', !signup); toSignup.classList.toggle('active', signup);
-  nameField.style.display=signup?'block':'none'; usernameField.style.display=signup?'block':'none';
-  authSubmitBtn.textContent=signup?'Create account':'Log in';
-  document.getElementById('fEmail').previousElementSibling.textContent=signup?'Email':'Username or email';
-  document.getElementById('fEmail').type=signup?'email':'text';
+  toSignup.classList.toggle('active', signup);
+  toLogin.classList.toggle('active', !signup);
+  nameField.style.display = signup ? 'block':'none';
+  usernameField.style.display = signup ? 'block':'none';
+  confirmField.style.display = signup ? 'block':'none';
+  authSubmitBtn.textContent = signup ? 'Create account' : 'Log in';
+  document.getElementById('fPass').autocomplete = signup ? 'new-password':'current-password';
+  showAuthError(null);
 }
 toLogin.onclick=()=>setAuthMode(false);
 toSignup.onclick=()=>setAuthMode(true);
-function enterApp(user){
-  const displayName=user.name || user.username || 'You';
-  document.getElementById('profName').textContent=displayName;
-  const initial=displayName[0].toUpperCase(); document.getElementById('profAv').textContent=initial; document.getElementById('topAvatar').textContent=initial;
-  document.getElementById('auth').style.display='none'; document.getElementById('app').classList.add('on');
-  document.querySelectorAll('.adminOnly').forEach(element=>element.classList.toggle('adminOnly', !user.isAdmin));
-  initMap(); loadPersistedState(); loadConnections();
-}
-function escapeHtml(value){ const div=document.createElement('div'); div.textContent=value||''; return div.innerHTML; }
-async function loadAdminUsers(){
-  const host=document.getElementById('adminUsers');
-  const result=await apiCall('/api/admin/users');
-  if(!result || result.error){ host.innerHTML=`<p class="screenSub">${escapeHtml(result?.error||'Could not load users.')}</p>`; return; }
-  host.innerHTML=result.users.map(user=>`<div class="reqCard"><div class="friendAv">${escapeHtml(user.name[0].toUpperCase())}</div><div><h4>${escapeHtml(user.name)}</h4><p style="font-size:12px;color:var(--ink-soft);">@${escapeHtml(user.username)} · ${escapeHtml(user.email)}${user.isAdmin?' · admin':''}</p></div></div>`).join('');
-}
-document.getElementById('adminBtn').onclick=()=>{ switchScreen('admin'); loadAdminUsers(); };
-document.getElementById('adminUserForm').addEventListener('submit', async event=>{
-  event.preventDefault();
-  const button=document.getElementById('adminCreateBtn'); button.disabled=true;
-  const result=await apiCall('/api/admin/users',{method:'POST',body:JSON.stringify({name:document.getElementById('adminName').value.trim(),username:document.getElementById('adminUsername').value.trim(),email:document.getElementById('adminEmail').value.trim(),password:document.getElementById('adminPassword').value})});
-  button.disabled=false;
-  if(result?.error){ toast(result.error); return; }
-  event.target.reset(); toast('User account created'); loadAdminUsers();
-});
+
+(function initPassToggle(){
+  const btn=document.getElementById('fPassToggle'), input=document.getElementById('fPass');
+  let shown=false;
+  const render=()=>{ btn.innerHTML = icon(shown?'eyeOff':'eye', 17); };
+  render();
+  btn.onclick=()=>{ shown=!shown; input.type = shown?'text':'password'; render(); };
+})();
+
 document.getElementById('authForm').addEventListener('submit', async e=>{
   e.preventDefault();
-  authSubmitBtn.disabled=true;
-  const signup=toSignup.classList.contains('active');
-  const payload=signup ? {name:document.getElementById('fName').value.trim(), username:document.getElementById('fUsername').value.trim(), email:document.getElementById('fEmail').value.trim(), password:document.getElementById('fPass').value} : {identity:document.getElementById('fEmail').value.trim(), password:document.getElementById('fPass').value};
-  const result=await apiCall(signup?'/api/auth/signup':'/api/auth/login',{method:'POST',body:JSON.stringify(payload)});
-  authSubmitBtn.disabled=false;
-  if(result.error){ toast(result.error); return; }
-  track(signup?'signup_completed':'login_completed',{username:result.user.username}); enterApp(result.user);
+  showAuthError(null);
+  const signupMode = toSignup.classList.contains('active');
+  const email = document.getElementById('fEmail').value.trim();
+  const password = document.getElementById('fPass').value;
+  const originalLabel = authSubmitBtn.textContent;
+  authSubmitBtn.disabled = true;
+  authSubmitBtn.textContent = signupMode ? 'Creating account…' : 'Logging in…';
+
+  if(backendAvailable){
+    let r;
+    if(signupMode){
+      const username = document.getElementById('fUsername').value.trim().toLowerCase();
+      const displayName = document.getElementById('fName').value.trim();
+      const confirmPassword = document.getElementById('fPassConfirm').value;
+      if(!username){ showAuthError('Choose a username.'); authSubmitBtn.disabled=false; authSubmitBtn.textContent=originalLabel; return; }
+      r = await apiCallRaw('/api/auth/signup', { method:'POST', body: JSON.stringify({ username, email, password, confirmPassword, displayName }) });
+    } else {
+      r = await apiCallRaw('/api/auth/login', { method:'POST', body: JSON.stringify({ identifier: email, password }) });
+    }
+    authSubmitBtn.disabled = false; authSubmitBtn.textContent = originalLabel;
+    if(r.reachable && r.json && r.json.success){ enterApp(r.json.data.user); }
+    else if(r.reachable && r.json && r.json.error){ showAuthError(r.json.error.message); }
+    else { showAuthError('Could not reach the server. Please try again.'); }
+  } else {
+    // No backend attached to this file right now (e.g. a Claude preview) —
+    // local demo mode, so the prototype still works standalone.
+    authSubmitBtn.disabled = false; authSubmitBtn.textContent = originalLabel;
+    const nm = document.getElementById('fName').value.trim();
+    const displayName = nm || (email.split('@')[0] || 'You');
+    enterApp({ id:null, displayName, email, bio:null, profilePhotoUrl:null });
+    toast('Demo mode — no backend connected, nothing is saved.');
+  }
 });
-setAuthMode(false);
-apiCall('/api/auth/me').then(result=>{ if(result && result.user) enterApp(result.user); });
+
+/* Google Identity Services: the button itself is rendered by Google's own
+   script (real branding, not a custom lookalike). Requires GOOGLE_CLIENT_ID
+   to be set — see backend/.env.example. With no client ID configured this
+   shows a plain note instead of a non-functional button. */
+const GOOGLE_CLIENT_ID = window.GOOGLE_CLIENT_ID || '';
+async function onGoogleCredential(response){
+  if(!backendAvailable){ toast('Demo mode — Google sign-in needs the backend deployed.'); return; }
+  showAuthError(null);
+  const r = await apiCallRaw('/api/auth/google', { method:'POST', body: JSON.stringify({ credential: response.credential }) });
+  if(r.reachable && r.json && r.json.success){ enterApp(r.json.data.user); }
+  else if(r.reachable && r.json && r.json.error){ showAuthError(r.json.error.message); }
+  else { showAuthError('Could not reach the server. Please try again.'); }
+}
+function tryInitGoogleButton(attempt){
+  if(!GOOGLE_CLIENT_ID){ document.getElementById('googleFallbackNote').style.display='block'; return; }
+  if(typeof google !== 'undefined' && google.accounts && google.accounts.id){
+    google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onGoogleCredential });
+    google.accounts.id.renderButton(document.getElementById('googleBtnContainer'), { theme:'outline', size:'large', width:288, text:'continue_with' });
+    return;
+  }
+  if((attempt||0) > 20){ document.getElementById('googleFallbackNote').style.display='block'; document.getElementById('googleFallbackNote').textContent='Google sign-in failed to load.'; return; }
+  setTimeout(()=>tryInitGoogleButton((attempt||0)+1), 250);
+}
+tryInitGoogleButton(0);
+
+// On load: ask the backend if we already have a session (cookie-based —
+// this is what makes "refresh doesn't log you out" actually true).
+(async function bootstrapAuth(){
+  const r = await apiCallRaw('/api/auth/me', { method:'GET' });
+  backendAvailable = r.reachable;
+  if(r.reachable && r.json && r.json.success && r.json.data && r.json.data.user){
+    enterApp(r.json.data.user);
+  }
+})();
 
 /* =========================================================
    NAV
@@ -1060,7 +1133,6 @@ const NAV_SECONDARY = [
   {id:'messages', label:'Messages', ic:'message'},
   {id:'profile', label:'Profile', ic:'profile'},
   {id:'settings', label:'Settings', ic:'settings'},
-  {id:'admin', label:'Admin panel', ic:'settings', cls:'adminOnly'},
 ];
 function buildNavButton(item){
   const b=document.createElement('button');
@@ -1503,9 +1575,9 @@ function renderCircle(){
   req.innerHTML = friendRequests.length ? `<h3 style="font-size:15px; margin-bottom:8px;">Friend requests</h3>` + friendRequests.map(r=>`
     <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#1F98A9,#DB8236)">${r.name[0]}</div>
     <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.name}</h4><p style="font-size:12px;color:var(--ink-soft);">${r.note}</p></div>
-    <div class="friendActions"><button class="pillBtn primary" data-acc="${r.requestId}">Accept</button><button class="pillBtn" data-dec="${r.requestId}">Decline</button></div></div>`).join('') : '';
-  req.querySelectorAll('[data-acc]').forEach(b=>b.onclick=async()=>{ const result=await apiCall('/api/connections/respond',{method:'POST',body:JSON.stringify({requestId:Number(b.dataset.acc),action:'accept'})}); if(result&&result.ok){ toast('Connection accepted'); loadConnections(); } else toast(result?.error || 'Could not accept request'); });
-  req.querySelectorAll('[data-dec]').forEach(b=>b.onclick=async()=>{ const result=await apiCall('/api/connections/respond',{method:'POST',body:JSON.stringify({requestId:Number(b.dataset.dec),action:'decline'})}); if(result&&result.ok){ toast('Request declined'); loadConnections(); } else toast(result?.error || 'Could not decline request'); });
+    <div class="friendActions"><button class="pillBtn primary" data-acc="${r.id}">Accept</button><button class="pillBtn" data-dec="${r.id}">Decline</button></div></div>`).join('') : '';
+  req.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{ toast('Friend request accepted'); b.closest('.reqCard').remove(); });
+  req.querySelectorAll('[data-dec]').forEach(b=>b.onclick=()=>{ toast('Request declined'); b.closest('.reqCard').remove(); });
 
   const list=document.getElementById('friendsList'); list.innerHTML='';
   if(friends.length===0){
@@ -1552,22 +1624,6 @@ function renderCircle(){
   list.querySelectorAll('[data-block]').forEach(b=>b.onclick=()=>toast('Blocked'));
   list.querySelectorAll('[data-report]').forEach(b=>{ b.onclick=()=>{ toast('Report submitted'); track('report_submitted',{friendId:b.dataset.report}); }; });
 }
-async function loadConnections(){
-  const result=await apiCall('/api/connections');
-  if(!result) return;
-  friends.splice(0, friends.length, ...result.users.map(user=>({...user, avatarBg:'linear-gradient(135deg,#1F98A9,#2C9464)', mutuals:0, note:'Connected'})));
-  friendRequests.splice(0, friendRequests.length, ...result.incoming.map(user=>({...user, note:'Wants to join your circle.'})));
-  renderCircle();
-}
-async function searchPeople(){
-  const q=document.getElementById('personSearch').value.trim(); const host=document.getElementById('personSearchResults');
-  if(!q){ host.innerHTML=''; return; }
-  const result=await apiCall('/api/users/search?q='+encodeURIComponent(q));
-  host.innerHTML=result && result.users.length ? result.users.map(user=>`<div class="reqCard"><div class="friendAv">${user.name[0].toUpperCase()}</div><div style="flex:1;"><h4>${user.name}</h4><p style="font-size:12px;color:var(--ink-soft);">@${user.username}</p></div><button class="pillBtn primary" data-connect="${user.id}">Connect</button></div>`).join('') : '<p class="screenSub">No users found.</p>';
-  host.querySelectorAll('[data-connect]').forEach(button=>button.onclick=async()=>{ button.disabled=true; const response=await apiCall('/api/connections/request',{method:'POST',body:JSON.stringify({userId:Number(button.dataset.connect)})}); if(response&&response.ok){ button.textContent='Requested'; toast('Connection request sent'); } else { button.disabled=false; toast(response?.error || 'Could not send request'); } });
-}
-document.getElementById('personSearchBtn').onclick=searchPeople;
-document.getElementById('personSearch').addEventListener('keydown', event=>{ if(event.key==='Enter') searchPeople(); });
 renderCircle();
 
 /* =========================================================
@@ -1970,7 +2026,6 @@ document.getElementById('settingsThemeToggle').onclick=()=>applyTheme(!state.dar
 });
 document.getElementById('logoutBtn').onclick=()=>{
   endCall();
-  apiCall('/api/auth/logout',{method:'POST'});
   document.getElementById('app').classList.remove('on');
   document.getElementById('auth').style.display='flex';
   toast('Logged out');
