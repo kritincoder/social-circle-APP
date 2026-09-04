@@ -1,0 +1,2326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Social Circle</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAxM-KHzmW00p9uMO-FBxFkCIk0Aa5lh-g&libraries=marker,places&loading=async" async defer></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- Set this to your real Google OAuth Client ID once you've created one
+     (Google Cloud Console → Credentials → OAuth client ID → Web application).
+     Leave blank and the app shows a plain note instead of a broken button. -->
+<script>window.GOOGLE_CLIENT_ID = '';</script>
+<style>
+:root{
+  --ink:#14171A; --ink-soft:#5A6067; --paper:#FBFAF7; --paper-dim:#F0EEE8; --line:#E3E0D8;
+  --teal:#1F98A9; --coral:#E15A42; --gold:#CE9A2E; --slate:#54677C; --green:#2C9464; --orange:#DB8236;
+  --shell-w: 232px; --topbar-h: 60px; --tabbar-h: 62px; --card-bg:#fff;
+}
+html[data-theme="dark"]{
+  --ink:#F2F1ED; --ink-soft:#A9AFB6; --paper:#15171B; --paper-dim:#1F2227; --line:#2B2E34; --card-bg:#1B1E23;
+}
+html[data-theme="dark"] body{background:var(--paper); color:var(--ink);}
+html[data-theme="dark"] .feedCard, html[data-theme="dark"] .eventCard, html[data-theme="dark"] .savedTile,
+html[data-theme="dark"] .sharedCard, html[data-theme="dark"] .searchPanel, html[data-theme="dark"] #notifDrawer,
+html[data-theme="dark"] .mapSheet, html[data-theme="dark"] .districtCard{background:var(--card-bg); color:var(--ink);}
+html[data-theme="dark"] .chip, html[data-theme="dark"] .districtChip, html[data-theme="dark"] .pillBtn,
+html[data-theme="dark"] .swipe-btn, html[data-theme="dark"] .field input{background:var(--card-bg); color:var(--ink); border-color:var(--line);}
+html[data-theme="dark"] .authCard{background:#1B1E23;}
+html[data-theme="dark"] .topbar, html[data-theme="dark"] .sidenav, html[data-theme="dark"] .tabbar{background:rgba(21,23,27,0.92); border-color:var(--line);}
+html[data-theme="dark"] .navItem:hover{background:var(--paper-dim);}
+html[data-theme="dark"] .navItem.active{background:var(--paper-dim); color:var(--teal);}
+html[data-theme="dark"] .bubble{background:var(--paper-dim); color:var(--ink);}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{font-family:'Inter',sans-serif; background:var(--paper); color:var(--ink); overflow:hidden; height:100vh;}
+h1,h2,h3,h4{font-family:'Fraunces',serif; font-weight:500;}
+.mono{font-family:'IBM Plex Mono',monospace; letter-spacing:.05em; text-transform:uppercase;}
+button{font-family:inherit; cursor:pointer;}
+input,textarea{font-family:inherit;}
+img{display:block; max-width:100%;}
+input, textarea, select{ background:var(--card-bg); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+::-webkit-scrollbar{width:6px; height:6px;}
+::-webkit-scrollbar-thumb{background:var(--line); border-radius:10px;}
+
+/* ============ AUTH SCREEN ============ */
+#auth{
+  position:fixed; inset:0; background:var(--paper); color:var(--ink);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:500; padding:24px;
+}
+#authThemeBtn{ position:absolute; top:18px; right:18px; }
+#auth .logoWrap{ width:104px; height:104px; margin-bottom:26px; animation: floatLogo 3.4s ease-in-out infinite; filter: drop-shadow(0 6px 18px rgba(20,23,26,0.18)); }
+#auth .logoWrap img{width:100%; height:100%; border-radius:26px; object-fit:cover;}
+@keyframes floatLogo{ 0%,100%{transform:translateY(0) scale(1);} 50%{transform:translateY(-8px) scale(1.03);} }
+#auth h1{font-size:30px; text-align:center;}
+#auth p.tag{color:var(--ink-soft); margin-top:8px; font-size:14.5px; text-align:center; max-width:320px;}
+.authCard{margin-top:34px; width:100%; max-width:340px; background:var(--card-bg); border:1px solid var(--line); border-radius:18px; padding:26px;}
+.authToggle{display:flex; background:var(--paper-dim); border-radius:100px; padding:4px; margin-bottom:20px;}
+.authToggle button{flex:1; border:none; background:none; color:var(--ink-soft); padding:9px; border-radius:100px; font-size:13.5px; font-weight:600;}
+.authToggle button.active{background:var(--card-bg); color:var(--ink); box-shadow:0 1px 4px rgba(0,0,0,.08);}
+.field{margin-bottom:12px;}
+.field label{display:block; font-size:12px; color:var(--ink-soft); margin-bottom:6px;}
+.field input{width:100%; padding:11px 13px; border-radius:10px; border:1px solid var(--line); background:var(--paper-dim); color:var(--ink); font-size:14px;}
+.field input:focus{outline:2px solid var(--teal); border-color:transparent;}
+.authSubmit{width:100%; margin-top:8px; padding:13px; border-radius:10px; border:none; background:var(--teal); color:#08181B; font-weight:700; font-size:14.5px;}
+.authSubmit:hover{background:#33aebd;}
+.authNote{margin-top:16px; font-size:12px; color:var(--ink-soft); text-align:center;}
+
+/* ============ APP SHELL ============ */
+#app{display:none; height:100vh; overflow:hidden;}
+#app.on{display:block;}
+
+.topbar{
+  position:fixed; top:0; left:0; right:0; height:var(--topbar-h); z-index:60;
+  background:rgba(251,250,247,0.92); backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
+  display:flex; align-items:center; justify-content:space-between; padding:0 18px 0 18px;
+}
+.topbar .tLeft{display:flex; align-items:center; gap:10px; font-family:'Fraunces',serif; font-weight:600; font-size:16.5px;}
+.topbar .tLeft img{width:30px; height:30px; border-radius:8px;}
+.topbar .tRight{display:flex; align-items:center; gap:8px;}
+.iconBtn{width:38px; height:38px; border-radius:50%; border:none; background:transparent; display:flex; align-items:center; justify-content:center; font-size:17px; position:relative;}
+.iconBtn:hover{background:var(--paper-dim);}
+.badge{position:absolute; top:5px; right:5px; width:8px; height:8px; border-radius:50%; background:var(--coral); border:1.5px solid var(--paper);}
+.avatar{width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,var(--teal),var(--green)); color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center;}
+
+.sidenav{
+  position:fixed; top:var(--topbar-h); left:0; bottom:0; width:var(--shell-w); border-right:1px solid var(--line);
+  padding:18px 12px; display:flex; flex-direction:column; gap:2px; z-index:40; background:var(--paper); overflow-y:auto;
+}
+.navItem{display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:12px; border:none; background:none; font-size:14.5px; font-weight:500; color:var(--ink-soft); text-align:left; width:100%;}
+.navItem .ic{font-size:17px; width:20px; text-align:center;}
+.navItem:hover{background:var(--paper-dim); color:var(--ink);}
+.navItem.active{background:var(--ink); color:var(--paper);}
+.navDivider{height:1px; background:var(--line); margin:12px 6px; flex-shrink:0;}
+.navGroupLabel{font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-soft); padding:10px 14px 4px;}
+
+.tabbar{display:none;}
+
+.screen{ position:fixed; top:var(--topbar-h); left:var(--shell-w); right:0; bottom:0; overflow-y:auto; display:none; }
+.screen.active{display:block;}
+.screenInner{max-width:920px; margin:0 auto; padding:28px 24px 60px;}
+.screenTitle{margin-bottom:4px;}
+.screenSub{color:var(--ink-soft); font-size:14px; margin-bottom:24px;}
+
+@media (max-width:860px){
+  .sidenav{display:none;}
+  .screen{left:0; bottom:var(--tabbar-h);}
+  .tabbar{
+    display:flex; position:fixed; left:0; right:0; bottom:0; height:var(--tabbar-h); z-index:60;
+    background:rgba(251,250,247,0.96); backdrop-filter:blur(10px); border-top:1px solid var(--line);
+  }
+  .tabbar .navItem{flex:1; flex-direction:column; gap:3px; border-radius:0; align-items:center; font-size:10.5px; padding:8px 4px;}
+  .tabbar .navItem.active{background:none; color:var(--teal);}
+  .tabbar .navItem .ic{font-size:19px;}
+  .tabbar .createBtn{flex-direction:column;}
+  .tabbar .createBtn .ic{background:var(--ink); color:#fff; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px;}
+}
+
+/* ============ CHIP FILTERS ============ */
+.chipRow{display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; margin-bottom:20px;}
+.chip{flex-shrink:0; padding:8px 15px; border-radius:100px; border:1px solid var(--line); background:var(--paper); font-size:13px; font-weight:600; color:var(--ink-soft); white-space:nowrap;}
+.chip.active{background:var(--ink); color:var(--paper); border-color:var(--ink);}
+
+/* ============ FEED ============ */
+.feedCard{border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px; background:var(--card-bg); cursor:default;}
+.feedKicker{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ink-soft); margin-bottom:10px;}
+.dot{width:6px; height:6px; border-radius:50%;}
+.feedCard h3{font-size:17px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;}
+.feedCard h3:hover{text-decoration:underline;}
+.feedCard p{font-size:13.8px; color:var(--ink-soft); margin-top:5px;}
+.feedMeta{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;}
+.pillBtn{padding:7px 14px; border-radius:100px; border:1px solid var(--line); background:none; font-size:12.5px; font-weight:600; color:var(--ink);}
+.pillBtn:hover{border-color:var(--ink);}
+.pillBtn.saved{background:var(--ink); color:var(--paper); border-color:var(--ink);}
+.pillBtn.primary{background:var(--teal); color:#08181B; border-color:var(--teal);}
+
+/* ============ SWIPE / DISCOVER ============ */
+.discoverWrap{display:flex; flex-direction:column; align-items:center;}
+.card-stack{position:relative; width:min(94vw, 360px); height:min(58vh, 460px); max-width:360px; margin:0 auto;}
+@media(min-width:461px){ .card-stack{ height:460px; } }
+.swipe-card{position:absolute; inset:0; border-radius:20px; overflow:hidden; border:1px solid var(--line); display:flex; flex-direction:column; justify-content:flex-end; cursor:grab; user-select:none; touch-action:none; transition:transform .35s cubic-bezier(.2,.7,.3,1), opacity .35s; box-shadow:0 14px 34px rgba(20,23,26,.14);}
+.swipe-card:active{cursor:grabbing;}
+.swipe-card .photo{position:absolute; inset:0;}
+.swipe-card .card-body{position:relative; padding:20px; background:linear-gradient(0deg, rgba(0,0,0,.78), transparent 65%); color:#fff;}
+.swipe-card h4{font-family:'Fraunces',serif; font-size:20px; font-weight:500;}
+.swipe-card p{font-size:13px; color:#E7E7E7; margin-top:4px;}
+.swipe-tag{display:inline-block; margin-top:9px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:4px 9px; border-radius:100px; background:rgba(255,255,255,.18);}
+.swipe-stamp{position:absolute; top:20px; padding:6px 14px; border:3px solid; border-radius:8px; font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:15px; letter-spacing:.06em; text-transform:uppercase; opacity:0; pointer-events:none; transition:opacity .05s linear; z-index:5;}
+.swipe-stamp.like{ left:16px; color:var(--green); border-color:var(--green); transform:rotate(-14deg);}
+.swipe-stamp.nope{ right:16px; color:var(--coral); border-color:var(--coral); transform:rotate(14deg);}
+.swipe-controls{display:flex; justify-content:center; gap:18px; margin-top:22px;}
+.swipe-btn{width:58px; height:58px; border-radius:50%; border:1.5px solid var(--line); background:var(--card-bg); font-size:20px; display:flex; align-items:center; justify-content:center; padding:0; flex-shrink:0; transition:transform .15s, border-color .15s, color .15s;}
+.swipe-btn svg{width:22px; height:22px;}
+.swipe-btn:hover{transform:translateY(-2px);}
+.swipe-btn:active{transform:scale(.92);}
+.swipe-btn.reject:hover{border-color:var(--coral); color:var(--coral);}
+.swipe-btn.accept:hover{border-color:var(--green); color:var(--green);}
+.signalFeed{margin-top:16px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--green); min-height:18px; text-align:center;}
+.swipe-hint{font-size:11.5px; color:var(--ink-soft); margin-top:6px; text-align:center;}
+
+/* ============ MAP ============ */
+#mapScreen .screenInner{padding:0; max-width:none;}
+.mapTop{position:absolute; top:76px; left:0; right:0; z-index:20; padding:0 16px; display:flex; flex-direction:column; gap:10px;}
+.districtScroll{display:flex; gap:8px; overflow-x:auto;}
+.districtChip{flex-shrink:0; padding:8px 14px; border-radius:100px; background:var(--card-bg); border:1px solid var(--line); font-size:12.5px; font-weight:600; box-shadow:0 3px 10px rgba(0,0,0,.05);}
+.districtChip.active{background:var(--ink); color:#fff; border-color:var(--ink);}
+#googleMap{position:absolute; top:var(--topbar-h); left:0; right:0; bottom:0;}
+.mapLegend{position:absolute; right:14px; bottom:96px; z-index:20; background:var(--card-bg); border:1px solid var(--line); border-radius:12px; padding:8px 12px; display:flex; gap:14px; font-size:11.5px; color:var(--ink-soft); box-shadow:0 4px 14px rgba(0,0,0,.06);}
+.mapLegend span{display:flex; align-items:center; gap:6px;}
+.mapLegend i{width:9px; height:9px; border-radius:50%; display:inline-block;}
+@media(max-width:860px){ .mapLegend{bottom:calc(var(--tabbar-h) + 14px);} }
+.mapSheet{position:absolute; left:16px; right:16px; bottom:16px; z-index:30; background:var(--card-bg); border-radius:18px; border:1px solid var(--line); box-shadow:0 12px 30px rgba(0,0,0,.12); padding:18px; display:none; max-width:400px;}
+.mapSheet.show{display:block;}
+.mapSheet .closeX{position:absolute; top:10px; right:10px; border:none; background:none; font-size:14px; color:var(--ink-soft);}
+@media(max-width:860px){ .mapTop{top:72px;} }
+
+/* ============ EVENTS ============ */
+.eventCard{display:flex; gap:14px; border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:12px; background:var(--card-bg);}
+.eventDate{flex-shrink:0; width:56px; text-align:center; background:var(--paper-dim); border-radius:12px; padding:8px 0;}
+.eventDate .d{font-family:'Fraunces',serif; font-size:20px; font-weight:600;}
+.eventDate .m{font-size:10px; color:var(--ink-soft); text-transform:uppercase;}
+.eventBody h3{font-size:15.5px; font-weight:600; font-family:'Inter',sans-serif;}
+.eventBody p{font-size:13px; color:var(--ink-soft); margin-top:3px;}
+
+/* ============ MESSAGES ============ */
+.msgWrap{display:flex; height:calc(100vh - var(--topbar-h)); }
+.convoList{width:300px; flex-shrink:0; border-right:1px solid var(--line); overflow-y:auto;}
+.convoListHead{display:flex; align-items:center; justify-content:space-between; padding:16px 18px 10px;}
+.convoListHead h3{font-size:16px;}
+.convoItem{display:flex; gap:12px; padding:14px 18px; border-bottom:1px solid var(--paper-dim); align-items:center;}
+.convoItem:hover, .convoItem.active{background:var(--paper-dim);}
+.convoAvatar{width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,var(--coral),var(--gold)); flex-shrink:0; color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center; font-size:14px;}
+.convoItem h4{font-size:14px; font-weight:600;}
+.convoItem p{font-size:12.5px; color:var(--ink-soft); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;}
+.threadPane{flex:1; display:flex; flex-direction:column;}
+.threadHeader{padding:16px 20px; border-bottom:1px solid var(--line); font-weight:600; font-family:'Fraunces',serif; display:flex; align-items:center; justify-content:space-between;}
+.threadMsgs{flex:1; overflow-y:auto; padding:20px;}
+.msgRow{display:flex; margin-bottom:12px;}
+.msgRow.me{justify-content:flex-end;}
+.bubble{max-width:60%; padding:10px 14px; border-radius:16px; background:var(--paper-dim); font-size:14px;}
+.msgRow.me .bubble{background:var(--ink); color:var(--paper);}
+.sharedCard{max-width:260px; border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--card-bg); cursor:pointer;}
+.sharedCard .sc-img{height:80px;}
+.sharedCard .sc-body{padding:10px 12px;}
+.sharedCard h5{font-size:13.5px;}
+.sharedCard span{font-size:11px; color:var(--ink-soft);}
+.threadInput{display:flex; gap:10px; padding:14px 20px; border-top:1px solid var(--line);}
+.threadInput input{flex:1; padding:11px 14px; border-radius:100px; border:1px solid var(--line); font-size:14px;}
+.threadInput button{padding:0 20px; border-radius:100px; border:none; background:var(--ink); color:#fff; font-weight:600; font-size:13.5px;}
+.pinnedRow{padding:9px 20px; border-bottom:1px solid var(--line); font-size:11.5px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:.04em;}
+@media(max-width:860px){ .convoList{width:100%;} .threadPane{display:none;} .msgWrap.threadOpen .convoList{display:none;} .msgWrap.threadOpen .threadPane{display:flex;} .backBtn{display:inline-block !important;} }
+.backBtn{display:none; border:none; background:none; font-size:14px; margin-right:10px;}
+
+/* ============ PROFILE ============ */
+.profileHead{display:flex; gap:18px; align-items:center; margin-bottom:22px;}
+.profileHead .av{width:74px; height:74px; border-radius:50%; background:linear-gradient(135deg,var(--teal),var(--green)); color:#fff; display:flex; align-items:center; justify-content:center; font-size:26px; font-weight:700;}
+.interestChip{display:inline-block; padding:6px 13px; border-radius:100px; background:var(--paper-dim); font-size:12.5px; margin:0 6px 6px 0;}
+.profileTabs{display:flex; gap:22px; border-bottom:1px solid var(--line); margin:22px 0 18px;}
+.profileTabs button{background:none; border:none; padding:10px 0; font-size:13.5px; font-weight:600; color:var(--ink-soft); border-bottom:2px solid transparent;}
+.profileTabs button.active{color:var(--ink); border-color:var(--ink);}
+.savedGrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px;}
+.savedTile{border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--card-bg); cursor:pointer;}
+.savedTile .st-img{height:90px;}
+.savedTile .st-body{padding:10px;}
+.savedTile h5{font-size:12.5px;}
+
+/* ============ SEARCH OVERLAY ============ */
+#searchOverlay{position:fixed; inset:0; background:rgba(20,23,26,0.5); z-index:200; display:none;}
+#searchOverlay.show{display:block;}
+.searchPanel{max-width:600px; margin:70px auto 0; background:var(--card-bg); border-radius:18px; padding:20px; max-height:75vh; display:flex; flex-direction:column;}
+.searchPanel input{width:100%; padding:13px 16px; border-radius:12px; border:1px solid var(--line); font-size:15px;}
+.searchResults{margin-top:14px; overflow-y:auto;}
+.searchRow{display:flex; justify-content:space-between; align-items:center; padding:11px 6px; border-bottom:1px solid var(--paper-dim); font-size:14px; cursor:pointer;}
+.searchRow span.type{font-size:11px; color:var(--ink-soft); text-transform:uppercase; font-family:'IBM Plex Mono',monospace;}
+
+/* ============ MOBILE "MORE" DRAWER (sidebar equivalent on small screens) ============ */
+#moreOverlay{position:fixed; inset:0; background:rgba(0,0,0,.28); z-index:210; display:none;}
+#moreOverlay.show{display:block;}
+#moreDrawer{position:fixed; left:0; right:0; bottom:0; background:var(--card-bg); color:var(--ink); z-index:220; border-radius:20px 20px 0 0; padding:10px 18px 22px; transform:translateY(110%); transition:transform .28s ease; max-height:75vh; overflow-y:auto; box-shadow:0 -10px 30px rgba(0,0,0,.18);}
+#moreDrawer.show{transform:translateY(0);}
+#moreDrawer .moreHandle{width:36px; height:4px; border-radius:100px; background:var(--line); margin:6px auto 14px;}
+#moreDrawer h3{font-size:16px; margin-bottom:6px;}
+.moreItem{display:flex; align-items:center; gap:14px; padding:13px 4px; border:none; border-bottom:1px solid var(--paper-dim); font-size:14.5px; font-weight:500; width:100%; background:none; text-align:left; color:var(--ink);}
+.moreItem .ic{width:22px; display:flex; color:var(--ink-soft);}
+.moreItem:last-child{border-bottom:none;}
+@media(min-width:861px){ #moreDrawer, #moreOverlay{display:none !important;} }
+
+/* ============ NOTIFICATIONS DRAWER ============ */
+#notifDrawer{position:fixed; top:0; right:-360px; width:340px; height:100vh; background:var(--card-bg); z-index:220; box-shadow:-10px 0 30px rgba(0,0,0,.12); transition:right .3s ease; padding:20px;}
+#notifDrawer.show{right:0;}
+#notifOverlay{position:fixed; inset:0; background:rgba(0,0,0,0.25); z-index:210; display:none;}
+#notifOverlay.show{display:block;}
+.notifItem{padding:12px 0; border-bottom:1px solid var(--paper-dim); font-size:13.5px;}
+.notifItem .nt{font-size:11px; color:var(--ink-soft); margin-top:3px;}
+
+/* ============ DISTRICTS SCREEN ============ */
+.districtCard{border:1px solid var(--line); border-radius:16px; overflow:hidden; margin-bottom:14px; background:var(--card-bg); display:flex; flex-wrap:wrap;}
+.districtCard .dc-band{width:100%; height:8px;}
+.districtCard .dc-body{padding:18px; flex:1;}
+.districtCard h3{font-size:17px; font-weight:600; font-family:'Inter',sans-serif;}
+.districtCard p{font-size:13.5px; color:var(--ink-soft); margin-top:5px;}
+.districtCard .dc-meta{margin-top:10px; font-size:12px; font-family:'IBM Plex Mono',monospace; color:var(--ink-soft);}
+.dc-events{margin-top:10px; border-top:1px solid var(--paper-dim); padding-top:8px;}
+.dc-event-row{display:flex; gap:10px; font-size:12.5px; padding:4px 0; color:var(--ink);}
+.dc-event-row .dc-event-date{font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); flex-shrink:0; width:56px;}
+
+/* ============ SETTINGS ============ */
+.settingsRow{display:flex; align-items:center; justify-content:space-between; padding:16px 0; border-bottom:1px solid var(--line);}
+.settingsRow .sLabel{font-size:14.5px; font-weight:500;}
+.settingsRow .sSub{font-size:12.5px; color:var(--ink-soft); margin-top:2px;}
+.toggleSwitch{width:44px; height:26px; border-radius:100px; background:var(--line); position:relative; border:none; flex-shrink:0; cursor:pointer;}
+.toggleSwitch::after{content:''; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:transform .2s;}
+.toggleSwitch.on{background:var(--teal);}
+.toggleSwitch.on::after{transform:translateX(18px);}
+.logoutBtn{margin-top:26px; padding:12px 22px; border-radius:100px; border:1.5px solid var(--coral); background:none; color:var(--coral); font-weight:700; font-size:13.5px;}
+.logoutBtn:hover{background:var(--coral); color:#fff;}
+
+/* ============ VOICE / VIDEO CALL MODAL ============ */
+#callOverlay{position:fixed; inset:0; background:rgba(10,12,14,0.72); z-index:300; display:none; align-items:center; justify-content:center; backdrop-filter:blur(4px);}
+#callOverlay.show{display:flex;}
+.callCard{position:relative; width:100%; max-width:320px; background:linear-gradient(165deg,#1b1e23,#0f1114); color:var(--paper); border-radius:26px; padding:36px 26px; text-align:center; overflow:hidden; box-shadow:0 30px 70px rgba(0,0,0,.5); transition:padding .25s;}
+.callCard.videoMode{padding:0 0 26px; max-width:340px;}
+.callVideoFrame{display:none; height:220px; border-radius:0; margin-bottom:16px; position:relative; align-items:flex-end; justify-content:center; background-size:cover; background-position:center; transition:opacity .2s;}
+.callCard.videoMode .callVideoFrame.on{display:flex;}
+.callVideoFrame .selfView{position:absolute; top:14px; right:14px; width:58px; height:78px; border-radius:10px; background:#2A2E34; border:2px solid rgba(255,255,255,.55); background-size:cover; background-position:center; box-shadow:0 6px 16px rgba(0,0,0,.4);}
+.callCard.videoMode .callAvatar{width:0; height:0; margin:0; overflow:hidden;}
+.callCard.videoMode .callBody{padding:0 26px;}
+.callBody{padding-top:0;}
+.callAvatar{width:92px; height:92px; border-radius:50%; margin:0 auto 16px; background:linear-gradient(135deg,var(--teal),var(--coral)); display:flex; align-items:center; justify-content:center; font-size:32px; font-weight:700; position:relative; z-index:2;}
+.callCard.ringing .callAvatar{animation: ringPulse 1.3s ease-in-out infinite;}
+@keyframes ringPulse{ 0%,100%{box-shadow:0 0 0 0 rgba(31,152,169,.55);} 50%{box-shadow:0 0 0 18px rgba(31,152,169,0);} }
+.callStatus{font-size:13px; color:#9AA1A8; margin-top:4px; display:flex; align-items:center; justify-content:center; gap:6px;}
+.callStatus .ringDot{width:6px; height:6px; border-radius:50%; background:var(--teal); animation:ringBlink 1s infinite;}
+@keyframes ringBlink{ 0%,100%{opacity:.25;} 50%{opacity:1;} }
+.callTimer{font-family:'IBM Plex Mono',monospace; font-size:14px; margin-top:6px; color:#9AA1A8;}
+.callControls{display:flex; justify-content:center; gap:16px; margin-top:30px; flex-wrap:wrap;}
+.callBtn{width:56px; height:56px; border-radius:50%; border:none; font-size:20px; background:#2A2E34; color:#fff; display:flex; align-items:center; justify-content:center; transition:background .15s, transform .1s;}
+.callBtn:active{transform:scale(.92);}
+.callBtn.end{background:var(--coral);}
+.callBtn.active{background:var(--teal);}
+
+/* ============ EXPLORE ============ */
+.exploreSection{margin-bottom:28px;}
+.exploreSectionHead{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px;}
+.exploreSectionHead h3{font-size:15.5px; font-weight:600; font-family:'Inter',sans-serif;}
+.exploreSectionHead span{font-size:12px; color:var(--ink-soft); cursor:pointer;}
+.hScroll{display:flex; gap:12px; overflow-x:auto; padding-bottom:6px;}
+.exploreTile{flex-shrink:0; width:190px; border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--card-bg); cursor:pointer;}
+.exploreTile .et-img{height:100px;}
+.exploreTile .et-body{padding:11px 12px;}
+.exploreTile h5{font-size:13px; font-weight:600;}
+.exploreTile span{font-size:11.5px; color:var(--ink-soft);}
+.tileGrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px;}
+.actionTile{border:1px solid var(--line); border-radius:14px; padding:16px 14px; background:var(--card-bg); text-align:left; display:flex; flex-direction:column; gap:6px;}
+.actionTile .ic{display:flex;}
+.actionTile .ic svg{width:22px; height:22px;}
+svg{display:block;}
+.iconBtn svg, .pillBtn svg, .navItem .ic svg, .swipe-btn svg, .callBtn svg, .closeX svg, .backBtn svg{vertical-align:middle; flex-shrink:0;}
+.pillBtn, .backBtn{display:inline-flex; align-items:center; gap:6px;}
+.starMini{display:inline-flex; gap:2px; color:var(--gold); vertical-align:-3px;}
+.ratingPill{display:inline-flex; align-items:center; gap:4px; color:var(--gold);}
+.actionTile h5{font-size:13px; font-weight:600;}
+.actionTile span{font-size:11.5px; color:var(--ink-soft);}
+
+/* ============ CIRCLE (friends & trust) ============ */
+.friendRow{display:flex; align-items:center; gap:12px; padding:13px 0; border-bottom:1px solid var(--paper-dim);}
+.friendAv{width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg,var(--gold),var(--coral)); color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;}
+.friendRow h4{font-size:14px; font-weight:600;}
+.friendRow p{font-size:12px; color:var(--ink-soft); margin-top:2px;}
+.friendActions{display:flex; gap:6px; margin-left:auto;}
+.reqCard{border:1px solid var(--line); border-radius:14px; padding:14px; display:flex; align-items:center; gap:12px; margin-bottom:10px; background:var(--card-bg);}
+.emptyState{text-align:center; padding:36px 20px; color:var(--ink-soft);}
+.emptyState p{font-size:14px; margin-top:6px;}
+.emptyState .emptySub{font-size:12.5px; max-width:320px; margin:6px auto 0;}
+.menuPop{position:relative; display:inline-block;}
+.menuPop .menuList{display:none; position:absolute; right:0; top:38px; background:var(--card-bg); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 22px rgba(0,0,0,.1); z-index:20; overflow:hidden;}
+.menuPop.open .menuList{display:block;}
+.menuList button{display:block; width:160px; text-align:left; padding:10px 14px; font-size:13px; border:none; background:var(--card-bg);}
+.menuList button:hover{background:var(--paper-dim);}
+
+/* ============ NEWS ============ */
+.news-card{position:absolute; inset:0; border-radius:20px; overflow:hidden; border:1px solid var(--line); background:var(--card-bg); display:flex; flex-direction:column; justify-content:flex-end; cursor:grab; user-select:none; touch-action:none; transition:transform .35s cubic-bezier(.2,.7,.3,1), opacity .35s; box-shadow:0 14px 34px rgba(20,23,26,.14);}
+.news-card:active{cursor:grabbing;}
+.news-card .nc-photo{position:absolute; inset:0;}
+.news-card .nc-body{position:relative; padding:20px; background:linear-gradient(0deg, rgba(20,23,26,.92), rgba(20,23,26,.55) 60%, transparent); color:#fff;}
+.news-card .src{font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; color:#C9CDD2; letter-spacing:.04em; display:flex; align-items:center; gap:6px; justify-content:space-between;}
+.news-card .src .readLink{display:inline-flex; align-items:center; gap:4px; color:#fff; text-decoration:none; border:1px solid rgba(255,255,255,.35); border-radius:100px; padding:3px 9px 3px 8px; font-size:10.5px;}
+.news-card h4{font-family:'Fraunces',serif; font-size:19px; font-weight:500; margin-top:6px; color:#fff;}
+.news-card p{font-size:13.5px; color:#D8DBDE; margin-top:8px;}
+
+/* ============ PLACE DETAIL ============ */
+.placeHero{height:190px; border-radius:18px; margin-bottom:18px;}
+.placeHead{display:flex; justify-content:space-between; align-items:flex-start; gap:14px;}
+.placeHead h2{font-size:22px;}
+.ratingPill{font-family:'IBM Plex Mono',monospace; font-size:12.5px; background:var(--paper-dim); padding:5px 10px; border-radius:100px; flex-shrink:0;}
+.friendRatingRow{display:flex; gap:10px; align-items:center; padding:10px 0; border-bottom:1px solid var(--paper-dim); font-size:13px;}
+.miniAv{width:30px; height:30px; border-radius:50%; background:linear-gradient(135deg,var(--teal),var(--coral)); color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+
+/* ============ CREATE POST MODAL ============ */
+#createOverlay{position:fixed; inset:0; background:rgba(20,23,26,.5); z-index:250; display:none; align-items:flex-end; justify-content:center;}
+#createOverlay.show{display:flex;}
+#groupOverlay{position:fixed; inset:0; background:rgba(20,23,26,.5); z-index:250; display:none; align-items:flex-end; justify-content:center;}
+#groupOverlay.show{display:flex;}
+.groupPickRow{display:flex; align-items:center; gap:10px; font-size:14px; padding:6px 0;}
+.createSheet{width:100%; max-width:520px; background:var(--card-bg); border-radius:20px 20px 0 0; padding:22px; max-height:88vh; overflow-y:auto;}
+@media(min-width:861px){ #createOverlay{align-items:center;} #groupOverlay{align-items:center;} .createSheet{border-radius:20px;} }
+.createSheet textarea{width:100%; border:1px solid var(--line); border-radius:12px; padding:12px 14px; font-size:14.5px; min-height:90px; resize:vertical;}
+.createSheet select{width:100%; padding:11px 13px; border-radius:10px; border:1px solid var(--line); font-size:14px; margin-top:6px;}
+.starRow{display:flex; gap:6px; margin-top:6px;}
+.starRow span{font-size:22px; cursor:pointer; opacity:.35;}
+.starRow span.on{opacity:1;}
+.tagChip{padding:6px 13px; border-radius:100px; border:1px solid var(--line); background:none; font-size:12.5px; margin:0 6px 6px 0;}
+.tagChip.on{background:var(--ink); color:#fff; border-color:var(--ink);}
+.createLabel{font-size:12px; color:var(--ink-soft); font-weight:600; margin:14px 0 4px;}
+
+/* ============ TOAST ============ */
+#toastHost{position:fixed; bottom:calc(var(--tabbar-h) + 18px); left:50%; transform:translateX(-50%); z-index:400; display:flex; flex-direction:column; gap:8px; align-items:center;}
+@media(min-width:861px){ #toastHost{bottom:24px;} }
+.toast{background:var(--ink); color:var(--paper); padding:11px 18px; border-radius:100px; font-size:13px; box-shadow:0 8px 22px rgba(0,0,0,.18); animation:toastIn .25s ease;}
+@keyframes toastIn{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);}}
+</style>
+</head>
+<body>
+
+<!-- ================= AUTH GATE ================= -->
+<div id="auth">
+  <button class="iconBtn" id="authThemeBtn" title="Toggle theme"></button>
+  <div class="logoWrap"><img id="logoImgAuth" alt="Social Circle logo"></div>
+  <h1>Social Circle</h1>
+  <p class="tag">Sign in to enter. People, places and plans, through the friends whose taste you trust.</p>
+  <div class="authCard">
+    <div class="authToggle">
+      <button id="toLogin" class="active">Log in</button>
+      <button id="toSignup">Sign up</button>
+    </div>
+    <div id="authError" style="display:none; background:rgba(225,90,66,0.1); color:var(--coral); border:1px solid rgba(225,90,66,0.3); border-radius:10px; padding:10px 12px; font-size:12.5px; margin-bottom:12px;"></div>
+    <form id="authForm">
+      <div class="field" id="nameField" style="display:none;">
+        <label>Name</label>
+        <input type="text" id="fName" placeholder="Your name" autocomplete="name">
+      </div>
+      <div class="field" id="usernameField" style="display:none;">
+        <label>Username</label>
+        <input type="text" id="fUsername" placeholder="lowercase, no spaces" autocomplete="username">
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="fEmail" placeholder="you@email.com" autocomplete="email" required>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <div style="position:relative;">
+          <input type="password" id="fPass" placeholder="••••••••" autocomplete="current-password" required style="width:100%; padding-right:44px;">
+          <button type="button" id="fPassToggle" style="position:absolute; right:6px; top:50%; transform:translateY(-50%); border:none; background:none; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:var(--ink-soft);"></button>
+        </div>
+      </div>
+      <div class="field" id="confirmField" style="display:none;">
+        <label>Confirm password</label>
+        <input type="password" id="fPassConfirm" placeholder="••••••••" autocomplete="new-password">
+      </div>
+      <button type="submit" class="authSubmit" id="authSubmitBtn">Log in</button>
+    </form>
+    <div style="display:flex; align-items:center; gap:10px; margin:18px 0;">
+      <div style="flex:1; height:1px; background:var(--line);"></div>
+      <span style="font-size:11px; color:var(--ink-soft);">OR</span>
+      <div style="flex:1; height:1px; background:var(--line);"></div>
+    </div>
+    <div id="googleBtnContainer" style="display:flex; justify-content:center;"></div>
+    <p class="authNote" id="googleFallbackNote" style="display:none;">Google sign-in isn't configured on this deployment yet.</p>
+  </div>
+</div>
+
+<!-- ================= APP SHELL ================= -->
+<div id="app">
+  <div class="topbar">
+    <div class="tLeft"><img id="logoImgTop" alt=""> Social Circle</div>
+    <div class="tRight">
+      <button class="iconBtn" id="themeBtn" title="Toggle theme"></button>
+      <button class="iconBtn" id="searchBtn" title="Search"></button>
+      <button class="iconBtn" id="notifBtn" title="Notifications"><span class="badge" id="notifBadge"></span></button>
+      <button class="iconBtn" id="settingsBtn" title="Settings"></button>
+      <button class="iconBtn" id="profileBtn" title="Profile"><span class="avatar" id="topAvatar">Y</span></button>
+    </div>
+  </div>
+
+  <nav class="sidenav" id="sidenav"></nav>
+  <nav class="tabbar" id="tabbar"></nav>
+
+  <!-- HOME -->
+  <section class="screen active" id="screen-home">
+    <div class="screenInner">
+      <h2 class="screenTitle">Home</h2>
+      <p class="screenSub">What might I care about. Who I trust did this. What can I do next.</p>
+      <div class="chipRow" id="homeChips"></div>
+      <div id="feedList"></div>
+    </div>
+  </section>
+
+  <!-- EXPLORE -->
+  <section class="screen" id="screen-explore">
+    <div class="screenInner">
+      <h2 class="screenTitle">Explore</h2>
+      <p class="screenSub">Nearby, trending, and what your circle recommends — search or just browse.</p>
+      <div class="tileGrid" style="margin-bottom:26px;">
+        <button class="actionTile" data-screen="discover"><span class="ic" data-icon="swipe"></span><h5>Swipe discovery</h5><span>Teach the feed fast</span></button>
+        <button class="actionTile" data-screen="news"><span class="ic" data-icon="news"></span><h5>News</h5><span>Personalised to you</span></button>
+        <button class="actionTile" data-screen="districts"><span class="ic" data-icon="pin"></span><h5>Districts</h5><span>Explore by area</span></button>
+        <button class="actionTile" data-screen="events"><span class="ic" data-icon="calendar"></span><h5>Events</h5><span>What's happening</span></button>
+      </div>
+      <div class="exploreSection">
+        <div class="exploreSectionHead"><h3>Nearby places</h3><span data-screen="map">Map view</span></div>
+        <div class="hScroll" id="exploreNearby"></div>
+      </div>
+      <div class="exploreSection">
+        <div class="exploreSectionHead"><h3>Trending discoveries</h3></div>
+        <div class="hScroll" id="exploreTrending"></div>
+      </div>
+      <div class="exploreSection">
+        <div class="exploreSectionHead"><h3>Friends recommend</h3><span data-screen="circle">See circle</span></div>
+        <div class="hScroll" id="exploreFriends"></div>
+      </div>
+      <div class="exploreSection">
+        <div class="exploreSectionHead"><h3>Activities</h3></div>
+        <div class="hScroll" id="exploreActivities"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DISCOVER -->
+  <section class="screen" id="screen-discover">
+    <div class="screenInner">
+      <h2 class="screenTitle">Discover</h2>
+      <p class="screenSub">Swipe right to keep it, left to teach the feed what's not for you.</p>
+      <div class="discoverWrap">
+        <div class="card-stack" id="cardStack"></div>
+        <div class="swipe-controls">
+          <button class="swipe-btn reject" id="btnLeft"></button>
+          <button class="swipe-btn accept" id="btnRight"></button>
+        </div>
+        <div class="signalFeed" id="signalFeed">&nbsp;</div>
+        <div class="swipe-hint">Drag the card, or use the buttons</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAP -->
+  <section class="screen" id="screen-map">
+    <div class="screenInner">
+      <div class="mapTop">
+        <div class="districtScroll" id="districtScroll"></div>
+        <div class="chipRow" id="mapLayerChips" style="margin-bottom:0;"></div>
+      </div>
+      <div id="googleMap"></div>
+      <div class="mapLegend" id="mapLegend">
+        <span><i style="background:#1F98A9;"></i>Place</span>
+        <span><i style="background:#54677C; border-radius:3px;"></i>Event</span>
+      </div>
+      <div class="mapSheet" id="mapSheet">
+        <button class="closeX" id="mapSheetClose"></button>
+        <div id="mapSheetBody"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EVENTS -->
+  <section class="screen" id="screen-events">
+    <div class="screenInner">
+      <h2 class="screenTitle">Events</h2>
+      <p class="screenSub">What's happening, and when.</p>
+      <div class="chipRow" id="eventChips"></div>
+      <div id="eventList"></div>
+    </div>
+  </section>
+
+  <!-- DISTRICTS -->
+  <section class="screen" id="screen-districts">
+    <div class="screenInner">
+      <h2 class="screenTitle">Districts</h2>
+      <p class="screenSub">The geographic heartbeat of the network — tap through to see it on the map.</p>
+      <div id="districtList"></div>
+    </div>
+  </section>
+
+  <!-- NEWS -->
+  <section class="screen" id="screen-news">
+    <div class="screenInner">
+      <h2 class="screenTitle">News</h2>
+      <p class="screenSub">Personalised from your interests and location — source always shown, tap through to read. Swipe right for more like this, left for less.</p>
+      <div class="feedMeta" style="margin-bottom:14px;">
+        <button class="pillBtn" id="newsRefreshBtn"><span data-icon="explore"></span>Refresh</button>
+        <span id="newsAsOf" style="font-size:12px; color:var(--ink-soft); align-self:center;"></span>
+      </div>
+      <div class="discoverWrap">
+        <div class="card-stack" id="newsStack"></div>
+        <div class="swipe-controls">
+          <button class="swipe-btn reject" id="newsLeft"></button>
+          <button class="swipe-btn accept" id="newsRight"></button>
+        </div>
+        <div class="signalFeed" id="newsSignal">&nbsp;</div>
+        <div class="swipe-hint">Drag the card, or use the buttons</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CIRCLE -->
+  <section class="screen" id="screen-circle">
+    <div class="screenInner">
+      <h2 class="screenTitle">Circle</h2>
+      <p class="screenSub">The people whose taste shapes what you see.</p>
+      <div id="reqSection"></div>
+      <h3 style="font-size:15px; margin:18px 0 6px;">Your friends</h3>
+      <div id="friendsList"></div>
+    </div>
+  </section>
+
+  <!-- PLACE DETAIL -->
+  <section class="screen" id="screen-place">
+    <div class="screenInner" id="placeDetailBody"></div>
+  </section>
+
+  <!-- MESSAGES -->
+  <section class="screen" id="screen-messages">
+    <div class="msgWrap" id="msgWrap">
+      <div class="convoList" id="convoList">
+        <div class="convoListHead">
+          <h3>Messages</h3>
+          <button class="pillBtn" id="newGroupBtn"><span data-icon="circle"></span>New group</button>
+        </div>
+        <div id="convoItems"></div>
+      </div>
+      <div class="threadPane" id="threadPane">
+        <div class="threadHeader">
+          <span style="display:flex;align-items:center;"><button class="backBtn" id="backBtn"><span data-icon="back"></span> Back</button><span id="threadTitle"></span></span>
+          <button class="iconBtn" id="callBtn" title="Voice call"></button>
+          <button class="iconBtn" id="videoCallBtn" title="Video call"></button>
+        </div>
+        <div class="pinnedRow" id="pinnedRow" style="display:none;"></div>
+        <div class="threadMsgs" id="threadMsgs"></div>
+        <div class="threadInput">
+          <input type="text" id="msgInput" placeholder="Message…">
+          <button id="sendBtn">Send</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROFILE -->
+  <section class="screen" id="screen-profile">
+    <div class="screenInner">
+      <div class="profileHead">
+        <div style="position:relative; flex-shrink:0;">
+          <div class="av" id="profAv">Y</div>
+          <button class="iconBtn" id="avatarEditBtn" title="Change photo" style="position:absolute; bottom:-2px; right:-2px; width:28px; height:28px; background:var(--ink); color:#fff; border:2px solid var(--paper);"></button>
+          <input type="file" id="avatarFileInput" accept="image/jpeg,image/png,image/webp" style="display:none;">
+        </div>
+        <div style="flex:1;">
+          <h2 id="profName">You</h2>
+          <p class="screenSub" style="margin:2px 0 0;" id="profBio">Exploring Delhi, one recommendation at a time.</p>
+          <div class="feedMeta" style="margin-top:8px;">
+            <button class="pillBtn" id="editProfileBtn"><span data-icon="edit"></span>Edit profile</button>
+            <button class="pillBtn" id="removePhotoBtn" style="display:none;"><span data-icon="trash"></span>Remove photo</button>
+          </div>
+        </div>
+      </div>
+      <div id="editProfileForm" style="display:none; border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:20px;">
+        <div class="createLabel" style="margin-top:0;">Display name</div>
+        <input type="text" id="editDisplayName" style="width:100%;">
+        <div class="createLabel">Bio</div>
+        <textarea id="editBio" style="width:100%; min-height:60px; border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px;"></textarea>
+        <div class="feedMeta" style="margin-top:12px;">
+          <button class="pillBtn primary" id="saveProfileBtn">Save</button>
+          <button class="pillBtn" id="cancelProfileBtn">Cancel</button>
+        </div>
+      </div>
+      <div id="profInterests"></div>
+      <div class="profileTabs" id="profileTabs">
+        <button class="active" data-t="saved">Saved</button>
+        <button data-t="posts">Posts</button>
+        <button data-t="events">Events</button>
+      </div>
+      <div id="profileTabContent"></div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="screen" id="screen-settings">
+    <div class="screenInner" style="max-width:560px;">
+      <h2 class="screenTitle">Settings</h2>
+      <p class="screenSub">Privacy is part of the object model, not bolted on at the end.</p>
+      <div class="settingsRow"><div><div class="sLabel">Dark mode</div><div class="sSub">Switch the whole app to a dark theme.</div></div><button class="toggleSwitch" id="settingsThemeToggle"></button></div>
+      <div class="settingsRow"><div><div class="sLabel">Share live location with close friends</div><div class="sSub">Off by default. A saved place is never the same as a live location.</div></div><button class="toggleSwitch" id="toggleLive"></button></div>
+      <div class="settingsRow"><div><div class="sLabel">Friend activity in feed</div><div class="sSub">Let friends' saves and visits show up as cards on your Home feed.</div></div><button class="toggleSwitch on" id="toggleFriendActivity"></button></div>
+      <div class="settingsRow"><div><div class="sLabel">Weekly digest email</div><div class="sSub">A Sunday summary of what your circle saved this week.</div></div><button class="toggleSwitch" id="toggleDigest"></button></div>
+      <div class="settingsRow"><div><div class="sLabel">Discoverable by email</div><div class="sSub">Let people who have your email find your profile in Search.</div></div><button class="toggleSwitch on" id="toggleDiscoverable"></button></div>
+      <button class="logoutBtn" id="logoutBtn">Log out</button>
+    </div>
+  </section>
+</div>
+
+<!-- NEW GROUP -->
+<div id="groupOverlay" class="modalOverlay">
+  <div class="createSheet" id="groupOverlayBody"></div>
+</div>
+
+<!-- CREATE POST -->
+<div id="createOverlay">
+  <div class="createSheet">
+    <h3 style="font-size:18px;">Share an experience</h3>
+    <p class="screenSub" style="margin:4px 0 0;">A post says "I went here." The place page stays the same for everyone.</p>
+    <div class="createLabel">What happened</div>
+    <textarea id="postText" placeholder="What was it like?"></textarea>
+    <div class="createLabel">Place</div>
+    <input type="text" id="postPlaceSearch" placeholder="Search for the place near you…" autocomplete="off">
+    <p style="font-size:11.5px; color:var(--ink-soft); margin-top:6px;" id="postLocNote">Finding your location so results are nearby…</p>
+    <div class="createLabel">Or pin the exact spot on the map</div>
+    <div id="postPinMap" style="height:180px; border-radius:12px; border:1px solid var(--line); overflow:hidden;"></div>
+    <p style="font-size:11.5px; color:var(--ink-soft); margin-top:6px;" id="postPinNote">Tap the map to drop a pin — useful for a spot that isn't listed yet.</p>
+    <div class="createLabel">Rating</div>
+    <div class="starRow" id="postStars"></div>
+    <div class="createLabel">Tags</div>
+    <div id="postTags"></div>
+    <button class="pillBtn primary" id="postSubmit" style="width:100%; margin-top:16px; padding:12px;">Post experience</button>
+  </div>
+</div>
+
+<!-- VOICE / VIDEO CALL MODAL -->
+<div id="callOverlay">
+  <div class="callCard">
+    <div class="callVideoFrame" id="callVideoFrame"></div>
+    <div class="callBody">
+      <div class="callAvatar" id="callAvatar">M</div>
+      <h3 id="callName">Friend</h3>
+      <div class="callStatus" id="callStatus"><span class="ringDot" id="ringDot"></span><span id="callStatusText">Calling…</span></div>
+      <div class="callTimer" id="callTimer">00:00</div>
+      <div class="callControls">
+        <button class="callBtn" id="callMute" title="Mute"></button>
+        <button class="callBtn" id="callCamera" title="Camera"></button>
+        <button class="callBtn end" id="callEnd" title="End call"></button>
+        <button class="callBtn" id="callSpeaker" title="Speaker"></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SEARCH OVERLAY -->
+<div id="searchOverlay">
+  <div class="searchPanel">
+    <input type="text" id="searchInput" placeholder="Search people, places, events, districts…">
+    <div class="searchResults" id="searchResults"></div>
+  </div>
+</div>
+
+<!-- MOBILE MORE DRAWER -->
+<div id="moreOverlay"></div>
+<div id="moreDrawer">
+  <div class="moreHandle"></div>
+  <h3>More</h3>
+  <div id="moreList"></div>
+</div>
+
+<!-- NOTIFICATIONS DRAWER -->
+<div id="notifOverlay"></div>
+<div id="notifDrawer">
+  <h3 style="margin-bottom:14px;">Notifications</h3>
+  <div id="notifList"></div>
+</div>
+
+<div id="toastHost"></div>
+
+<script>
+/* =========================================================
+   LOGO
+========================================================= */
+const LOGO_SRC = "data:image/svg+xml;utf8," + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='#14171A'/><circle cx='50' cy='40' r='16' fill='#1F98A9'/><circle cx='30' cy='68' r='12' fill='#E15A42'/><circle cx='70' cy='68' r='12' fill='#CE9A2E'/></svg>`);
+document.getElementById('logoImgAuth').src = LOGO_SRC;
+document.getElementById('logoImgTop').src = LOGO_SRC;
+
+/* =========================================================
+   ICON SYSTEM — inline SVG line icons, no emoji anywhere
+========================================================= */
+const ICONS = {
+  home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V10"/>',
+  explore: '<circle cx="12" cy="12" r="9"/><path d="M14.8 9.2l-2.1 5.5-5.5 2.1 2.1-5.5z"/>',
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  map: '<path d="M9 3L3 5.2v15.6L9 18l6 2.8 6-2.2V2.8L15 5 9 3z"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="5" x2="15" y2="20.8"/>',
+  circle: '<circle cx="9" cy="8" r="3"/><circle cx="17" cy="11" r="2.4"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M14.2 15c2.6.3 4.6 2.1 4.6 5"/>',
+  swipe: '<polyline points="17 2.5 21.5 2.5 21.5 7"/><line x1="3" y1="21" x2="21.5" y2="2.5"/><polyline points="21.5 16.5 21.5 21.5 16.5 21.5"/><line x1="14" y1="14" x2="21.5" y2="21.5"/><line x1="3" y1="3" x2="9" y2="9"/>',
+  pin: '<path d="M12 21s-7-7.4-7-12a7 7 0 0114 0c0 4.6-7 12-7 12z"/><circle cx="12" cy="9" r="2.4"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>',
+  news: '<path d="M4 4h13a2 2 0 012 2v13a2 2 0 01-2 2H7a3 3 0 01-3-3V4z"/><path d="M4 4v14a3 3 0 003 3"/><line x1="8" y1="8.5" x2="15" y2="8.5"/><line x1="8" y1="12" x2="15" y2="12"/><line x1="8" y1="15.5" x2="12" y2="15.5"/>',
+  message: '<path d="M21 11.5a8.5 8.5 0 01-8.5 8.5H6l-3 3V11.5a8.5 8.5 0 018.5-8.5h1a8.5 8.5 0 018.5 8.5z"/>',
+  profile: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.6V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9V15a1.7 1.7 0 00-1.6-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.6V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.6 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.6 1H21a2 2 0 010 4h-.1a1.7 1.7 0 00-1.6 1z"/>',
+  search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  bell: '<path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/>',
+  phone: '<path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1.9.3 1.8.6 2.7a2 2 0 01-.4 2.1L8 9.9a16 16 0 006 6l1.4-1.4a2 2 0 012.1-.4c.9.3 1.8.5 2.7.6a2 2 0 011.8 2.2z"/>',
+  video: '<rect x="2" y="6" width="14" height="12" rx="2"/><path d="M23 7.5l-7 4.5 7 4.5v-9z"/>',
+  close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  heart: '<path d="M12 21s-7.2-4.5-9.5-8.8C.8 8.6 2.3 5 6 5c2 0 3.3 1 4 2 .7-1 2-2 4-2 3.7 0 5.2 3.6 3.5 7.2C19.2 16.5 12 21 12 21z"/>',
+  moon: '<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.9" y1="4.9" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.1" y2="19.1"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.9" y1="19.1" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.1" y2="4.9"/>',
+  send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+  back: '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
+  star: '<polygon points="12 2 15 9 22 9.5 16.5 14 18 21 12 17.3 6 21 7.5 14 2 9.5 9 9"/>',
+  more: '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
+  share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/>',
+  directions: '<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
+  mic: '<path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v1a7 7 0 01-14 0v-1"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>',
+  micOff: '<line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 005.1 2.1"/><path d="M15 5.3V4a3 3 0 00-5.9-.8"/><path d="M19 10v1a7 7 0 01-.6 2.9"/><path d="M5 10v1a7 7 0 007 7c.9 0 1.7-.2 2.5-.5"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>',
+  volume: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a4.5 4.5 0 010 7"/><path d="M19 5a9 9 0 010 14"/>',
+  eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="M9.9 4.24A10.4 10.4 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.7 3.9M6.5 6.6C3.4 8.5 1 12 1 12s4 8 11 8a10.4 10.4 0 005.1-1.3"/><path d="M14.1 14.1a3 3 0 01-4.2-4.2"/><line x1="1" y1="1" x2="23" y2="23"/>',
+  camera: '<path d="M4 8h3l1.6-2.4A1 1 0 019.4 5h5.2a1 1 0 01.83.6L16.9 8H20a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2v-9a2 2 0 012-2z"/><circle cx="12" cy="14" r="3.6"/>',
+  trash: '<polyline points="3 6 5 6 21 6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/>',
+  edit: '<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/>',
+};
+function icon(name, size){
+  size = size || 20;
+  return '<svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+(ICONS[name]||'')+'</svg>';
+}
+function photoUrl(seed, w, h){
+  return 'https://picsum.photos/seed/' + encodeURIComponent(String(seed)) + '/' + w + '/' + h;
+}
+function wireStaticIcons(){
+  const map = {
+    searchBtn:'search', settingsBtn:'settings', btnLeft:'close', btnRight:'heart',
+    mapSheetClose:'close', callBtn:'phone', videoCallBtn:'video', callMute:'mic', callEnd:'close', callSpeaker:'volume', callCamera:'video',
+    newsLeft:'close', newsRight:'heart'
+  };
+  Object.keys(map).forEach(id=>{ const el=document.getElementById(id); if(el) el.innerHTML = icon(map[id]); });
+  const notifBtn=document.getElementById('notifBtn');
+  if(notifBtn) notifBtn.insertAdjacentHTML('afterbegin', icon('bell'));
+  document.querySelectorAll('[data-icon]').forEach(el=>{ el.innerHTML = icon(el.dataset.icon); });
+  const themeBtn=document.getElementById('themeBtn');
+  if(themeBtn) themeBtn.innerHTML = icon('moon');
+  const authThemeBtn=document.getElementById('authThemeBtn');
+  if(authThemeBtn) authThemeBtn.innerHTML = icon('moon');
+}
+wireStaticIcons();
+
+/* =========================================================
+   MOCK DATA
+========================================================= */
+const districts = [
+  {id:'hk', name:'Hauz Khas', lat:28.5535, lng:77.1936, color:'#1F98A9', desc:'Village lanes, cafés, weekend crowd.'},
+  {id:'cp', name:'Connaught Place', lat:28.6315, lng:77.2167, color:'#E15A42', desc:'The city centre — always something on.'},
+  {id:'gk', name:'Greater Kailash', lat:28.5494, lng:77.2426, color:'#DB8236', desc:'Markets, brunch spots, quieter streets.'},
+  {id:'dlf', name:'Cyber Hub, Gurugram', lat:28.4950, lng:77.0890, color:'#54677C', desc:'Late nights, tech crowd, rooftop bars.'},
+  {id:'hz', name:'Hauz Khas Village', lat:28.5560, lng:77.2000, color:'#CE9A2E', desc:'Art, live music, lakeside views.'},
+  {id:'sk', name:'Saket', lat:28.5245, lng:77.2066, color:'#2C9464', desc:'Malls, multiplexes, easy weeknight plans.'},
+  {id:'ip', name:'Vasant Kunj Strip', lat:28.5200, lng:77.1591, color:'#E15A42', desc:'Brunch spots and a growing café scene.'},
+];
+
+const places = [
+  {id:'p1', name:'Kunzum Travel Café', district:'hk', lat:28.5540, lng:77.1946, category:'Café', color:'#1F98A9', rating:4.6, address:'Hauz Khas Village Rd, Delhi', friend:'Recommended by people you follow', note:'Chai, maps on the wall, and a table full of trip planning.'},
+  {id:'p2', name:'Late Night Dhaba Run', district:'cp', lat:28.6320, lng:77.2180, category:'Food', color:'#E15A42', rating:4.4, address:'Inner Circle, Connaught Place', friend:'A few friends went twice this month', note:'Open past midnight, loud, exactly what the group chat asked for.'},
+  {id:'p3', name:'Sunder Nursery', district:'gk', lat:28.5980, lng:77.2500, category:'Outdoors', color:'#DB8236', rating:4.8, address:'Nizamuddin, Delhi', friend:'3 friends went this month', note:'A quiet loop through the gardens — good for a slow Sunday.'},
+  {id:'p4', name:'Cyber Hub Rooftop', district:'dlf', lat:28.4955, lng:77.0900, category:'Nightlife', color:'#54677C', rating:4.3, address:'Cyber Hub, Gurugram', friend:'Popular with your circle', note:'Rooftop, good playlist, easy to find a table before 8.'},
+  {id:'p5', name:'Hauz Khas Lake Deck', district:'hz', lat:28.5565, lng:77.2010, category:'Outdoors', color:'#CE9A2E', rating:4.7, address:'Deer Park Rd, Hauz Khas Village', friend:'Saved by a friend last week', note:'Best at golden hour, right by the fort ruins.'},
+  {id:'p6', name:'Indie Gaming Lounge', district:'hk', lat:28.5520, lng:77.1960, category:'Activity', color:'#2C9464', rating:4.5, address:'Hauz Khas Main Rd', friend:'Matches your interests', note:'A monthly meetup two friends have attended twice.'},
+  {id:'p7', name:'Select Citywalk Rooftop', district:'sk', lat:28.5280, lng:77.2190, category:'Food', color:'#2C9464', rating:4.2, address:'District Centre, Saket', friend:'2 friends went after work', note:'Easy pre-movie dinner spot, always crowded after 8.'},
+  {id:'p8', name:'Third Wave Coffee', district:'ip', lat:28.5215, lng:77.1560, category:'Café', color:'#E15A42', rating:4.5, address:'Vasant Kunj Market', friend:'Your circle rates this highly', note:'Good for working from, plug points at every table.'},
+  {id:'p9', name:'Champa Gali Art Walk', district:'sk', lat:28.5300, lng:77.2010, category:'Outdoors', color:'#DB8236', rating:4.6, address:'Champa Gali, Saidulajab', friend:'A friend posted about this last week', note:'A maze of studios and small galleries, best on weekends.'},
+  {id:'p10', name:'CP Inner Circle Bookshops', district:'cp', lat:28.6330, lng:77.2195, category:'Activity', color:'#54677C', rating:4.4, address:'Inner Circle, Connaught Place', friend:'A friend goes most weekends', note:'Secondhand stacks worth an hour of getting lost in.'},
+];
+
+const events = [
+  {id:'e1', title:'Indie Gaming Meetup', date:'AUG 30', category:'Gaming', district:'hk', lat:28.5525, lng:77.1955, note:'Board games, indie devs demoing builds, snacks included.', friends:'2 friends interested', saved:false},
+  {id:'e2', title:'Delhi Food Crawl', date:'SEP 02', category:'Food', district:'gk', lat:28.5498, lng:77.2430, note:'A guided crawl through five stalls in Greater Kailash.', friends:'Someone in your circle is going', saved:true},
+  {id:'e3', title:'Rooftop Tech Meetup', date:'SEP 05', category:'Technology', district:'dlf', lat:28.4958, lng:77.0895, note:'Lightning talks on local startups, open bar after.', friends:'4 mutuals saved this', saved:false},
+  {id:'e4', title:'Live Music at the Lake', date:'SEP 07', category:'Entertainment', district:'hz', lat:28.5568, lng:77.2015, note:'An acoustic set right on the Hauz Khas lake deck.', friends:'A couple of friends saved this', saved:false},
+  {id:'e5', title:'Champa Gali Studio Walk', date:'SEP 09', category:'Entertainment', district:'sk', lat:28.5302, lng:77.2015, note:'Open studios, small-batch prints, coffee carts along the lane.', friends:'Someone in your circle is going', saved:false},
+  {id:'e6', title:'Weeknight Trivia', date:'SEP 11', category:'Entertainment', district:'ip', lat:28.5218, lng:77.1565, note:'Teams of four, prizes are mostly bragging rights.', friends:'3 friends interested', saved:false},
+  {id:'e7', title:'CP Book Swap', date:'SEP 13', category:'Technology', district:'cp', lat:28.6332, lng:77.2200, note:'Bring three, take three — mostly sci-fi and design books.', friends:'A friend saved this', saved:false},
+  {id:'e8', title:'Food Photography Walk', date:'SEP 14', category:'Food', district:'sk', lat:28.5283, lng:77.2192, note:'A slow walk through Select Citywalk stalls, phones only.', friends:'2 mutuals saved this', saved:false},
+];
+
+let feed = [
+  {type:'friend', color:'#1F98A9', kicker:'A friend recommends', title:'Kunzum Travel Café', body:'"Best chai in Hauz Khas, and the wall maps are worth the trip alone."', place:'p1'},
+  {type:'district', color:'#DB8236', kicker:'Trending in Greater Kailash', title:'Sunder Nursery is having a moment', body:'12 posts from your circle this week — mostly weekend morning walks.', place:'p3'},
+  {type:'event', color:'#54677C', kicker:'Event near you', title:'Rooftop Tech Meetup — Sep 5', body:'4 mutual friends have already saved this one.', eventId:'e3'},
+  {type:'friend', color:'#2C9464', kicker:'Two friends went together', title:'Late Night Dhaba Run', body:'"We went back two weeks in a row. Get the paratha."', place:'p2'},
+  {type:'news', color:'#CE9A2E', kicker:'Technology · Delhi', title:"Gurugram's indie tech scene is quietly booming", body:'A dozen new meetups have started in Cyber Hub this quarter.'},
+  {type:'friend', color:'#DB8236', kicker:'A friend posted an experience', title:'Champa Gali Art Walk', body:'"Found a print I\'m still thinking about. Go on a weekday if you can."', place:'p9'},
+  {type:'district', color:'#2C9464', kicker:'Active this week in Saket', title:'Select Citywalk Rooftop is picking up', body:'Three friends went after work this week — easy pre-movie stop.', place:'p7'},
+  {type:'event', color:'#E15A42', kicker:'A friend sent you this', title:'CP Book Swap — Sep 13', body:'Bring three, take three. Mostly sci-fi and design books.', eventId:'e7'},
+  {type:'friend', color:'#54677C', kicker:'A friend goes most weekends', title:'CP Inner Circle Bookshops', body:'"Secondhand stacks worth an hour of getting lost in."', place:'p10'},
+];
+
+const conversations = [];
+
+const notifications = [
+  {text:'2 friends are interested in Rooftop Tech Meetup.', time:'5h ago'},
+  {text:'Sunder Nursery is trending in your district.', time:'2 days ago'},
+];
+
+const friends = [];
+const friendRequests = [];
+
+const newsItems = [
+  {id:'n1', source:'Times of India', category:'Civic', title:'NCRTC signs solar power deal to meet 60% of Namo Bharat corridor\u2019s requirement', body:'The corridor operator has tied up solar capacity to power a majority of the Delhi\u2013Meerut RRTS line, part of a wider push to green the network.', url:'https://c.newsnow.com/A/1322977346?-49731:2467204922'},
+  {id:'n2', source:'Times of India', category:'Civic', title:'Break the railway rules, pay more: Delhi sees sharp rise in fines under Jan Vishwas', body:'Penalties for common railway-property offences have climbed sharply across Delhi stations since the new rules took effect.', url:'https://c.newsnow.com/A/1322977342?-49731:2467204922'},
+  {id:'n3', source:'Indian Express', category:'Civic', title:'6-m fire access, fire lifts, refuge areas \u2014 Delhi tightens safety norms for high-rises', body:'New building-safety rules for tall residential and commercial towers are being rolled out across the capital.', url:'https://c.newsnow.com/A/1322973927?-49731:2467204922'},
+  {id:'n4', source:'Indian Express', category:'Economy', title:'GST Council to meet after a year on Sept 12; blocked credit, simpler compliance likely on agenda', body:'The council\u2019s first sitting in a year is expected to take up input-credit rules and compliance simplification.', url:'https://c.newsnow.com/A/1322971988?-49731:2467204922'},
+  {id:'n5', source:'Times of India', category:'Transport', title:'\u2018We do not want to burden people\u2019: Auto, taxi unions oppose CNG hike in Delhi', body:'Driver unions have pushed back on the latest CNG price increase, warning of a knock-on fare rise across the city.', url:'https://c.newsnow.com/A/1322968549?-49731:2467204922'},
+  {id:'n6', source:'The Hindu', category:'Politics', title:'Police may bar protest planned for Sept. 5 in New Delhi district', body:'Delhi Police are weighing permission for a large planned demonstration in the New Delhi district next week.', url:'https://c.newsnow.com/A/1322716054?-49731:2467204922'},
+];
+
+/* News is a snapshot pulled from Times of India / Indian Express / The Hindu on the day this prototype
+   was built. In production this list is fetched live and refreshed on a schedule. */
+const NEWS_AS_OF = 'Aug 29, 2026';
+
+const TAGS = ['Chill','Group-friendly','Good for work','Date spot','Budget','Live music','Outdoors','Late night'];
+
+const state = {
+  savedPlaces:new Set(['p1']),
+  savedEvents:new Set(['e2']),
+  activeConvo:null,
+  mapLayer:'all',
+  activeDistrict:null,
+  eventFilter:'All',
+  homeFilter:'All',
+  activePlace:null,
+  postRating:4,
+  postTags:new Set(),
+  darkMode:false,
+  settings:{liveLocation:false, friendActivity:true, digest:false, discoverable:true},
+};
+
+/* =========================================================
+   ANALYTICS (mock — logs to console)
+========================================================= */
+function track(eventName, data){ console.log('[analytics]', eventName, data||{}); }
+
+/* =========================================================
+   TOAST
+========================================================= */
+function toast(msg){
+  const host=document.getElementById('toastHost');
+  const t=document.createElement('div'); t.className='toast'; t.textContent=msg;
+  host.appendChild(t);
+  setTimeout(()=>t.remove(), 2600);
+}
+
+/* =========================================================
+   PERSISTENCE
+   Two layers, tried in order, completely transparent to the rest of the app:
+     1) A real backend at /api/* (Express + Postgres — see server.js / schema.sql).
+        This only exists once you deploy this file behind that server, so in
+        the Claude preview these fetch calls simply fail fast and we fall through.
+     2) A local key/value fallback: Claude's artifact storage API when running
+        inside a Claude.ai preview (window.storage), or localStorage once this
+        file is deployed on its own domain (window.storage won't exist there).
+   This means the exact same file works in preview AND in production with
+   real Postgres persistence, with zero configuration.
+========================================================= */
+function shuffleArr(a){ const arr=[...a]; for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+
+async function kvGet(key){
+  try{ if(window.storage){ const r=await window.storage.get(key,false); return r?r.value:null; } }catch(e){}
+  try{ return window.localStorage ? localStorage.getItem(key) : null; }catch(e){}
+  return null;
+}
+async function kvSet(key,val){
+  try{ if(window.storage){ await window.storage.set(key,val,false); return; } }catch(e){}
+  try{ if(window.localStorage) localStorage.setItem(key,val); }catch(e){}
+}
+async function getDeviceId(){
+  let id = await kvGet('sc-device-id');
+  if(!id){ id = 'dev-'+Math.random().toString(36).slice(2,10)+Date.now().toString(36); await kvSet('sc-device-id', id); }
+  return id;
+}
+async function apiCall(path, opts){
+  try{
+    opts = opts || {};
+    opts.headers = Object.assign({'Content-Type':'application/json','X-Device-Id':await getDeviceId()}, opts.headers||{});
+    const res = await fetch(path, opts);
+    if(!res.ok) return null;
+    return await res.json();
+  }catch(e){ return null; } /* no backend deployed here (e.g. Claude preview) — caller falls back */
+}
+
+async function persistState(){
+  const payload = {
+    darkMode: state.darkMode,
+    settings: state.settings,
+    savedPlaces: [...state.savedPlaces],
+    savedEvents: [...state.savedEvents]
+  };
+  const ok = await apiCall('/api/state', {method:'POST', body:JSON.stringify(payload)});
+  if(!ok) await kvSet('sc-settings', JSON.stringify(payload));
+}
+async function loadPersistedState(){
+  let d = await apiCall('/api/state', {method:'GET'});
+  if(!d || !d.found){
+    try{ const raw = await kvGet('sc-settings'); if(raw) d = JSON.parse(raw); }catch(e){ d=null; }
+  }
+  if(d){
+    if(d.darkMode) applyTheme(true);
+    if(d.settings){
+      state.settings = {...state.settings, ...d.settings};
+      document.getElementById('toggleLive').classList.toggle('on', !!state.settings.liveLocation);
+      document.getElementById('toggleFriendActivity').classList.toggle('on', !!state.settings.friendActivity);
+      document.getElementById('toggleDigest').classList.toggle('on', !!state.settings.digest);
+      document.getElementById('toggleDiscoverable').classList.toggle('on', !!state.settings.discoverable);
+    }
+    if(Array.isArray(d.savedPlaces)) state.savedPlaces = new Set(d.savedPlaces);
+    if(Array.isArray(d.savedEvents)) state.savedEvents = new Set(d.savedEvents);
+    renderFeed(); renderEvents(); renderProfileTab();
+  }
+}
+
+/* Real clipboard copy (with an execCommand fallback for older/embedded browsers).
+   Used by both the invite link and the place "Share" button — previously these
+   only showed a toast and never actually copied anything real to the clipboard. */
+async function copyToClipboard(text){
+  try{
+    if(navigator.clipboard && window.isSecureContext){ await navigator.clipboard.writeText(text); return true; }
+  }catch(e){}
+  try{
+    const ta=document.createElement('textarea');
+    ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    const ok=document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  }catch(e){ return false; }
+}
+async function getInviteLink(){
+  const r = await apiCall('/api/invite', {method:'POST'});
+  if(r && r.code) return location.origin + location.pathname + '?invite=' + r.code;
+  let code = await kvGet('sc-invite-code');
+  if(!code){ code = Math.random().toString(36).slice(2,8); await kvSet('sc-invite-code', code); }
+  return location.origin + location.pathname + '?invite=' + code;
+}
+
+/* =========================================================
+   AUTH — real backend (signup/login/session/Google) with a graceful
+   local-only fallback so this file still works standalone (e.g. in a
+   Claude preview with no backend attached). Nothing here is "fake" when
+   a backend is present — see backend/routes/auth.js for the real logic.
+========================================================= */
+let currentUser = null;
+let backendAvailable = null; // becomes true/false after the first real check
+
+async function apiCallRaw(path, opts){
+  try{
+    opts = opts || {};
+    const multipart = typeof FormData !== 'undefined' && opts.body instanceof FormData;
+    opts.headers = Object.assign(multipart ? {} : {'Content-Type':'application/json'}, opts.headers||{});
+    opts.credentials = 'include';
+    const res = await fetch(path, opts);
+    let json = null;
+    try{ json = await res.json(); }catch(e){}
+    return { reachable:true, ok:res.ok, status:res.status, json };
+  }catch(e){
+    return { reachable:false, ok:false, status:0, json:null };
+  }
+}
+
+// Shared API-JS facade for this web client and future React/mobile clients.
+window.SocialCircleAPI = Object.freeze({
+  request: apiCallRaw,
+  auth: {
+    me:()=>apiCallRaw('/api/auth/me',{method:'GET'}),
+    signup:data=>apiCallRaw('/api/auth/signup',{method:'POST',body:JSON.stringify(data)}),
+    login:data=>apiCallRaw('/api/auth/login',{method:'POST',body:JSON.stringify(data)}),
+    logout:()=>apiCallRaw('/api/auth/logout',{method:'POST'})
+  },
+  users: { search:q=>apiCallRaw('/api/users/search?q='+encodeURIComponent(q),{method:'GET'}) },
+  connections: {
+    list:()=>apiCallRaw('/api/connections',{method:'GET'}),
+    requests:()=>apiCallRaw('/api/connections/requests',{method:'GET'}),
+    send:userId=>apiCallRaw('/api/connections/request',{method:'POST',body:JSON.stringify({userId})}),
+    accept:id=>apiCallRaw(`/api/connections/requests/${id}/accept`,{method:'POST'}),
+    reject:id=>apiCallRaw(`/api/connections/requests/${id}/reject`,{method:'POST'}),
+    cancel:id=>apiCallRaw(`/api/connections/requests/${id}`,{method:'DELETE'})
+  },
+  profile: {
+    update:data=>apiCallRaw('/api/profile',{method:'PATCH',body:JSON.stringify(data)}),
+    uploadPhoto:file=>{const body=new FormData(); body.append('photo',file); return apiCallRaw('/api/profile/photo',{method:'POST',body});},
+    removePhoto:()=>apiCallRaw('/api/profile/photo',{method:'DELETE'})
+  },
+  social: {
+    feed:()=>apiCallRaw('/api/feed',{method:'GET'}),
+    createPost:data=>apiCallRaw('/api/posts',{method:'POST',body:JSON.stringify(data)}),
+    ratePlace:(placeId,rating)=>apiCallRaw(`/api/places/${encodeURIComponent(placeId)}/rating`,{method:'POST',body:JSON.stringify({rating})}),
+    notifications:()=>apiCallRaw('/api/notifications',{method:'GET'})
+  }
+});
+
+function showAuthError(msg){
+  const el=document.getElementById('authError');
+  if(!msg){ el.style.display='none'; el.textContent=''; return; }
+  el.textContent=msg; el.style.display='block';
+}
+
+function setAvatarDisplay(photoUrl, initial){
+  ['profAv','topAvatar'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    if(photoUrl){ el.style.backgroundImage=`url('${photoUrl}')`; el.style.backgroundSize='cover'; el.style.backgroundPosition='center'; el.textContent=''; }
+    else { el.style.backgroundImage=''; el.textContent=initial; }
+  });
+}
+
+function enterApp(user){
+  currentUser = user;
+  const displayName = user.displayName || 'You';
+  document.getElementById('profName').textContent = displayName;
+  document.getElementById('profBio').textContent = user.bio || 'Exploring Delhi, one recommendation at a time.';
+  setAvatarDisplay(user.profilePhotoUrl, displayName[0].toUpperCase());
+  if(typeof updateRemovePhotoVisibility === 'function') updateRemovePhotoVisibility();
+  document.getElementById('auth').style.display='none';
+  document.getElementById('app').classList.add('on');
+  track('onboarding_completed',{name:displayName});
+  initMap();
+  loadPersistedState();
+  if(backendAvailable && user.id) loadCircleFromServer();
+  const params=new URLSearchParams(location.search);
+  if(params.get('place')) setTimeout(()=>openPlace(params.get('place')), 300);
+}
+
+const toLogin=document.getElementById('toLogin'), toSignup=document.getElementById('toSignup');
+const nameField=document.getElementById('nameField'), usernameField=document.getElementById('usernameField'), confirmField=document.getElementById('confirmField'), authSubmitBtn=document.getElementById('authSubmitBtn');
+function setAuthMode(signup){
+  toSignup.classList.toggle('active', signup);
+  toLogin.classList.toggle('active', !signup);
+  nameField.style.display = signup ? 'block':'none';
+  usernameField.style.display = signup ? 'block':'none';
+  confirmField.style.display = signup ? 'block':'none';
+  authSubmitBtn.textContent = signup ? 'Create account' : 'Log in';
+  document.getElementById('fPass').autocomplete = signup ? 'new-password':'current-password';
+  showAuthError(null);
+}
+toLogin.onclick=()=>setAuthMode(false);
+toSignup.onclick=()=>setAuthMode(true);
+
+(function initPassToggle(){
+  const btn=document.getElementById('fPassToggle'), input=document.getElementById('fPass');
+  let shown=false;
+  const render=()=>{ btn.innerHTML = icon(shown?'eyeOff':'eye', 17); };
+  render();
+  btn.onclick=()=>{ shown=!shown; input.type = shown?'text':'password'; render(); };
+})();
+
+document.getElementById('authForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  showAuthError(null);
+  const signupMode = toSignup.classList.contains('active');
+  const email = document.getElementById('fEmail').value.trim();
+  const password = document.getElementById('fPass').value;
+  const originalLabel = authSubmitBtn.textContent;
+  authSubmitBtn.disabled = true;
+  authSubmitBtn.textContent = signupMode ? 'Creating account…' : 'Logging in…';
+
+  if(backendAvailable){
+    let r;
+    if(signupMode){
+      const username = document.getElementById('fUsername').value.trim().toLowerCase();
+      const displayName = document.getElementById('fName').value.trim();
+      const confirmPassword = document.getElementById('fPassConfirm').value;
+      if(!username){ showAuthError('Choose a username.'); authSubmitBtn.disabled=false; authSubmitBtn.textContent=originalLabel; return; }
+      r = await apiCallRaw('/api/auth/signup', { method:'POST', body: JSON.stringify({ username, email, password, confirmPassword, displayName }) });
+    } else {
+      r = await apiCallRaw('/api/auth/login', { method:'POST', body: JSON.stringify({ identifier: email, password }) });
+    }
+    authSubmitBtn.disabled = false; authSubmitBtn.textContent = originalLabel;
+    if(r.reachable && r.json && r.json.success){ enterApp(r.json.data.user); }
+    else if(r.reachable && r.json && r.json.error){ showAuthError(r.json.error.message); }
+    else { showAuthError('Could not reach the server. Please try again.'); }
+  } else {
+    // No backend attached to this file right now (e.g. a Claude preview) —
+    // local demo mode, so the prototype still works standalone.
+    authSubmitBtn.disabled = false; authSubmitBtn.textContent = originalLabel;
+    const nm = document.getElementById('fName').value.trim();
+    const displayName = nm || (email.split('@')[0] || 'You');
+    enterApp({ id:null, displayName, email, bio:null, profilePhotoUrl:null });
+    toast('Demo mode — no backend connected, nothing is saved.');
+  }
+});
+
+/* Google Identity Services: the button itself is rendered by Google's own
+   script (real branding, not a custom lookalike). Requires GOOGLE_CLIENT_ID
+   to be set — see backend/.env.example. With no client ID configured this
+   shows a plain note instead of a non-functional button. */
+const GOOGLE_CLIENT_ID = window.GOOGLE_CLIENT_ID || '';
+async function onGoogleCredential(response){
+  if(!backendAvailable){ toast('Demo mode — Google sign-in needs the backend deployed.'); return; }
+  showAuthError(null);
+  const r = await apiCallRaw('/api/auth/google', { method:'POST', body: JSON.stringify({ credential: response.credential }) });
+  if(r.reachable && r.json && r.json.success){ enterApp(r.json.data.user); }
+  else if(r.reachable && r.json && r.json.error){ showAuthError(r.json.error.message); }
+  else { showAuthError('Could not reach the server. Please try again.'); }
+}
+function tryInitGoogleButton(attempt){
+  if(!GOOGLE_CLIENT_ID){ document.getElementById('googleFallbackNote').style.display='block'; return; }
+  if(typeof google !== 'undefined' && google.accounts && google.accounts.id){
+    google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onGoogleCredential });
+    google.accounts.id.renderButton(document.getElementById('googleBtnContainer'), { theme:'outline', size:'large', width:288, text:'continue_with' });
+    return;
+  }
+  if((attempt||0) > 20){ document.getElementById('googleFallbackNote').style.display='block'; document.getElementById('googleFallbackNote').textContent='Google sign-in failed to load.'; return; }
+  setTimeout(()=>tryInitGoogleButton((attempt||0)+1), 250);
+}
+tryInitGoogleButton(0);
+
+// A real backend response is well-formed JSON with a `success` boolean.
+// Any other response (a 404 page, an HTML fallback, a network error) means
+// "no backend is attached to this file right now" — not "the backend is
+// broken" — so we fall through to local demo mode instead of showing a
+// permanent, confusing error on every login attempt.
+function isApiResponse(json){ return !!json && typeof json.success === 'boolean'; }
+
+// On load: ask the backend if we already have a session (cookie-based —
+// this is what makes "refresh doesn't log you out" actually true).
+(async function bootstrapAuth(){
+  const r = await apiCallRaw('/api/auth/me', { method:'GET' });
+  backendAvailable = r.reachable && isApiResponse(r.json);
+  if(backendAvailable && r.json.success && r.json.data && r.json.data.user){
+    enterApp(r.json.data.user);
+  }
+})();
+
+/* =========================================================
+   NAV
+========================================================= */
+const NAV_PRIMARY = [
+  {id:'home', label:'Home', ic:'home'},
+  {id:'explore', label:'Explore', ic:'explore'},
+  {id:'create', label:'Create', ic:'plus', action:true, cls:'createBtn'},
+  {id:'map', label:'Map', ic:'map'},
+];
+/* Everything here lives in the desktop sidenav AND in the mobile "More" drawer,
+   so every screen stays reachable on small viewports (previously these only
+   existed in .sidenav, which is display:none on mobile — that was the bug). */
+const NAV_SECONDARY = [
+  {id:'circle', label:'Circle', ic:'circle'},
+  {id:'discover', label:'Swipe discovery', ic:'swipe'},
+  {id:'districts', label:'Districts', ic:'pin'},
+  {id:'events', label:'Events', ic:'calendar'},
+  {id:'news', label:'News', ic:'news'},
+  {id:'messages', label:'Messages', ic:'message'},
+  {id:'profile', label:'Profile', ic:'profile'},
+  {id:'settings', label:'Settings', ic:'settings'},
+];
+function buildNavButton(item){
+  const b=document.createElement('button');
+  b.className='navItem'+(item.id==='home'?' active':'')+(item.cls?(' '+item.cls):'');
+  b.dataset.screen=item.id;
+  b.innerHTML=`<span class="ic">${icon(item.ic)}</span><span>${item.label}</span>`;
+  if(item.action){ b.onclick=()=>openCreate(); }
+  else { b.onclick=()=>switchScreen(item.id); }
+  return b;
+}
+function openMoreDrawer(){ document.getElementById('moreDrawer').classList.add('show'); document.getElementById('moreOverlay').classList.add('show'); }
+function closeMoreDrawer(){ document.getElementById('moreDrawer').classList.remove('show'); document.getElementById('moreOverlay').classList.remove('show'); }
+function buildNav(){
+  const side=document.getElementById('sidenav'), tab=document.getElementById('tabbar');
+  NAV_PRIMARY.forEach(item=>{ side.appendChild(buildNavButton(item)); tab.appendChild(buildNavButton(item)); });
+  const label=document.createElement('div'); label.className='navGroupLabel'; label.textContent='More';
+  side.appendChild(document.createElement('div')).className='navDivider';
+  side.appendChild(label);
+  NAV_SECONDARY.forEach(item=> side.appendChild(buildNavButton(item)));
+
+  const moreBtn=document.createElement('button');
+  moreBtn.className='navItem';
+  moreBtn.innerHTML=`<span class="ic">${icon('more')}</span><span>More</span>`;
+  moreBtn.onclick=openMoreDrawer;
+  tab.appendChild(moreBtn);
+
+  const moreList=document.getElementById('moreList');
+  NAV_SECONDARY.forEach(item=>{
+    const b=document.createElement('button'); b.className='moreItem';
+    b.innerHTML=`<span class="ic">${icon(item.ic)}</span><span>${item.label}</span>`;
+    b.onclick=()=>{ switchScreen(item.id); closeMoreDrawer(); };
+    moreList.appendChild(b);
+  });
+  document.getElementById('moreOverlay').onclick=closeMoreDrawer;
+}
+buildNav();
+
+function switchScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const target=document.getElementById('screen-'+id);
+  if(!target) return;
+  target.classList.add('active');
+  document.querySelectorAll('.navItem').forEach(n=>n.classList.toggle('active', n.dataset.screen===id));
+  if(id==='map' && window._gmap){ setTimeout(()=>google.maps.event.trigger(window._gmap, 'resize'),50); }
+  if(id==='news' && newsDeck.length<2){ fetchLiveNews(true); }
+}
+document.querySelectorAll('[data-screen]').forEach(el=>{
+  if(el.classList.contains('navItem')) return;
+  el.addEventListener('click', ()=>switchScreen(el.dataset.screen));
+});
+
+/* =========================================================
+   HOME FEED
+========================================================= */
+const homeChipsEl=document.getElementById('homeChips');
+['All','Friends','District','Events','News'].forEach(c=>{
+  const chip=document.createElement('button');
+  chip.className='chip'+(c==='All'?' active':'');
+  chip.textContent=c;
+  chip.onclick=()=>{state.homeFilter=c; document.querySelectorAll('#homeChips .chip').forEach(x=>x.classList.remove('active')); chip.classList.add('active'); renderFeed();};
+  homeChipsEl.appendChild(chip);
+});
+function renderFeed(){
+  const list=document.getElementById('feedList'); list.innerHTML='';
+  const filterMap={'Friends':'friend','District':'district','Events':'event','News':'news'};
+  feed.filter(f=> state.homeFilter==='All' || f.type===filterMap[state.homeFilter]).forEach(f=>{
+    const card=document.createElement('div'); card.className='feedCard';
+    const isSaved = f.place ? state.savedPlaces.has(f.place) : (f.eventId ? state.savedEvents.has(f.eventId) : false);
+    card.innerHTML=`
+      <div class="feedKicker"><span class="dot" style="background:${f.color}"></span>${f.kicker}</div>
+      <h3 ${f.place?`data-place="${f.place}"`:''}>${f.title}</h3><p>${f.body}</p>
+      ${(f.place||f.eventId)?`<div class="feedMeta"><button class="pillBtn ${isSaved?'saved':''}" data-kind="${f.place?'place':'event'}" data-id="${f.place||f.eventId}">${isSaved?'Saved':'Save'}</button>${f.place?`<button class="pillBtn" data-openplace="${f.place}">View place</button>`:''}<button class="pillBtn" data-goto="map">View on map</button></div>`:''}
+    `;
+    list.appendChild(card);
+  });
+  list.querySelectorAll('h3[data-place]').forEach(h=> h.onclick=()=>openPlace(h.dataset.place));
+  list.querySelectorAll('[data-openplace]').forEach(b=> b.onclick=()=>openPlace(b.dataset.openplace));
+  list.querySelectorAll('.pillBtn[data-id]').forEach(btn=>{
+    btn.onclick=()=>{
+      const set = btn.dataset.kind==='place'?state.savedPlaces:state.savedEvents;
+      const id=btn.dataset.id;
+      if(set.has(id)){set.delete(id); btn.classList.remove('saved'); btn.textContent='Save';}
+      else{set.add(id); btn.classList.add('saved'); btn.textContent='Saved'; track(btn.dataset.kind==='place'?'place_saved':'event_saved',{id});}
+      renderProfileTab(); persistState();
+    };
+  });
+  list.querySelectorAll('.pillBtn[data-goto]').forEach(btn=>btn.onclick=()=>switchScreen(btn.dataset.goto));
+}
+renderFeed();
+
+/* =========================================================
+   EXPLORE
+========================================================= */
+function placeTileHtml(p){
+  return `<div class="exploreTile" data-place="${p.id}"><div class="et-img" style="background-image:linear-gradient(160deg, ${p.color}33, rgba(20,23,26,.35)), url('${photoUrl(p.id,300,200)}'); background-size:cover; background-position:center;"></div><div class="et-body"><h5>${p.name}</h5><span>${p.category} · ${p.rating} rating</span></div></div>`;
+}
+function eventTileHtml(e){
+  return `<div class="exploreTile" data-event="${e.id}"><div class="et-img" style="background-image:linear-gradient(160deg, #54677C33, rgba(20,23,26,.35)), url('${photoUrl(e.id,300,200)}'); background-size:cover; background-position:center;"></div><div class="et-body"><h5>${e.title}</h5><span>${e.date} · ${e.category}</span></div></div>`;
+}
+function renderExplore(){
+  document.getElementById('exploreNearby').innerHTML = places.slice(0,6).map(placeTileHtml).join('');
+  document.getElementById('exploreTrending').innerHTML = [places[2],places[8],places[4],places[6]].map(placeTileHtml).join('');
+  document.getElementById('exploreFriends').innerHTML = [places[0],places[9],places[1]].map(placeTileHtml).join('');
+  document.getElementById('exploreActivities').innerHTML = events.slice(0,5).map(eventTileHtml).join('');
+  document.querySelectorAll('#screen-explore [data-place]').forEach(t=>t.onclick=()=>openPlace(t.dataset.place));
+  document.querySelectorAll('#screen-explore [data-event]').forEach(t=>t.onclick=()=>{ switchScreen('events'); toast('Jump to Events for details'); });
+}
+renderExplore();
+
+/* =========================================================
+   DISCOVER (SWIPE) — larger responsive stack, drag-follow stamps
+========================================================= */
+let deck=[...places, ...events.map(e=>({id:e.id,name:e.title,category:e.category,color:'#54677C',friend:e.friends,note:e.note,isEvent:true}))];
+const stackEl=document.getElementById('cardStack'), sigFeed=document.getElementById('signalFeed');
+function renderStack(){
+  stackEl.innerHTML='';
+  if(deck.length===0){
+    stackEl.innerHTML=`<div class="swipe-card" style="display:flex;align-items:center;justify-content:center;background:var(--paper-dim);"><div style="padding:24px;text-align:center;color:var(--ink-soft);"><p>That's every card for now.</p><button class="pillBtn primary" style="margin-top:12px;" id="reloadDeckBtn">Start over</button></div></div>`;
+    const rb=document.getElementById('reloadDeckBtn');
+    if(rb) rb.onclick=()=>{ deck=shuffleArr([...places, ...events.map(e=>({id:e.id,name:e.title,category:e.category,color:'#54677C',friend:e.friends,note:e.note,isEvent:true}))]); renderStack(); };
+    return;
+  }
+  deck.slice(0,3).forEach((p,i)=>{
+    const el=document.createElement('div'); el.className='swipe-card';
+    el.style.zIndex=10-i;
+    el.style.transform=`translateY(${i*8}px) scale(${1-i*0.035})`;
+    el.style.opacity = i===2?0.5:1;
+    el.innerHTML=`<div class="photo" style="background-image:linear-gradient(180deg, rgba(20,23,26,.15), rgba(20,23,26,.85)), url('${photoUrl(p.id,500,700)}'); background-size:cover; background-position:center;"></div>
+      ${i===0?'<div class="swipe-stamp like">Keep</div><div class="swipe-stamp nope">Pass</div>':''}
+      <div class="card-body"><h4>${p.name}</h4><p>${p.note}</p><span class="swipe-tag">${p.friend||p.category}</span></div>`;
+    if(i===0) attachDrag(el,p);
+    stackEl.appendChild(el);
+  });
+}
+function decideCard(dir,p){
+  sigFeed.textContent = dir==='right' ? `✓ learned: more like "${p.name}" and places your friends visit` : `✓ learned: fewer cards like "${p.name}"`;
+  track(dir==='right'?'swipe_right':'swipe_left',{id:p.id});
+  if(dir==='right'){ if(p.isEvent) state.savedEvents.add(p.id); else state.savedPlaces.add(p.id); renderProfileTab(); renderFeed(); persistState(); }
+  deck.shift(); renderStack();
+}
+function attachDrag(el,p){
+  let startX=0,dx=0,dragging=false;
+  const likeEl=()=>el.querySelector('.swipe-stamp.like');
+  const nopeEl=()=>el.querySelector('.swipe-stamp.nope');
+  el.addEventListener('pointerdown', e=>{dragging=true; startX=e.clientX; el.setPointerCapture(e.pointerId); el.style.transition='none';});
+  el.addEventListener('pointermove', e=>{
+    if(!dragging) return; dx=e.clientX-startX;
+    const rot=Math.max(-20,Math.min(20,dx/12));
+    el.style.transform=`translateX(${dx}px) rotate(${rot}deg)`;
+    const t=Math.min(1, Math.abs(dx)/100);
+    if(dx>0){ if(likeEl())likeEl().style.opacity=t; if(nopeEl())nopeEl().style.opacity=0; }
+    else{ if(nopeEl())nopeEl().style.opacity=t; if(likeEl())likeEl().style.opacity=0; }
+  });
+  const release=()=>{
+    if(!dragging) return; dragging=false; el.style.transition='';
+    if(dx>90){el.style.transform='translateX(600px) rotate(24deg)'; el.style.opacity=0; setTimeout(()=>decideCard('right',p),220);}
+    else if(dx<-90){el.style.transform='translateX(-600px) rotate(-24deg)'; el.style.opacity=0; setTimeout(()=>decideCard('left',p),220);}
+    else{el.style.transform=''; if(likeEl())likeEl().style.opacity=0; if(nopeEl())nopeEl().style.opacity=0;}
+    dx=0;
+  };
+  el.addEventListener('pointerup', release);
+  el.addEventListener('pointerleave', ()=>{if(dragging) release();});
+}
+document.getElementById('btnLeft').onclick=()=>{ if(deck[0]) decideCard('left',deck[0]); };
+document.getElementById('btnRight').onclick=()=>{ if(deck[0]) decideCard('right',deck[0]); };
+renderStack();
+
+/* =========================================================
+   MAP — Google Maps JS API
+========================================================= */
+let gMarkers=[];
+function initMap(){
+  if(window._gmap) return;
+  if(typeof google === 'undefined' || !google.maps){ setTimeout(initMap, 300); return; }
+  const map = new google.maps.Map(document.getElementById('googleMap'), {
+    center:{lat:28.58,lng:77.19}, zoom:12, disableDefaultUI:true, zoomControl:true,
+    zoomControlOptions:{position:google.maps.ControlPosition.RIGHT_BOTTOM},
+    styles:[
+      {featureType:'poi', elementType:'labels', stylers:[{visibility:'off'}]},
+      {featureType:'transit', elementType:'labels', stylers:[{visibility:'off'}]}
+    ]
+  });
+  window._gmap = map;
+  renderMapMarkers();
+
+  const dScroll=document.getElementById('districtScroll');
+  const allChip=document.createElement('button'); allChip.className='districtChip active'; allChip.textContent='All districts';
+  allChip.onclick=()=>{state.activeDistrict=null; document.querySelectorAll('.districtChip').forEach(c=>c.classList.remove('active')); allChip.classList.add('active'); map.panTo({lat:28.58,lng:77.19}); map.setZoom(12); renderMapMarkers();};
+  dScroll.appendChild(allChip);
+  districts.forEach(d=>{
+    const chip=document.createElement('button'); chip.className='districtChip'; chip.textContent=d.name;
+    chip.onclick=()=>{
+      state.activeDistrict=d.id;
+      document.querySelectorAll('.districtChip').forEach(c=>c.classList.remove('active')); chip.classList.add('active');
+      map.panTo({lat:d.lat,lng:d.lng}); map.setZoom(14.5);
+      renderMapMarkers();
+      openSheet(`<div class="feedKicker"><span class="dot" style="background:${d.color}"></span>DISTRICT</div><h3>${d.name}</h3><p style="color:var(--ink-soft);font-size:13.5px;margin-top:6px;">${d.desc}</p>`);
+    };
+    dScroll.appendChild(chip);
+  });
+
+  const layerChips=document.getElementById('mapLayerChips');
+  [['all','All'],['places','Places'],['events','Events'],['friends','Friends']].forEach(([key,label])=>{
+    const chip=document.createElement('button'); chip.className='chip'+(key==='all'?' active':''); chip.textContent=label;
+    chip.onclick=()=>{state.mapLayer=key; document.querySelectorAll('#mapLayerChips .chip').forEach(c=>c.classList.remove('active')); chip.classList.add('active'); renderMapMarkers();};
+    layerChips.appendChild(chip);
+  });
+}
+function renderMapMarkers(){
+  if(!window._gmap) return;
+  gMarkers.forEach(m=>m.setMap(null));
+  gMarkers=[];
+  const showPlaces = state.mapLayer==='all'||state.mapLayer==='places'||state.mapLayer==='friends';
+  const showEvents = state.mapLayer==='all'||state.mapLayer==='events';
+  if(showPlaces){
+    places.filter(p=> !state.activeDistrict || p.district===state.activeDistrict).forEach(p=>{
+      const marker = new google.maps.Marker({
+        position:{lat:p.lat,lng:p.lng}, map:window._gmap, title:p.name,
+        icon:{ path:google.maps.SymbolPath.CIRCLE, scale:9, fillColor:p.color, fillOpacity:1, strokeColor:'#fff', strokeWeight:2 }
+      });
+      marker.addListener('click', ()=>{ openSheet(placeSheetHtml(p)); track('place_opened',{id:p.id}); });
+      gMarkers.push(marker);
+    });
+  }
+  if(showEvents){
+    events.filter(e=> !state.activeDistrict || e.district===state.activeDistrict).forEach(e=>{
+      const marker = new google.maps.Marker({
+        position:{lat:e.lat,lng:e.lng}, map:window._gmap, title:e.title,
+        icon:{ path:'M -7,-7 7,-7 7,7 -7,7 z', scale:1, fillColor:'#54677C', fillOpacity:1, strokeColor:'#fff', strokeWeight:2 }
+      });
+      marker.addListener('click', ()=>openSheet(eventSheetHtml(e)));
+      gMarkers.push(marker);
+    });
+  }
+}
+function placeSheetHtml(p){
+  const isSaved=state.savedPlaces.has(p.id);
+  return `<div class="feedKicker"><span class="dot" style="background:${p.color}"></span>${p.category.toUpperCase()}</div>
+    <h3>${p.name}</h3><p style="color:var(--ink-soft);font-size:13.5px;margin-top:4px;">${p.note}</p>
+    <p style="font-size:12.5px;color:${p.color};margin-top:8px;font-weight:600;">${p.friend}</p>
+    <div class="feedMeta"><button class="pillBtn ${isSaved?'saved':''}" onclick="toggleSavePlace('${p.id}')">${isSaved?'Saved':'Save'}</button>
+    <button class="pillBtn" onclick="openPlace('${p.id}')">Full page</button>
+    <button class="pillBtn" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}','_blank')">Directions</button></div>`;
+}
+function eventSheetHtml(e){
+  const isSaved=state.savedEvents.has(e.id);
+  return `<div class="feedKicker"><span class="dot" style="background:#54677C"></span>${e.category.toUpperCase()} · ${e.date}</div>
+    <h3>${e.title}</h3><p style="color:var(--ink-soft);font-size:13.5px;margin-top:4px;">${e.note}</p>
+    <p style="font-size:12.5px;color:#54677C;margin-top:8px;font-weight:600;">${e.friends}</p>
+    <div class="feedMeta"><button class="pillBtn ${isSaved?'saved':''}" onclick="toggleSaveEvent('${e.id}')">${isSaved?'Interested':'Interested?'}</button></div>`;
+}
+function toggleSavePlace(id){ state.savedPlaces.has(id)?state.savedPlaces.delete(id):state.savedPlaces.add(id); if(document.getElementById('mapSheet').classList.contains('show')) openSheet(placeSheetHtml(places.find(p=>p.id===id))); if(state.activePlace===id) renderPlaceDetail(id); track('place_saved',{id}); renderFeed(); renderProfileTab(); persistState(); }
+function toggleSaveEvent(id){ state.savedEvents.has(id)?state.savedEvents.delete(id):state.savedEvents.add(id); if(document.getElementById('mapSheet').classList.contains('show')) openSheet(eventSheetHtml(events.find(e=>e.id===id))); track('event_saved',{id}); renderEvents(); renderProfileTab(); persistState(); }
+function openSheet(html){ document.getElementById('mapSheetBody').innerHTML=html; document.getElementById('mapSheet').classList.add('show'); }
+document.getElementById('mapSheetClose').onclick=()=>document.getElementById('mapSheet').classList.remove('show');
+
+/* =========================================================
+   PLACE DETAIL
+========================================================= */
+function openPlace(id){
+  state.activePlace=id;
+  renderPlaceDetail(id);
+  switchScreen('place');
+  track('place_opened',{id});
+}
+async function sharePlace(id){
+  const link = location.origin + location.pathname + '?place=' + id;
+  const ok = await copyToClipboard(link);
+  toast(ok ? 'Link copied' : link);
+  track('place_shared',{id});
+}
+function renderPlaceDetail(id){
+  const p=places.find(x=>x.id===id); if(!p) return;
+  const isSaved=state.savedPlaces.has(id);
+  const dist=districts.find(d=>d.id===p.district);
+  const relatedPosts = feed.filter(f=>f.place===id);
+  const html = `
+    <button class="pillBtn" onclick="switchScreen('explore')" style="margin-bottom:14px;">${icon('back',14)} Back</button>
+    <div class="placeHero" style="background-image:linear-gradient(160deg, ${p.color}44, rgba(20,23,26,.4)), url('${photoUrl(p.id,800,400)}'); background-size:cover; background-position:center;"></div>
+    <div class="placeHead">
+      <div><h2>${p.name}</h2><p class="screenSub" style="margin:4px 0 0;">${p.category} \u00b7 ${dist?dist.name:''} \u00b7 ${p.address}</p></div>
+      <div class="ratingPill">${icon('star',14)} ${p.rating}</div>
+    </div>
+    <div class="feedMeta" style="margin:14px 0 6px;">
+      <button class="pillBtn ${isSaved?'saved':''}" onclick="toggleSavePlace('${p.id}')">${isSaved?'Saved':'Save'}</button>
+      <button class="pillBtn" onclick="openCreate('${p.id}')">Post an experience</button>
+      <button class="pillBtn" onclick="sharePlace('${p.id}')">Share</button>
+      <button class="pillBtn" onclick="switchScreen('map'); setTimeout(()=>openSheet(placeSheetHtml(places.find(x=>x.id==='${p.id}'))),80)">View on map</button>
+    </div>
+    <h3 style="font-size:15px; margin:22px 0 6px;">Friend ratings</h3>
+    <p class="screenSub" style="margin-top:-4px;">No friends yet, so no ratings from your circle here \u2014 this fills in once you add people in Circle.</p>
+    <h3 style="font-size:15px; margin:22px 0 6px;">Recent experiences</h3>
+    ${relatedPosts.length ? relatedPosts.map(r=>`<div class="feedCard"><div class="feedKicker"><span class="dot" style="background:${r.color}"></span>${r.kicker}</div><p>${r.body}</p></div>`).join('') : `<p class="screenSub">No posts yet — be the first to share what it was like.</p>`}
+    <h3 style="font-size:15px; margin:22px 0 6px;">Nearby events</h3>
+    ${events.filter(e=>e.district===p.district).slice(0,2).map(e=>`<div class="eventCard"><div class="eventDate"><div class="d">${e.date.split(' ')[1]}</div><div class="m">${e.date.split(' ')[0]}</div></div><div class="eventBody"><h3>${e.title}</h3><p>${e.note}</p></div></div>`).join('') || `<p class="screenSub">Nothing scheduled nearby right now.</p>`}
+  `;
+  document.getElementById('placeDetailBody').innerHTML=html;
+}
+
+/* =========================================================
+   EVENTS SCREEN
+========================================================= */
+const eventChipsEl=document.getElementById('eventChips');
+['All','Food','Gaming','Technology','Entertainment'].forEach(c=>{
+  const chip=document.createElement('button'); chip.className='chip'+(c==='All'?' active':''); chip.textContent=c;
+  chip.onclick=()=>{state.eventFilter=c; document.querySelectorAll('#eventChips .chip').forEach(x=>x.classList.remove('active')); chip.classList.add('active'); renderEvents();};
+  eventChipsEl.appendChild(chip);
+});
+function renderEvents(){
+  const list=document.getElementById('eventList'); list.innerHTML='';
+  events.filter(e=>state.eventFilter==='All'||e.category===state.eventFilter).forEach(e=>{
+    const isSaved=state.savedEvents.has(e.id);
+    const [mon,day]=e.date.split(' ');
+    const card=document.createElement('div'); card.className='eventCard';
+    card.innerHTML=`<div class="eventDate"><div class="d">${day}</div><div class="m">${mon}</div></div>
+      <div class="eventBody" style="flex:1;"><h3>${e.title}</h3><p>${e.note}</p><p style="color:#54677C;font-weight:600;margin-top:4px;">${e.friends}</p></div>
+      <button class="pillBtn ${isSaved?'saved':''}" style="align-self:center;" data-id="${e.id}">${isSaved?'Interested':'Interested?'}</button>`;
+    card.querySelector('.pillBtn').onclick=()=>toggleSaveEvent(e.id);
+    list.appendChild(card);
+  });
+}
+renderEvents();
+
+/* =========================================================
+   NEWS — live fetch with a rotating, always-fresh-looking fallback
+========================================================= */
+let newsDeck=[...newsItems];
+const newsStackEl=document.getElementById('newsStack'), newsSignalEl=document.getElementById('newsSignal');
+const newsAsOfEl=document.getElementById('newsAsOf'); if(newsAsOfEl) newsAsOfEl.textContent = `Showing saved headlines as of ${NEWS_AS_OF}.`;
+
+const LIVE_FEEDS = [
+  {source:'Times of India', rss:'https://timesofindia.indiatimes.com/rssfeeds/-2128838597.cms'},
+  {source:'Indian Express', rss:'https://indianexpress.com/section/cities/delhi/feed/'},
+  {source:'The Hindu', rss:'https://www.thehindu.com/news/cities/Delhi/feeder/default.rss'},
+];
+function stripHtml(s){ const d=document.createElement('div'); d.innerHTML=s||''; return (d.textContent||'').trim(); }
+
+async function fetchLiveNews(silent){
+  const btn=document.getElementById('newsRefreshBtn');
+  if(btn) btn.disabled=true;
+  if(!silent && newsAsOfEl) newsAsOfEl.textContent='Refreshing…';
+  try{
+    const results = await Promise.all(LIVE_FEEDS.map(f=>
+      fetch('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(f.rss))
+        .then(r=>r.ok?r.json():null)
+        .then(j=>({source:f.source, items:(j&&j.items)||[]}))
+        .catch(()=>({source:f.source, items:[]}))
+    ));
+    const merged = [];
+    results.forEach(r=>{
+      r.items.slice(0,4).forEach((it,i)=>{
+        merged.push({
+          id:'live-'+r.source.replace(/\s+/g,'')+'-'+i+'-'+Date.now(),
+          source:r.source, category:'News',
+          title: stripHtml(it.title).slice(0,140),
+          body: stripHtml(it.description).slice(0,220),
+          url: it.link,
+          img: it.thumbnail || (it.enclosure && it.enclosure.link) || null
+        });
+      });
+    });
+    if(merged.length){
+      newsDeck = shuffleArr(merged);
+      if(newsAsOfEl) newsAsOfEl.textContent = 'Live — refreshed ' + new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) + '.';
+      if(!silent) toast('News refreshed');
+    } else {
+      newsDeck = shuffleArr(newsItems);
+      if(newsAsOfEl) newsAsOfEl.textContent = `Live refresh unavailable right now — showing headlines from ${NEWS_AS_OF} (reshuffled).`;
+      if(!silent) toast('Live refresh unavailable — showing saved headlines');
+    }
+  } catch(err){
+    newsDeck = shuffleArr(newsItems);
+    if(newsAsOfEl) newsAsOfEl.textContent = `Live refresh unavailable right now — showing headlines from ${NEWS_AS_OF} (reshuffled).`;
+    if(!silent) toast('Live refresh unavailable — showing saved headlines');
+  }
+  if(btn) btn.disabled=false;
+  renderNewsStack();
+}
+document.getElementById('newsRefreshBtn').onclick=()=>fetchLiveNews(false);
+
+function renderNewsStack(){
+  newsStackEl.innerHTML='';
+  if(newsDeck.length===0){
+    newsStackEl.innerHTML=`<div class="news-card" style="display:flex;align-items:center;justify-content:center;background:var(--paper-dim);"><div style="padding:24px;text-align:center;color:var(--ink-soft);"><p>That's everything for now.</p><button class="pillBtn primary" style="margin-top:12px;" id="moreNewsBtn">Get more stories</button></div></div>`;
+    const mb=document.getElementById('moreNewsBtn'); if(mb) mb.onclick=()=>fetchLiveNews(false);
+    return;
+  }
+  newsDeck.slice(0,3).forEach((n,i)=>{
+    const el=document.createElement('div'); el.className='news-card';
+    el.style.zIndex=10-i;
+    el.style.transform=`translateY(${i*8}px) scale(${1-i*0.035})`;
+    el.style.opacity = i===2?0.5:1;
+    el.innerHTML=`<div class="nc-photo" style="background-image:linear-gradient(0deg, rgba(20,23,26,.15), rgba(20,23,26,.15)), url('${n.img || photoUrl(n.id,500,700)}'); background-size:cover; background-position:center;"></div>
+      ${i===0?'<div class="swipe-stamp like">More</div><div class="swipe-stamp nope">Less</div>':''}
+      <div class="nc-body"><div class="src"><span>${n.source} \u00b7 ${n.category}</span><a class="readLink" href="${n.url}" target="_blank" rel="noopener" onclick="event.stopPropagation(); track('news_opened',{id:'${n.id}'});">${icon('share',12)} Read</a></div><h4>${n.title}</h4><p>${n.body}</p></div>`;
+    if(i===0) attachNewsDrag(el,n);
+    newsStackEl.appendChild(el);
+  });
+}
+function decideNews(dir,n){
+  newsSignalEl.textContent = dir==='right' ? `learned: more ${n.category.toLowerCase()} stories like this` : `learned: fewer stories like this`;
+  track(dir==='right'?'swipe_right':'swipe_left',{news:n.id});
+  newsDeck.shift();
+  if(newsDeck.length===0) fetchLiveNews(true); else renderNewsStack();
+}
+function attachNewsDrag(el,n){
+  let startX=0,dx=0,dragging=false;
+  const likeEl=()=>el.querySelector('.swipe-stamp.like');
+  const nopeEl=()=>el.querySelector('.swipe-stamp.nope');
+  el.addEventListener('pointerdown', e=>{ if(e.target.closest('.readLink')) return; dragging=true; startX=e.clientX; el.setPointerCapture(e.pointerId); el.style.transition='none';});
+  el.addEventListener('pointermove', e=>{
+    if(!dragging) return; dx=e.clientX-startX;
+    const rot=Math.max(-20,Math.min(20,dx/12));
+    el.style.transform=`translateX(${dx}px) rotate(${rot}deg)`;
+    const t=Math.min(1, Math.abs(dx)/100);
+    if(dx>0){ if(likeEl())likeEl().style.opacity=t; if(nopeEl())nopeEl().style.opacity=0; }
+    else{ if(nopeEl())nopeEl().style.opacity=t; if(likeEl())likeEl().style.opacity=0; }
+  });
+  const release=()=>{
+    if(!dragging) return; dragging=false; el.style.transition='';
+    if(dx>90){el.style.transform='translateX(600px) rotate(24deg)'; el.style.opacity=0; setTimeout(()=>decideNews('right',n),220);}
+    else if(dx<-90){el.style.transform='translateX(-600px) rotate(-24deg)'; el.style.opacity=0; setTimeout(()=>decideNews('left',n),220);}
+    else{el.style.transform=''; if(likeEl())likeEl().style.opacity=0; if(nopeEl())nopeEl().style.opacity=0;}
+    dx=0;
+  };
+  el.addEventListener('pointerup', release);
+  el.addEventListener('pointerleave', ()=>{if(dragging) release();});
+}
+document.getElementById('newsLeft').onclick=()=>{ if(newsDeck[0]) decideNews('left',newsDeck[0]); };
+document.getElementById('newsRight').onclick=()=>{ if(newsDeck[0]) decideNews('right',newsDeck[0]); };
+renderNewsStack();
+fetchLiveNews(true);
+setInterval(()=>fetchLiveNews(true), 180000);
+
+/* =========================================================
+   CIRCLE
+========================================================= */
+let serverConnections = [], serverIncoming = [], serverOutgoing = [];
+
+async function loadCircleFromServer(){
+  const [connRes, reqRes] = await Promise.all([
+    apiCallRaw('/api/connections', { method:'GET' }),
+    apiCallRaw('/api/connections/requests', { method:'GET' })
+  ]);
+  if(connRes.reachable && connRes.json && connRes.json.success) serverConnections = connRes.json.data.connections;
+  if(reqRes.reachable && reqRes.json && reqRes.json.success){
+    serverIncoming = reqRes.json.data.incoming;
+    serverOutgoing = reqRes.json.data.outgoing;
+  }
+  renderCircle();
+}
+
+async function sendConnectionRequest(userId, btn){
+  if(btn){ btn.disabled=true; btn.textContent='Sending…'; }
+  const r = await apiCallRaw('/api/connections/request', { method:'POST', body: JSON.stringify({ userId }) });
+  if(r.reachable && r.json && r.json.success){
+    toast('Request sent');
+    if(btn){ btn.textContent='Request sent'; }
+    loadCircleFromServer();
+  } else {
+    toast((r.json && r.json.error && r.json.error.message) || 'Could not send request');
+    if(btn){ btn.disabled=false; btn.textContent='Connect'; }
+  }
+}
+
+function renderCircle(){
+  const req=document.getElementById('reqSection');
+  const list=document.getElementById('friendsList');
+
+  if(backendAvailable){
+    const incomingHtml = serverIncoming.length ? `<h3 style="font-size:15px; margin-bottom:8px;">Connection requests</h3>` + serverIncoming.map(r=>`
+      <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#1F98A9,#DB8236)">${r.display_name[0]}</div>
+      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.display_name}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username}</p></div>
+      <div class="friendActions"><button class="pillBtn primary" data-acc="${r.id}">Accept</button><button class="pillBtn" data-dec="${r.id}">Decline</button></div></div>`).join('') : '';
+    const outgoingHtml = serverOutgoing.length ? `<h3 style="font-size:15px; margin:14px 0 8px;">Sent requests</h3>` + serverOutgoing.map(r=>`
+      <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#54677C,#2C9464)">${r.display_name[0]}</div>
+      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.display_name}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username} \u00b7 pending</p></div>
+      <div class="friendActions"><button class="pillBtn" data-cancel="${r.id}">Cancel</button></div></div>`).join('') : '';
+    req.innerHTML = incomingHtml + outgoingHtml;
+
+    req.querySelectorAll('[data-acc]').forEach(b=>b.onclick=async()=>{
+      b.disabled=true;
+      const r = await apiCallRaw(`/api/connections/requests/${b.dataset.acc}/accept`, { method:'POST' });
+      if(r.reachable && r.json && r.json.success){ toast('Request accepted'); loadCircleFromServer(); }
+      else { toast('Could not accept request'); b.disabled=false; }
+    });
+    req.querySelectorAll('[data-dec]').forEach(b=>b.onclick=async()=>{
+      b.disabled=true;
+      const r = await apiCallRaw(`/api/connections/requests/${b.dataset.dec}/reject`, { method:'POST' });
+      if(r.reachable && r.json && r.json.success){ toast('Request declined'); loadCircleFromServer(); }
+      else { toast('Could not decline request'); b.disabled=false; }
+    });
+    req.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=async()=>{
+      b.disabled=true;
+      const r = await apiCallRaw(`/api/connections/requests/${b.dataset.cancel}`, { method:'DELETE' });
+      if(r.reachable && r.json && r.json.success){ toast('Request cancelled'); loadCircleFromServer(); }
+      else { toast('Could not cancel request'); b.disabled=false; }
+    });
+
+    list.innerHTML='';
+    if(serverConnections.length===0){
+      list.innerHTML = `<div class="emptyState">
+        <p>Your Circle is just getting started.</p>
+        <p class="emptySub">Use the search icon at the top to find people you know by username or name, and send them a connect request.</p>
+      </div>`;
+      return;
+    }
+    serverConnections.forEach(f=>{
+      const row=document.createElement('div'); row.className='friendRow';
+      row.innerHTML=`<div class="friendAv" style="background:linear-gradient(135deg,var(--gold),var(--coral))">${f.display_name[0]}</div>
+        <div><h4>${f.display_name}</h4><p>@${f.username}</p></div>
+        <div class="friendActions"><button class="pillBtn" data-msg="${f.display_name}">Message</button></div>`;
+      list.appendChild(row);
+    });
+    list.querySelectorAll('[data-msg]').forEach(b=>b.onclick=()=>{ switchScreen('messages'); toast(`Opening chat with ${b.dataset.msg} \u2014 messaging isn't wired to the backend yet, see the limitations note.`); });
+    return;
+  }
+
+  // ---- local demo mode (no backend attached) — original prototype behaviour ----
+  req.innerHTML = friendRequests.length ? `<h3 style="font-size:15px; margin-bottom:8px;">Friend requests</h3>` + friendRequests.map(r=>`
+    <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#1F98A9,#DB8236)">${r.name[0]}</div>
+    <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.name}</h4><p style="font-size:12px;color:var(--ink-soft);">${r.note}</p></div>
+    <div class="friendActions"><button class="pillBtn primary" data-acc="${r.id}">Accept</button><button class="pillBtn" data-dec="${r.id}">Decline</button></div></div>`).join('') : '';
+  req.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{ toast('Friend request accepted'); b.closest('.reqCard').remove(); });
+  req.querySelectorAll('[data-dec]').forEach(b=>b.onclick=()=>{ toast('Request declined'); b.closest('.reqCard').remove(); });
+
+  list.innerHTML='';
+  if(friends.length===0){
+    list.innerHTML = `<div class="emptyState">
+      <p>No friends yet — this circle is empty.</p>
+      <p class="emptySub">Demo mode: no backend is attached, so this list can't be real. Deploy the backend (see chat) to search for real people and connect.</p>
+      <button class="pillBtn primary" id="inviteBtn" style="margin-top:10px;">Invite a friend</button>
+    </div>`;
+    const invBtn=document.getElementById('inviteBtn');
+    if(invBtn) invBtn.onclick=async()=>{
+      invBtn.disabled=true;
+      const link = await getInviteLink();
+      const ok = await copyToClipboard(link);
+      invBtn.disabled=false;
+      toast(ok ? 'Invite link copied' : link);
+      track('invite_sent',{});
+    };
+    return;
+  }
+  friends.forEach(f=>{
+    const row=document.createElement('div'); row.className='friendRow';
+    row.innerHTML=`<div class="friendAv" style="background:${f.avatarBg}">${f.name[0]}</div>
+      <div><h4>${f.name}</h4><p>${f.mutuals} mutual friends · ${f.note}</p></div>
+      <div class="friendActions">
+        <button class="pillBtn" data-msg="${f.name}">Message</button>
+        <div class="menuPop"><button class="pillBtn" data-menu style="display:inline-flex;">${icon('more',16)}</button>
+          <div class="menuList">
+            <button data-mute="${f.id}">Mute</button>
+            <button data-unfollow="${f.id}">Unfollow</button>
+            <button data-block="${f.id}">Block</button>
+            <button data-report="${f.id}">Report</button>
+          </div>
+        </div>
+      </div>`;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('[data-msg]').forEach(b=>b.onclick=()=>{ switchScreen('messages'); toast(`Opening chat with ${b.dataset.msg}`); track('chat_started',{with:b.dataset.msg}); });
+  list.querySelectorAll('[data-menu]').forEach(b=>{
+    b.onclick=(ev)=>{ ev.stopPropagation(); const pop=b.closest('.menuPop'); document.querySelectorAll('.menuPop.open').forEach(m=>{if(m!==pop) m.classList.remove('open');}); pop.classList.toggle('open'); };
+  });
+  document.addEventListener('click', ()=>document.querySelectorAll('.menuPop.open').forEach(m=>m.classList.remove('open')));
+  list.querySelectorAll('[data-mute]').forEach(b=>b.onclick=()=>toast('Muted — you won\'t see their activity in your feed'));
+  list.querySelectorAll('[data-unfollow]').forEach(b=>b.onclick=()=>toast('Unfollowed'));
+  list.querySelectorAll('[data-block]').forEach(b=>b.onclick=()=>toast('Blocked'));
+  list.querySelectorAll('[data-report]').forEach(b=>{ b.onclick=()=>{ toast('Report submitted'); track('report_submitted',{friendId:b.dataset.report}); }; });
+}
+renderCircle();
+
+/* =========================================================
+   MESSAGES
+========================================================= */
+function renderConvoList(){
+  const list=document.getElementById('convoItems'); list.innerHTML='';
+  if(conversations.length===0){
+    list.innerHTML = `<div class="emptyState"><p>No conversations yet.</p><p class="emptySub">Start one from a friend's profile in Circle, or create a group.</p></div>`;
+    return;
+  }
+  conversations.forEach(c=>{
+    const last=c.messages[c.messages.length-1];
+    const preview = last.shared ? (icon('pin',12) + ' ' + last.shared.title) : last.text;
+    const el=document.createElement('div'); el.className='convoItem'+(c.id===state.activeConvo?' active':'');
+    el.innerHTML=`<div class="convoAvatar">${c.name[0]}</div><div><h4>${c.name}</h4><p>${preview}</p></div>`;
+    el.onclick=()=>{ state.activeConvo=c.id; renderConvoList(); renderThread(); document.getElementById('msgWrap').classList.add('threadOpen'); track('chat_started',{convo:c.id}); };
+    list.appendChild(el);
+  });
+}
+document.getElementById('newGroupBtn').onclick=()=>{
+  if(friends.length<2){ toast('Add at least two friends before starting a group'); return; }
+  openNewGroup();
+};
+function openNewGroup(){
+  const rows = friends.map(f=>`<label class="groupPickRow"><input type="checkbox" value="${f.id}"> <span class="friendAv" style="background:${f.avatarBg}; width:32px; height:32px; font-size:12px;">${f.name[0]}</span> ${f.name}</label>`).join('');
+  const html = `
+    <h3 style="font-size:18px;">New group</h3>
+    <p class="screenSub" style="margin:4px 0 14px;">Pick who's in it, then give it a name.</p>
+    <div id="groupPickList" style="display:flex; flex-direction:column; gap:10px; max-height:220px; overflow-y:auto;">${rows}</div>
+    <div class="createLabel">Group name</div>
+    <input type="text" id="groupNameInput" placeholder="e.g. Weekend Plans" style="width:100%; padding:11px 13px; border-radius:10px; border:1px solid var(--line); font-size:14px;">
+    <button class="pillBtn primary" id="groupCreateBtn" style="width:100%; margin-top:16px; padding:12px;">Create group</button>
+  `;
+  document.getElementById('groupOverlayBody').innerHTML = html;
+  document.getElementById('groupOverlay').classList.add('show');
+  document.getElementById('groupCreateBtn').onclick=()=>{
+    const picked = [...document.querySelectorAll('#groupPickList input:checked')].map(i=>i.value);
+    const name = document.getElementById('groupNameInput').value.trim();
+    if(picked.length<2){ toast('Pick at least two friends for a group'); return; }
+    if(!name){ toast('Give the group a name'); return; }
+    const id = 'c'+(conversations.length+1)+Math.random().toString(36).slice(2,5);
+    conversations.push({id, name, isGroup:true, unread:0, messages:[{from:'them', name:friends.find(f=>f.id===picked[0]).name, text:'Group created \u2014 say hi!'}]});
+    state.activeConvo=id;
+    renderConvoList(); renderThread();
+    document.getElementById('msgWrap').classList.add('threadOpen');
+    document.getElementById('groupOverlay').classList.remove('show');
+    toast('Group created');
+  };
+}
+document.getElementById('groupOverlay').addEventListener('click', e=>{ if(e.target.id==='groupOverlay') e.currentTarget.classList.remove('show'); });
+function renderThread(){
+  const c=conversations.find(x=>x.id===state.activeConvo);
+  const threadPane=document.getElementById('threadPane');
+  if(!c){
+    document.getElementById('threadTitle').textContent='';
+    document.getElementById('threadMsgs').innerHTML = `<div class="emptyState"><p>No conversation selected yet.</p></div>`;
+    document.getElementById('pinnedRow').style.display='none';
+    threadPane.classList.add('noConvo');
+    return;
+  }
+  threadPane.classList.remove('noConvo');
+  document.getElementById('threadTitle').textContent=c.name;
+  const box=document.getElementById('threadMsgs'); box.innerHTML='';
+  const pinned=document.getElementById('pinnedRow');
+  const sharedItems=c.messages.filter(m=>m.shared);
+  if(c.isGroup && sharedItems.length){
+    pinned.style.display='block';
+    pinned.textContent = `${sharedItems.length} pinned — shared places & events for this plan`;
+  } else { pinned.style.display='none'; }
+  c.messages.forEach(m=>{
+    const row=document.createElement('div'); row.className='msgRow'+(m.from==='me'?' me':'');
+    if(m.shared){
+      row.innerHTML=`<div class="sharedCard" data-place="${m.shared.place||''}" data-event="${m.shared.eventId||''}"><div class="sc-img" style="background-image:linear-gradient(160deg, ${m.shared.color}33, rgba(20,23,26,.3)), url('${photoUrl(m.shared.place||m.shared.eventId||m.shared.title,300,200)}'); background-size:cover; background-position:center;"></div><div class="sc-body"><h5>${m.shared.title}</h5><span>${m.shared.sub}</span></div></div>`;
+    }else{
+      row.innerHTML=`<div class="bubble">${m.name?`<strong style="display:block;font-size:11px;opacity:.6;margin-bottom:2px;">${m.name}</strong>`:''}${m.text}</div>`;
+    }
+    box.appendChild(row);
+  });
+  box.querySelectorAll('.sharedCard').forEach(card=>{
+    card.onclick=()=>{ if(card.dataset.place) openPlace(card.dataset.place); else if(card.dataset.event) switchScreen('events'); };
+  });
+  box.scrollTop=box.scrollHeight;
+}
+document.getElementById('sendBtn').onclick=sendMsg;
+document.getElementById('msgInput').addEventListener('keydown', e=>{ if(e.key==='Enter') sendMsg(); });
+function sendMsg(){
+  const input=document.getElementById('msgInput'); const val=input.value.trim();
+  if(!val || !state.activeConvo) return;
+  conversations.find(c=>c.id===state.activeConvo).messages.push({from:'me', text:val});
+  input.value=''; renderThread(); renderConvoList();
+}
+document.getElementById('backBtn').onclick=()=>document.getElementById('msgWrap').classList.remove('threadOpen');
+renderConvoList(); renderThread();
+
+/* =========================================================
+   VOICE / VIDEO CALLS — synthesized ringtone, ring→connect flow
+========================================================= */
+let audioCtx=null;
+function getAudioCtx(){
+  if(!audioCtx){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(AC) audioCtx = new AC();
+  }
+  return audioCtx;
+}
+let ringInterval=null;
+function startRingtone(){
+  stopRingtone();
+  const ctx=getAudioCtx();
+  if(!ctx) return;
+  if(ctx.state==='suspended') ctx.resume();
+  const playPulse=()=>{
+    const now=ctx.currentTime;
+    [0,0.42].forEach(off=>{
+      const osc=ctx.createOscillator(); const gain=ctx.createGain();
+      osc.type='sine'; osc.frequency.value=440;
+      gain.gain.setValueAtTime(0, now+off);
+      gain.gain.linearRampToValueAtTime(0.14, now+off+0.02);
+      gain.gain.linearRampToValueAtTime(0.0001, now+off+0.36);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(now+off); osc.stop(now+off+0.4);
+    });
+  };
+  playPulse();
+  ringInterval=setInterval(playPulse, 2000);
+}
+function stopRingtone(){ if(ringInterval){ clearInterval(ringInterval); ringInterval=null; } }
+
+let callTimerInt=null, callSeconds=0, callRingTimeout=null;
+let callState={muted:false, camera:true, speaker:false, video:false};
+function updateCallButtons(){
+  const muteBtn=document.getElementById('callMute');
+  muteBtn.classList.toggle('active', callState.muted);
+  muteBtn.innerHTML = icon(callState.muted?'micOff':'mic');
+  const camBtn=document.getElementById('callCamera');
+  camBtn.style.display = callState.video ? 'flex':'none';
+  camBtn.classList.toggle('active', callState.camera);
+  document.getElementById('callSpeaker').classList.toggle('active', callState.speaker);
+}
+function openCall(name, isVideo){
+  const displayName = name || 'Friend';
+  document.getElementById('callName').textContent=displayName;
+  document.getElementById('callAvatar').textContent=displayName[0].toUpperCase();
+  document.getElementById('callStatusText').textContent='Calling…';
+  document.getElementById('callTimer').textContent='00:00';
+  document.getElementById('ringDot').style.display='inline-block';
+  callSeconds=0;
+  callState={muted:false, camera:true, speaker:false, video:!!isVideo};
+  const card=document.querySelector('#callOverlay .callCard');
+  card.classList.add('ringing');
+  card.classList.toggle('videoMode', !!isVideo);
+  const frame=document.getElementById('callVideoFrame');
+  if(isVideo){
+    frame.classList.add('on');
+    frame.style.opacity=1;
+    frame.style.backgroundImage = `url('${photoUrl(displayName+'-video',420,280)}')`;
+    frame.innerHTML = `<div class="selfView" style="background-image:url('${photoUrl('me-self',140,190)}')"></div>`;
+  } else {
+    frame.classList.remove('on'); frame.innerHTML='';
+  }
+  updateCallButtons();
+  document.getElementById('callOverlay').classList.add('show');
+  startRingtone();
+  track(isVideo?'video_call_started':'call_started', {with:displayName});
+  if(callTimerInt){ clearInterval(callTimerInt); callTimerInt=null; }
+  if(callRingTimeout) clearTimeout(callRingTimeout);
+  callRingTimeout=setTimeout(()=>{
+    if(!document.getElementById('callOverlay').classList.contains('show')) return;
+    stopRingtone();
+    card.classList.remove('ringing');
+    document.getElementById('ringDot').style.display='none';
+    document.getElementById('callStatusText').textContent = isVideo?'Video call':'Voice call';
+    callTimerInt=setInterval(()=>{
+      callSeconds++;
+      const m=String(Math.floor(callSeconds/60)).padStart(2,'0');
+      const s=String(callSeconds%60).padStart(2,'0');
+      document.getElementById('callTimer').textContent=m+':'+s;
+    },1000);
+  }, 2600);
+}
+function endCall(){
+  stopRingtone();
+  if(callRingTimeout){ clearTimeout(callRingTimeout); callRingTimeout=null; }
+  if(callTimerInt){ clearInterval(callTimerInt); callTimerInt=null; }
+  document.getElementById('callOverlay').classList.remove('show');
+  const card=document.querySelector('#callOverlay .callCard');
+  card.classList.remove('ringing','videoMode');
+  track('call_ended', {seconds:callSeconds});
+}
+document.getElementById('callMute').onclick=()=>{ callState.muted=!callState.muted; updateCallButtons(); toast(callState.muted?'Muted':'Unmuted'); };
+document.getElementById('callSpeaker').onclick=()=>{ callState.speaker=!callState.speaker; updateCallButtons(); toast(callState.speaker?'Speaker on':'Speaker off'); };
+document.getElementById('callCamera').onclick=()=>{
+  if(!callState.video) return;
+  callState.camera=!callState.camera; updateCallButtons();
+  document.getElementById('callVideoFrame').style.opacity = callState.camera?1:0.15;
+  toast(callState.camera?'Camera on':'Camera off');
+};
+document.getElementById('callEnd').onclick=endCall;
+document.getElementById('callBtn').onclick=()=>{
+  const c=conversations.find(x=>x.id===state.activeConvo);
+  if(!c){ toast('Open a conversation first'); return; }
+  openCall(c.name, false);
+};
+document.getElementById('videoCallBtn').onclick=()=>{
+  const c=conversations.find(x=>x.id===state.activeConvo);
+  if(!c){ toast('Open a conversation first'); return; }
+  openCall(c.name, true);
+};
+
+/* =========================================================
+   CREATE POST
+========================================================= */
+const createOverlay=document.getElementById('createOverlay');
+function buildPostForm(){
+  const stars=document.getElementById('postStars'); stars.innerHTML='';
+  for(let i=1;i<=5;i++){ const s=document.createElement('span'); s.innerHTML=icon('star',22); s.dataset.v=i; if(i<=state.postRating) s.classList.add('on'); s.onclick=()=>{ state.postRating=i; buildPostForm(); }; stars.appendChild(s); }
+  const tagsEl=document.getElementById('postTags'); tagsEl.innerHTML='';
+  TAGS.forEach(t=>{ const b=document.createElement('button'); b.className='tagChip'+(state.postTags.has(t)?' on':''); b.textContent=t; b.onclick=()=>{ state.postTags.has(t)?state.postTags.delete(t):state.postTags.add(t); buildPostForm(); }; tagsEl.appendChild(b); });
+}
+
+/* postChosenPlace is set either by selecting a search result, tapping the
+   map, or arriving here from an existing place's "Post an experience"
+   button — never from a fixed preloaded list. */
+let postChosenPlace=null, postPinMarker=null, postAutocomplete=null, postGeo=null;
+
+function getUserLocation(){
+  return new Promise(resolve=>{
+    if(!navigator.geolocation){ resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos=>resolve({lat:pos.coords.latitude, lng:pos.coords.longitude}),
+      ()=>resolve(null),
+      {timeout:6000}
+    );
+  });
+}
+function setChosenPlace(place){
+  postChosenPlace = place;
+  if(window._postPinMap){
+    if(postPinMarker) postPinMarker.setMap(null);
+    postPinMarker = new google.maps.Marker({position:{lat:place.lat,lng:place.lng}, map:window._postPinMap});
+    window._postPinMap.panTo({lat:place.lat,lng:place.lng});
+    window._postPinMap.setZoom(15);
+  }
+  document.getElementById('postPinNote').textContent = `Posting about "${place.name}".`;
+}
+async function initPostPinMap(){
+  if(typeof google === 'undefined' || !google.maps) return;
+  if(!postGeo) postGeo = await getUserLocation();
+  const center = postGeo || {lat:28.58,lng:77.19};
+  document.getElementById('postLocNote').textContent = postGeo
+    ? 'Showing places near your current location.'
+    : "Couldn't get your location — showing Delhi. You can still search or pin a spot.";
+  if(!window._postPinMap){
+    const map = new google.maps.Map(document.getElementById('postPinMap'), {
+      center, zoom:14, disableDefaultUI:true, zoomControl:true,
+      zoomControlOptions:{position:google.maps.ControlPosition.RIGHT_BOTTOM}
+    });
+    window._postPinMap = map;
+    map.addListener('click', e=>{
+      const lat=e.latLng.lat(), lng=e.latLng.lng();
+      const geocoder = new google.maps.Geocoder();
+      geocoder.geocode({location:{lat,lng}}, (results, status)=>{
+        const name = (status==='OK' && results[0]) ? results[0].formatted_address : `Pinned spot (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+        setChosenPlace({id:null, name, lat, lng, color:'#1F98A9'});
+        document.getElementById('postPlaceSearch').value = name;
+      });
+    });
+  } else {
+    window._postPinMap.panTo(center);
+  }
+  if(!postAutocomplete && google.maps.places){
+    const input = document.getElementById('postPlaceSearch');
+    postAutocomplete = new google.maps.places.Autocomplete(input, {fields:['name','formatted_address','geometry']});
+    postAutocomplete.bindTo('bounds', window._postPinMap);
+    const circle = new google.maps.Circle({center, radius:20000});
+    postAutocomplete.setBounds(circle.getBounds());
+    postAutocomplete.addListener('place_changed', ()=>{
+      const place = postAutocomplete.getPlace();
+      if(!place.geometry) return;
+      const lat=place.geometry.location.lat(), lng=place.geometry.location.lng();
+      setChosenPlace({id:null, name: place.name || place.formatted_address, lat, lng, color:'#1F98A9'});
+    });
+  }
+}
+function openCreate(placeId){
+  buildPostForm();
+  postChosenPlace=null;
+  if(postPinMarker){ postPinMarker.setMap(null); postPinMarker=null; }
+  const searchInput=document.getElementById('postPlaceSearch');
+  if(placeId){
+    const p=places.find(x=>x.id===placeId);
+    if(p){ searchInput.value=p.name; postChosenPlace={id:p.id, name:p.name, lat:p.lat, lng:p.lng, color:p.color}; }
+  } else {
+    searchInput.value='';
+  }
+  document.getElementById('postPinNote').textContent = postChosenPlace ? `Posting about "${postChosenPlace.name}".` : 'Tap the map to drop a pin, or search above.';
+  createOverlay.classList.add('show');
+  setTimeout(async()=>{
+    await initPostPinMap();
+    if(window._postPinMap) google.maps.event.trigger(window._postPinMap,'resize');
+    if(postChosenPlace) setChosenPlace(postChosenPlace);
+  }, 60);
+}
+createOverlay.addEventListener('click', e=>{ if(e.target===createOverlay) createOverlay.classList.remove('show'); });
+document.getElementById('postSubmit').onclick=()=>{
+  const text=document.getElementById('postText').value.trim();
+  if(!text){ toast('Say a little about what it was like first'); return; }
+  if(!postChosenPlace){ toast('Search for a place near you, or drop a pin on the map, first'); return; }
+  const p=postChosenPlace;
+  feed.unshift({type:'friend', color:p.color, kicker:'You posted', title:p.name, body:`"${text}" \u00b7 Rating ${state.postRating}/5${state.postTags.size?' \u00b7 '+[...state.postTags].join(', '):''}`, place:p.id||undefined});
+  renderFeed();
+  track('post_created',{place:p.id||p.name, lat:p.lat, lng:p.lng, rating:state.postRating, tags:[...state.postTags]});
+  document.getElementById('postText').value='';
+  state.postTags=new Set();
+  postChosenPlace=null;
+  createOverlay.classList.remove('show');
+  switchScreen('home');
+  toast('Posted to your circle');
+};
+
+/* =========================================================
+   PROFILE
+========================================================= */
+document.getElementById('avatarEditBtn').innerHTML = icon('camera', 16);
+function updateRemovePhotoVisibility(){
+  document.getElementById('removePhotoBtn').style.display = (currentUser && currentUser.profilePhotoUrl) ? 'inline-flex' : 'none';
+}
+document.getElementById('avatarEditBtn').onclick = () => document.getElementById('avatarFileInput').click();
+document.getElementById('avatarFileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  if (!['image/jpeg','image/png','image/webp'].includes(file.type)) { toast('Please choose a JPEG, PNG, or WEBP image'); return; }
+  if (file.size > 4 * 1024 * 1024) { toast('Image must be under 4MB'); return; }
+
+  if (backendAvailable && currentUser && currentUser.id) {
+    const fd = new FormData();
+    fd.append('photo', file);
+    toast('Uploading…');
+    try {
+      const res = await fetch('/api/profile/photo', { method:'POST', body: fd, credentials:'include' });
+      const json = await res.json().catch(()=>null);
+      if (res.ok && json && json.success) {
+        currentUser.profilePhotoUrl = json.data.profilePhotoUrl;
+        setAvatarDisplay(currentUser.profilePhotoUrl, currentUser.displayName[0].toUpperCase());
+        updateRemovePhotoVisibility();
+        toast('Photo updated');
+      } else {
+        toast((json && json.error && json.error.message) || 'Upload failed');
+      }
+    } catch (err) {
+      toast('Upload failed — check your connection');
+    }
+  } else {
+    // Demo mode: preview locally only, nothing persisted.
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAvatarDisplay(reader.result, (currentUser && currentUser.displayName ? currentUser.displayName[0] : 'Y').toUpperCase());
+      if (currentUser) currentUser.profilePhotoUrl = reader.result;
+      updateRemovePhotoVisibility();
+      toast('Demo mode — photo shown locally, not saved');
+    };
+    reader.readAsDataURL(file);
+  }
+});
+document.getElementById('removePhotoBtn').onclick = async () => {
+  if (backendAvailable && currentUser && currentUser.id) {
+    const r = await apiCallRaw('/api/profile/photo', { method:'DELETE' });
+    if (!(r.reachable && r.json && r.json.success)) { toast('Could not remove photo'); return; }
+  }
+  if (currentUser) currentUser.profilePhotoUrl = null;
+  setAvatarDisplay(null, (currentUser && currentUser.displayName ? currentUser.displayName[0] : 'Y').toUpperCase());
+  updateRemovePhotoVisibility();
+  toast('Photo removed');
+};
+
+document.getElementById('editProfileBtn').onclick = () => {
+  document.getElementById('editDisplayName').value = (currentUser && currentUser.displayName) || '';
+  document.getElementById('editBio').value = (currentUser && currentUser.bio) || '';
+  document.getElementById('editProfileForm').style.display = 'block';
+};
+document.getElementById('cancelProfileBtn').onclick = () => { document.getElementById('editProfileForm').style.display = 'none'; };
+document.getElementById('saveProfileBtn').onclick = async () => {
+  const displayName = document.getElementById('editDisplayName').value.trim();
+  const bio = document.getElementById('editBio').value.trim();
+  if (!displayName) { toast('Display name is required'); return; }
+
+  if (backendAvailable && currentUser && currentUser.id) {
+    const r = await apiCallRaw('/api/profile', { method:'PATCH', body: JSON.stringify({ displayName, bio }) });
+    if (!(r.reachable && r.json && r.json.success)) { toast((r.json && r.json.error && r.json.error.message) || 'Could not save'); return; }
+  } else {
+    toast('Demo mode — changes shown locally, not saved');
+  }
+  if (currentUser) { currentUser.displayName = displayName; currentUser.bio = bio; }
+  document.getElementById('profName').textContent = displayName;
+  document.getElementById('profBio').textContent = bio || 'Exploring Delhi, one recommendation at a time.';
+  setAvatarDisplay(currentUser && currentUser.profilePhotoUrl, displayName[0].toUpperCase());
+  document.getElementById('editProfileForm').style.display = 'none';
+  toast('Profile updated');
+};
+
+const interestsEl=document.getElementById('profInterests');
+['Food','Outdoors','Gaming','Technology','Live music'].forEach(i=>{
+  const s=document.createElement('span'); s.className='interestChip'; s.textContent=i; interestsEl.appendChild(s);
+});
+document.querySelectorAll('#profileTabs button').forEach(btn=>{
+  btn.onclick=()=>{ document.querySelectorAll('#profileTabs button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderProfileTab(btn.dataset.t); };
+});
+function renderProfileTab(which){
+  which = which || document.querySelector('#profileTabs button.active').dataset.t;
+  const el=document.getElementById('profileTabContent');
+  if(which==='saved'){
+    const items=[...places.filter(p=>state.savedPlaces.has(p.id))];
+    el.innerHTML = items.length ? `<div class="savedGrid">${items.map(p=>`<div class="savedTile" data-place="${p.id}"><div class="st-img" style="background-image:linear-gradient(160deg, ${p.color}33, rgba(20,23,26,.3)), url('${photoUrl(p.id,300,200)}'); background-size:cover; background-position:center;"></div><div class="st-body"><h5>${p.name}</h5></div></div>`).join('')}</div>` : `<p class="screenSub">Nothing saved yet — swipe right on Discover or save a place on the map.</p>`;
+    el.querySelectorAll('[data-place]').forEach(t=>t.onclick=()=>openPlace(t.dataset.place));
+  } else if(which==='events'){
+    const items=events.filter(e=>state.savedEvents.has(e.id));
+    el.innerHTML = items.length ? `<div class="savedGrid">${items.map(e=>`<div class="savedTile"><div class="st-img" style="background-image:linear-gradient(160deg, #54677C33, rgba(20,23,26,.3)), url('${photoUrl(e.id,300,200)}'); background-size:cover; background-position:center;"></div><div class="st-body"><h5>${e.title}</h5></div></div>`).join('')}</div>` : `<p class="screenSub">No events marked interested yet.</p>`;
+  } else {
+    const posts=feed.filter(f=>f.kicker==='You posted');
+    el.innerHTML = posts.length ? posts.map(p=>`<div class="feedCard"><div class="feedKicker"><span class="dot" style="background:${p.color}"></span>${p.kicker}</div><h3>${p.title}</h3><p>${p.body}</p></div>`).join('') : `<p class="screenSub">Your posts will show up here once you share an experience.</p>`;
+  }
+}
+renderProfileTab();
+
+/* =========================================================
+   DISTRICTS SCREEN
+========================================================= */
+function renderDistrictList(){
+  const list=document.getElementById('districtList'); list.innerHTML='';
+  districts.forEach(d=>{
+    const dEvents = events.filter(e=>e.district===d.id).slice(0,2);
+    const card=document.createElement('div'); card.className='districtCard';
+    card.innerHTML=`<div class="dc-band" style="background:${d.color};"></div>
+      <div class="dc-body">
+        <h3>${d.name}</h3><p>${d.desc}</p>
+        <div class="dc-meta">${places.filter(p=>p.district===d.id).length} places \u00b7 ${events.filter(e=>e.district===d.id).length} events</div>
+        ${dEvents.length?`<div class="dc-events">${dEvents.map(e=>`<div class="dc-event-row"><span class="dc-event-date">${e.date}</span><span>${e.title}</span></div>`).join('')}</div>`:''}
+        <div class="feedMeta" style="margin-top:10px;"><button class="pillBtn" data-d="${d.id}">View on map</button></div>
+      </div>`;
+    list.appendChild(card);
+  });
+  list.querySelectorAll('[data-d]').forEach(b=>{
+    b.onclick=()=>{
+      switchScreen('map');
+      setTimeout(()=>{
+        const chip=[...document.querySelectorAll('.districtChip')].find(c=>c.textContent===districts.find(x=>x.id===b.dataset.d).name);
+        if(chip) chip.click();
+      }, 100);
+    };
+  });
+}
+renderDistrictList();
+
+/* =========================================================
+   SETTINGS + THEME
+========================================================= */
+function applyTheme(dark){
+  document.documentElement.setAttribute('data-theme', dark?'dark':'light');
+  document.getElementById('themeBtn').innerHTML = icon(dark?'sun':'moon');
+  document.getElementById('authThemeBtn').innerHTML = icon(dark?'sun':'moon');
+  document.getElementById('settingsThemeToggle').classList.toggle('on', dark);
+  state.darkMode=dark;
+  persistState();
+}
+document.getElementById('themeBtn').onclick=()=>applyTheme(!state.darkMode);
+document.getElementById('authThemeBtn').onclick=()=>applyTheme(!state.darkMode);
+document.getElementById('settingsThemeToggle').onclick=()=>applyTheme(!state.darkMode);
+[['toggleLive','liveLocation'],['toggleFriendActivity','friendActivity'],['toggleDigest','digest'],['toggleDiscoverable','discoverable']].forEach(([id,key])=>{
+  const el=document.getElementById(id);
+  el.onclick=()=>{
+    el.classList.toggle('on');
+    state.settings[key]=el.classList.contains('on');
+    persistState();
+    toast(el.classList.contains('on')?'Turned on':'Turned off');
+  };
+});
+document.getElementById('logoutBtn').onclick=async()=>{
+  endCall();
+  if(backendAvailable) await apiCallRaw('/api/auth/logout', { method:'POST' });
+  currentUser = null;
+  setAvatarDisplay(null, 'Y');
+  document.getElementById('authForm').reset();
+  showAuthError(null);
+  setAuthMode(false);
+  document.getElementById('app').classList.remove('on');
+  document.getElementById('auth').style.display='flex';
+  toast('Logged out');
+};
+
+/* =========================================================
+   SEARCH OVERLAY
+========================================================= */
+document.getElementById('searchBtn').onclick=()=>{ document.getElementById('searchOverlay').classList.add('show'); document.getElementById('searchInput').value=''; document.getElementById('searchResults').innerHTML=''; document.getElementById('searchInput').focus(); };
+document.getElementById('searchOverlay').addEventListener('click', e=>{ if(e.target.id==='searchOverlay') e.currentTarget.classList.remove('show'); });
+document.getElementById('searchInput').addEventListener('input', e=>{
+  const q=e.target.value.trim();
+  const qLower=q.toLowerCase();
+  const results=document.getElementById('searchResults');
+  if(!q){ results.innerHTML=''; if(searchDebounce) clearTimeout(searchDebounce); return; }
+  const rows=[];
+  places.filter(p=>p.name.toLowerCase().includes(qLower)).slice(0,5).forEach(p=>rows.push({label:p.name, type:'Place', action:()=>{document.getElementById('searchOverlay').classList.remove('show'); openPlace(p.id);}}));
+  events.filter(ev=>ev.title.toLowerCase().includes(qLower)).slice(0,5).forEach(ev=>rows.push({label:ev.title, type:'Event', action:()=>{document.getElementById('searchOverlay').classList.remove('show'); switchScreen('events');}}));
+  districts.filter(d=>d.name.toLowerCase().includes(qLower)).slice(0,5).forEach(d=>rows.push({label:d.name, type:'District', action:()=>{document.getElementById('searchOverlay').classList.remove('show'); switchScreen('districts');}}));
+  renderSearchRows(rows, q);
+
+  if(searchDebounce) clearTimeout(searchDebounce);
+  if(backendAvailable && q.length >= 2){
+    searchDebounce = setTimeout(async ()=>{
+      const r = await apiCallRaw('/api/users/search?q=' + encodeURIComponent(q), { method:'GET' });
+      if(r.reachable && r.json && r.json.success && document.getElementById('searchInput').value.trim() === q){
+        renderSearchRows(rows, q, r.json.data.users);
+      }
+    }, 300);
+  }
+});
+let searchDebounce = null;
+function renderSearchRows(baseRows, q, people){
+  const results=document.getElementById('searchResults');
+  let html = baseRows.map((r,i)=>`<div class="searchRow" data-local="${i}">${r.label}<span class="type">${r.type}</span></div>`).join('');
+  if(people && people.length){
+    html += people.map(p=>`<div class="searchRow" style="cursor:default;"><span>${p.displayName} <span style="color:var(--ink-soft);">@${p.username}</span></span><button class="pillBtn primary" data-connect="${p.id}" style="padding:5px 12px; font-size:11.5px;">Connect</button></div>`).join('');
+  }
+  if(!baseRows.length && !(people && people.length)){
+    html = `<p class="screenSub" style="padding:10px 6px;">No matches for "${q}".</p>`;
+  }
+  results.innerHTML = html;
+  results.querySelectorAll('[data-local]').forEach(el=> el.onclick=()=>baseRows[+el.dataset.local].action());
+  results.querySelectorAll('[data-connect]').forEach(btn=> btn.onclick=(ev)=>{ ev.stopPropagation(); sendConnectionRequest(btn.dataset.connect, btn); });
+}
+
+/* =========================================================
+   NOTIFICATIONS DRAWER
+========================================================= */
+function renderNotifs(){
+  const list=document.getElementById('notifList');
+  list.innerHTML = notifications.length ? notifications.map(n=>`<div class="notifItem">${n.text}<div class="nt">${n.time}</div></div>`).join('') : `<div class="emptyState"><p>You're all caught up.</p></div>`;
+}
+renderNotifs();
+document.getElementById('notifBtn').onclick=()=>{
+  document.getElementById('notifDrawer').classList.add('show');
+  document.getElementById('notifOverlay').classList.add('show');
+  const badge=document.getElementById('notifBadge'); if(badge) badge.style.display='none';
+};
+document.getElementById('notifOverlay').onclick=()=>{
+  document.getElementById('notifDrawer').classList.remove('show');
+  document.getElementById('notifOverlay').classList.remove('show');
+};
+</script>
+</body>
+</html>
