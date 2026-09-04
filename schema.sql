@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   id BIGSERIAL PRIMARY KEY,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   actor_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  request_id BIGINT REFERENCES connection_requests(id) ON DELETE CASCADE,
   type VARCHAR(40) NOT NULL,
   title VARCHAR(160) NOT NULL,
   body TEXT NOT NULL DEFAULT '',
@@ -151,5 +152,6 @@ CREATE TABLE IF NOT EXISTS content_reactions (
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT '';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS request_id BIGINT REFERENCES connection_requests(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS notifications_user_created ON notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS posts_created ON posts(created_at DESC);
