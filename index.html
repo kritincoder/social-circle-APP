@@ -573,6 +573,15 @@ svg{display:block;}
     </div>
   </section>
 
+  <!-- REQUESTS -->
+  <section class="screen" id="screen-requests">
+    <div class="screenInner">
+      <h2 class="screenTitle">Friend requests</h2>
+      <p class="screenSub">Review people who want to join your Circle.</p>
+      <div id="requestsSection"></div>
+    </div>
+  </section>
+
   <!-- PLACE DETAIL -->
   <section class="screen" id="screen-place">
     <div class="screenInner" id="placeDetailBody"></div>
@@ -1195,6 +1204,7 @@ const NAV_PRIMARY = [
    existed in .sidenav, which is display:none on mobile — that was the bug). */
 const NAV_SECONDARY = [
   {id:'circle', label:'Circle', ic:'circle'},
+  {id:'requests', label:'Requests', ic:'bell'},
   {id:'discover', label:'Swipe discovery', ic:'swipe'},
   {id:'districts', label:'Districts', ic:'pin'},
   {id:'events', label:'Events', ic:'calendar'},
@@ -1668,7 +1678,7 @@ async function sendConnectionRequest(userId, btn){
 }
 
 function renderCircle(){
-  const req=document.getElementById('reqSection');
+  const requestSections=[document.getElementById('reqSection'),document.getElementById('requestsSection')].filter(Boolean);
   const list=document.getElementById('friendsList');
 
   if(backendAvailable){
@@ -1680,21 +1690,21 @@ function renderCircle(){
       <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#54677C,#2C9464)">${r.display_name[0]}</div>
       <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.display_name}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username} \u00b7 pending</p></div>
       <div class="friendActions"><button class="pillBtn" data-cancel="${r.id}">Cancel</button></div></div>`).join('') : '';
-    req.innerHTML = incomingHtml + outgoingHtml;
+    requestSections.forEach(section=>section.innerHTML = incomingHtml + outgoingHtml);
 
-    req.querySelectorAll('[data-acc]').forEach(b=>b.onclick=async()=>{
+    document.querySelectorAll('#reqSection [data-acc], #requestsSection [data-acc]').forEach(b=>b.onclick=async()=>{
       b.disabled=true;
       const r = await apiCallRaw(`/api/connections/requests/${b.dataset.acc}/accept`, { method:'POST' });
       if(r.reachable && r.json && r.json.success){ toast('Request accepted'); loadCircleFromServer(); }
       else { toast('Could not accept request'); b.disabled=false; }
     });
-    req.querySelectorAll('[data-dec]').forEach(b=>b.onclick=async()=>{
+    document.querySelectorAll('#reqSection [data-dec], #requestsSection [data-dec]').forEach(b=>b.onclick=async()=>{
       b.disabled=true;
       const r = await apiCallRaw(`/api/connections/requests/${b.dataset.dec}/reject`, { method:'POST' });
       if(r.reachable && r.json && r.json.success){ toast('Request declined'); loadCircleFromServer(); }
       else { toast('Could not decline request'); b.disabled=false; }
     });
-    req.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=async()=>{
+    document.querySelectorAll('#reqSection [data-cancel], #requestsSection [data-cancel]').forEach(b=>b.onclick=async()=>{
       b.disabled=true;
       const r = await apiCallRaw(`/api/connections/requests/${b.dataset.cancel}`, { method:'DELETE' });
       if(r.reachable && r.json && r.json.success){ toast('Request cancelled'); loadCircleFromServer(); }
@@ -1721,12 +1731,14 @@ function renderCircle(){
   }
 
   // ---- local demo mode (no backend attached) — original prototype behaviour ----
-  req.innerHTML = friendRequests.length ? `<h3 style="font-size:15px; margin-bottom:8px;">Friend requests</h3>` + friendRequests.map(r=>`
+  requestSections.forEach(section=>section.innerHTML = friendRequests.length ? `<h3 style="font-size:15px; margin-bottom:8px;">Friend requests</h3>` + friendRequests.map(r=>`
     <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#1F98A9,#DB8236)">${r.name[0]}</div>
     <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.name}</h4><p style="font-size:12px;color:var(--ink-soft);">${r.note}</p></div>
-    <div class="friendActions"><button class="pillBtn primary" data-acc="${r.id}">Accept</button><button class="pillBtn" data-dec="${r.id}">Decline</button></div></div>`).join('') : '';
-  req.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{ toast('Friend request accepted'); b.closest('.reqCard').remove(); });
-  req.querySelectorAll('[data-dec]').forEach(b=>b.onclick=()=>{ toast('Request declined'); b.closest('.reqCard').remove(); });
+    <div class="friendActions"><button class="pillBtn primary" data-acc="${r.id}">Accept</button><button class="pillBtn" data-dec="${r.id}">Decline</button></div></div>`).join('') : '');
+  requestSections.forEach(section=>{
+    section.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{ toast('Friend request accepted'); b.closest('.reqCard').remove(); });
+    section.querySelectorAll('[data-dec]').forEach(b=>b.onclick=()=>{ toast('Request declined'); b.closest('.reqCard').remove(); });
+  });
 
   list.innerHTML='';
   if(friends.length===0){
