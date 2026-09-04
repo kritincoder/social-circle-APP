@@ -6,6 +6,11 @@
 <title>Social Circle</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAxM-KHzmW00p9uMO-FBxFkCIk0Aa5lh-g&libraries=marker,places&loading=async" async defer></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- Set this to your real Google OAuth Client ID once you've created one
+     (Google Cloud Console → Credentials → OAuth client ID → Web application).
+     Leave blank and the app shows a plain note instead of a broken button. -->
+<script>window.GOOGLE_CLIENT_ID = '';</script>
 <style>
 :root{
   --ink:#14171A; --ink-soft:#5A6067; --paper:#FBFAF7; --paper-dim:#F0EEE8; --line:#E3E0D8;
@@ -602,10 +607,28 @@ svg{display:block;}
   <section class="screen" id="screen-profile">
     <div class="screenInner">
       <div class="profileHead">
-        <div class="av" id="profAv">Y</div>
-        <div>
+        <div style="position:relative; flex-shrink:0;">
+          <div class="av" id="profAv">Y</div>
+          <button class="iconBtn" id="avatarEditBtn" title="Change photo" style="position:absolute; bottom:-2px; right:-2px; width:28px; height:28px; background:var(--ink); color:#fff; border:2px solid var(--paper);"></button>
+          <input type="file" id="avatarFileInput" accept="image/jpeg,image/png,image/webp" style="display:none;">
+        </div>
+        <div style="flex:1;">
           <h2 id="profName">You</h2>
           <p class="screenSub" style="margin:2px 0 0;" id="profBio">Exploring Delhi, one recommendation at a time.</p>
+          <div class="feedMeta" style="margin-top:8px;">
+            <button class="pillBtn" id="editProfileBtn"><span data-icon="edit"></span>Edit profile</button>
+            <button class="pillBtn" id="removePhotoBtn" style="display:none;"><span data-icon="trash"></span>Remove photo</button>
+          </div>
+        </div>
+      </div>
+      <div id="editProfileForm" style="display:none; border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:20px;">
+        <div class="createLabel" style="margin-top:0;">Display name</div>
+        <input type="text" id="editDisplayName" style="width:100%;">
+        <div class="createLabel">Bio</div>
+        <textarea id="editBio" style="width:100%; min-height:60px; border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px;"></textarea>
+        <div class="feedMeta" style="margin-top:12px;">
+          <button class="pillBtn primary" id="saveProfileBtn">Save</button>
+          <button class="pillBtn" id="cancelProfileBtn">Cancel</button>
         </div>
       </div>
       <div id="profInterests"></div>
@@ -744,6 +767,11 @@ const ICONS = {
   mic: '<path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v1a7 7 0 01-14 0v-1"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>',
   micOff: '<line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 005.1 2.1"/><path d="M15 5.3V4a3 3 0 00-5.9-.8"/><path d="M19 10v1a7 7 0 01-.6 2.9"/><path d="M5 10v1a7 7 0 007 7c.9 0 1.7-.2 2.5-.5"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>',
   volume: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a4.5 4.5 0 010 7"/><path d="M19 5a9 9 0 010 14"/>',
+  eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="M9.9 4.24A10.4 10.4 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.7 3.9M6.5 6.6C3.4 8.5 1 12 1 12s4 8 11 8a10.4 10.4 0 005.1-1.3"/><path d="M14.1 14.1a3 3 0 01-4.2-4.2"/><line x1="1" y1="1" x2="23" y2="23"/>',
+  camera: '<path d="M4 8h3l1.6-2.4A1 1 0 019.4 5h5.2a1 1 0 01.83.6L16.9 8H20a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2v-9a2 2 0 012-2z"/><circle cx="12" cy="14" r="3.6"/>',
+  trash: '<polyline points="3 6 5 6 21 6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/>',
+  edit: '<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/>',
 };
 function icon(name, size){
   size = size || 20;
@@ -1008,6 +1036,7 @@ function enterApp(user){
   document.getElementById('profName').textContent = displayName;
   document.getElementById('profBio').textContent = user.bio || 'Exploring Delhi, one recommendation at a time.';
   setAvatarDisplay(user.profilePhotoUrl, displayName[0].toUpperCase());
+  if(typeof updateRemovePhotoVisibility === 'function') updateRemovePhotoVisibility();
   document.getElementById('auth').style.display='none';
   document.getElementById('app').classList.add('on');
   track('onboarding_completed',{name:displayName});
@@ -1102,12 +1131,19 @@ function tryInitGoogleButton(attempt){
 }
 tryInitGoogleButton(0);
 
+// A real backend response is well-formed JSON with a `success` boolean.
+// Any other response (a 404 page, an HTML fallback, a network error) means
+// "no backend is attached to this file right now" — not "the backend is
+// broken" — so we fall through to local demo mode instead of showing a
+// permanent, confusing error on every login attempt.
+function isApiResponse(json){ return !!json && typeof json.success === 'boolean'; }
+
 // On load: ask the backend if we already have a session (cookie-based —
 // this is what makes "refresh doesn't log you out" actually true).
 (async function bootstrapAuth(){
   const r = await apiCallRaw('/api/auth/me', { method:'GET' });
-  backendAvailable = r.reachable;
-  if(r.reachable && r.json && r.json.success && r.json.data && r.json.data.user){
+  backendAvailable = r.reachable && isApiResponse(r.json);
+  if(backendAvailable && r.json.success && r.json.data && r.json.data.user){
     enterApp(r.json.data.user);
   }
 })();
@@ -1570,8 +1606,88 @@ setInterval(()=>fetchLiveNews(true), 180000);
 /* =========================================================
    CIRCLE
 ========================================================= */
+let serverConnections = [], serverIncoming = [], serverOutgoing = [];
+
+async function loadCircleFromServer(){
+  const [connRes, reqRes] = await Promise.all([
+    apiCallRaw('/api/connections', { method:'GET' }),
+    apiCallRaw('/api/connections/requests', { method:'GET' })
+  ]);
+  if(connRes.reachable && connRes.json && connRes.json.success) serverConnections = connRes.json.data.connections;
+  if(reqRes.reachable && reqRes.json && reqRes.json.success){
+    serverIncoming = reqRes.json.data.incoming;
+    serverOutgoing = reqRes.json.data.outgoing;
+  }
+  renderCircle();
+}
+
+async function sendConnectionRequest(userId, btn){
+  if(btn){ btn.disabled=true; btn.textContent='Sending…'; }
+  const r = await apiCallRaw('/api/connections/request', { method:'POST', body: JSON.stringify({ userId }) });
+  if(r.reachable && r.json && r.json.success){
+    toast('Request sent');
+    if(btn){ btn.textContent='Request sent'; }
+    loadCircleFromServer();
+  } else {
+    toast((r.json && r.json.error && r.json.error.message) || 'Could not send request');
+    if(btn){ btn.disabled=false; btn.textContent='Connect'; }
+  }
+}
+
 function renderCircle(){
   const req=document.getElementById('reqSection');
+  const list=document.getElementById('friendsList');
+
+  if(backendAvailable){
+    const incomingHtml = serverIncoming.length ? `<h3 style="font-size:15px; margin-bottom:8px;">Connection requests</h3>` + serverIncoming.map(r=>`
+      <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#1F98A9,#DB8236)">${r.display_name[0]}</div>
+      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.display_name}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username}</p></div>
+      <div class="friendActions"><button class="pillBtn primary" data-acc="${r.id}">Accept</button><button class="pillBtn" data-dec="${r.id}">Decline</button></div></div>`).join('') : '';
+    const outgoingHtml = serverOutgoing.length ? `<h3 style="font-size:15px; margin:14px 0 8px;">Sent requests</h3>` + serverOutgoing.map(r=>`
+      <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#54677C,#2C9464)">${r.display_name[0]}</div>
+      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.display_name}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username} \u00b7 pending</p></div>
+      <div class="friendActions"><button class="pillBtn" data-cancel="${r.id}">Cancel</button></div></div>`).join('') : '';
+    req.innerHTML = incomingHtml + outgoingHtml;
+
+    req.querySelectorAll('[data-acc]').forEach(b=>b.onclick=async()=>{
+      b.disabled=true;
+      const r = await apiCallRaw(`/api/connections/requests/${b.dataset.acc}/accept`, { method:'POST' });
+      if(r.reachable && r.json && r.json.success){ toast('Request accepted'); loadCircleFromServer(); }
+      else { toast('Could not accept request'); b.disabled=false; }
+    });
+    req.querySelectorAll('[data-dec]').forEach(b=>b.onclick=async()=>{
+      b.disabled=true;
+      const r = await apiCallRaw(`/api/connections/requests/${b.dataset.dec}/reject`, { method:'POST' });
+      if(r.reachable && r.json && r.json.success){ toast('Request declined'); loadCircleFromServer(); }
+      else { toast('Could not decline request'); b.disabled=false; }
+    });
+    req.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=async()=>{
+      b.disabled=true;
+      const r = await apiCallRaw(`/api/connections/requests/${b.dataset.cancel}`, { method:'DELETE' });
+      if(r.reachable && r.json && r.json.success){ toast('Request cancelled'); loadCircleFromServer(); }
+      else { toast('Could not cancel request'); b.disabled=false; }
+    });
+
+    list.innerHTML='';
+    if(serverConnections.length===0){
+      list.innerHTML = `<div class="emptyState">
+        <p>Your Circle is just getting started.</p>
+        <p class="emptySub">Use the search icon at the top to find people you know by username or name, and send them a connect request.</p>
+      </div>`;
+      return;
+    }
+    serverConnections.forEach(f=>{
+      const row=document.createElement('div'); row.className='friendRow';
+      row.innerHTML=`<div class="friendAv" style="background:linear-gradient(135deg,var(--gold),var(--coral))">${f.display_name[0]}</div>
+        <div><h4>${f.display_name}</h4><p>@${f.username}</p></div>
+        <div class="friendActions"><button class="pillBtn" data-msg="${f.display_name}">Message</button></div>`;
+      list.appendChild(row);
+    });
+    list.querySelectorAll('[data-msg]').forEach(b=>b.onclick=()=>{ switchScreen('messages'); toast(`Opening chat with ${b.dataset.msg} \u2014 messaging isn't wired to the backend yet, see the limitations note.`); });
+    return;
+  }
+
+  // ---- local demo mode (no backend attached) — original prototype behaviour ----
   req.innerHTML = friendRequests.length ? `<h3 style="font-size:15px; margin-bottom:8px;">Friend requests</h3>` + friendRequests.map(r=>`
     <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#1F98A9,#DB8236)">${r.name[0]}</div>
     <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.name}</h4><p style="font-size:12px;color:var(--ink-soft);">${r.note}</p></div>
@@ -1579,11 +1695,11 @@ function renderCircle(){
   req.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{ toast('Friend request accepted'); b.closest('.reqCard').remove(); });
   req.querySelectorAll('[data-dec]').forEach(b=>b.onclick=()=>{ toast('Request declined'); b.closest('.reqCard').remove(); });
 
-  const list=document.getElementById('friendsList'); list.innerHTML='';
+  list.innerHTML='';
   if(friends.length===0){
     list.innerHTML = `<div class="emptyState">
       <p>No friends yet — this circle is empty.</p>
-      <p class="emptySub">Invite people you know; once they join, their saves and recommendations will start showing up here and in your Home feed.</p>
+      <p class="emptySub">Demo mode: no backend is attached, so this list can't be real. Deploy the backend (see chat) to search for real people and connect.</p>
       <button class="pillBtn primary" id="inviteBtn" style="margin-top:10px;">Invite a friend</button>
     </div>`;
     const invBtn=document.getElementById('inviteBtn');
@@ -1948,6 +2064,84 @@ document.getElementById('postSubmit').onclick=()=>{
 /* =========================================================
    PROFILE
 ========================================================= */
+document.getElementById('avatarEditBtn').innerHTML = icon('camera', 16);
+function updateRemovePhotoVisibility(){
+  document.getElementById('removePhotoBtn').style.display = (currentUser && currentUser.profilePhotoUrl) ? 'inline-flex' : 'none';
+}
+document.getElementById('avatarEditBtn').onclick = () => document.getElementById('avatarFileInput').click();
+document.getElementById('avatarFileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  if (!['image/jpeg','image/png','image/webp'].includes(file.type)) { toast('Please choose a JPEG, PNG, or WEBP image'); return; }
+  if (file.size > 4 * 1024 * 1024) { toast('Image must be under 4MB'); return; }
+
+  if (backendAvailable && currentUser && currentUser.id) {
+    const fd = new FormData();
+    fd.append('photo', file);
+    toast('Uploading…');
+    try {
+      const res = await fetch('/api/profile/photo', { method:'POST', body: fd, credentials:'include' });
+      const json = await res.json().catch(()=>null);
+      if (res.ok && json && json.success) {
+        currentUser.profilePhotoUrl = json.data.profilePhotoUrl;
+        setAvatarDisplay(currentUser.profilePhotoUrl, currentUser.displayName[0].toUpperCase());
+        updateRemovePhotoVisibility();
+        toast('Photo updated');
+      } else {
+        toast((json && json.error && json.error.message) || 'Upload failed');
+      }
+    } catch (err) {
+      toast('Upload failed — check your connection');
+    }
+  } else {
+    // Demo mode: preview locally only, nothing persisted.
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAvatarDisplay(reader.result, (currentUser && currentUser.displayName ? currentUser.displayName[0] : 'Y').toUpperCase());
+      if (currentUser) currentUser.profilePhotoUrl = reader.result;
+      updateRemovePhotoVisibility();
+      toast('Demo mode — photo shown locally, not saved');
+    };
+    reader.readAsDataURL(file);
+  }
+});
+document.getElementById('removePhotoBtn').onclick = async () => {
+  if (backendAvailable && currentUser && currentUser.id) {
+    const r = await apiCallRaw('/api/profile/photo', { method:'DELETE' });
+    if (!(r.reachable && r.json && r.json.success)) { toast('Could not remove photo'); return; }
+  }
+  if (currentUser) currentUser.profilePhotoUrl = null;
+  setAvatarDisplay(null, (currentUser && currentUser.displayName ? currentUser.displayName[0] : 'Y').toUpperCase());
+  updateRemovePhotoVisibility();
+  toast('Photo removed');
+};
+
+document.getElementById('editProfileBtn').onclick = () => {
+  document.getElementById('editDisplayName').value = (currentUser && currentUser.displayName) || '';
+  document.getElementById('editBio').value = (currentUser && currentUser.bio) || '';
+  document.getElementById('editProfileForm').style.display = 'block';
+};
+document.getElementById('cancelProfileBtn').onclick = () => { document.getElementById('editProfileForm').style.display = 'none'; };
+document.getElementById('saveProfileBtn').onclick = async () => {
+  const displayName = document.getElementById('editDisplayName').value.trim();
+  const bio = document.getElementById('editBio').value.trim();
+  if (!displayName) { toast('Display name is required'); return; }
+
+  if (backendAvailable && currentUser && currentUser.id) {
+    const r = await apiCallRaw('/api/profile', { method:'PATCH', body: JSON.stringify({ displayName, bio }) });
+    if (!(r.reachable && r.json && r.json.success)) { toast((r.json && r.json.error && r.json.error.message) || 'Could not save'); return; }
+  } else {
+    toast('Demo mode — changes shown locally, not saved');
+  }
+  if (currentUser) { currentUser.displayName = displayName; currentUser.bio = bio; }
+  document.getElementById('profName').textContent = displayName;
+  document.getElementById('profBio').textContent = bio || 'Exploring Delhi, one recommendation at a time.';
+  setAvatarDisplay(currentUser && currentUser.profilePhotoUrl, displayName[0].toUpperCase());
+  document.getElementById('editProfileForm').style.display = 'none';
+  toast('Profile updated');
+};
+
 const interestsEl=document.getElementById('profInterests');
 ['Food','Outdoors','Gaming','Technology','Live music'].forEach(i=>{
   const s=document.createElement('span'); s.className='interestChip'; s.textContent=i; interestsEl.appendChild(s);
@@ -2024,8 +2218,14 @@ document.getElementById('settingsThemeToggle').onclick=()=>applyTheme(!state.dar
     toast(el.classList.contains('on')?'Turned on':'Turned off');
   };
 });
-document.getElementById('logoutBtn').onclick=()=>{
+document.getElementById('logoutBtn').onclick=async()=>{
   endCall();
+  if(backendAvailable) await apiCallRaw('/api/auth/logout', { method:'POST' });
+  currentUser = null;
+  setAvatarDisplay(null, 'Y');
+  document.getElementById('authForm').reset();
+  showAuthError(null);
+  setAuthMode(false);
   document.getElementById('app').classList.remove('on');
   document.getElementById('auth').style.display='flex';
   toast('Logged out');
@@ -2037,17 +2237,40 @@ document.getElementById('logoutBtn').onclick=()=>{
 document.getElementById('searchBtn').onclick=()=>{ document.getElementById('searchOverlay').classList.add('show'); document.getElementById('searchInput').value=''; document.getElementById('searchResults').innerHTML=''; document.getElementById('searchInput').focus(); };
 document.getElementById('searchOverlay').addEventListener('click', e=>{ if(e.target.id==='searchOverlay') e.currentTarget.classList.remove('show'); });
 document.getElementById('searchInput').addEventListener('input', e=>{
-  const q=e.target.value.trim().toLowerCase();
+  const q=e.target.value.trim();
+  const qLower=q.toLowerCase();
   const results=document.getElementById('searchResults');
-  if(!q){ results.innerHTML=''; return; }
+  if(!q){ results.innerHTML=''; if(searchDebounce) clearTimeout(searchDebounce); return; }
   const rows=[];
-  places.filter(p=>p.name.toLowerCase().includes(q)).slice(0,5).forEach(p=>rows.push({label:p.name, type:'Place', action:()=>{document.getElementById('searchOverlay').classList.remove('show'); openPlace(p.id);}}));
-  events.filter(ev=>ev.title.toLowerCase().includes(q)).slice(0,5).forEach(ev=>rows.push({label:ev.title, type:'Event', action:()=>{document.getElementById('searchOverlay').classList.remove('show'); switchScreen('events');}}));
-  districts.filter(d=>d.name.toLowerCase().includes(q)).slice(0,5).forEach(d=>rows.push({label:d.name, type:'District', action:()=>{document.getElementById('searchOverlay').classList.remove('show'); switchScreen('districts');}}));
-  friends.filter(f=>f.name.toLowerCase().includes(q)).slice(0,5).forEach(f=>rows.push({label:f.name, type:'Person', action:()=>{document.getElementById('searchOverlay').classList.remove('show'); switchScreen('circle');}}));
-  results.innerHTML = rows.length ? rows.map((r,i)=>`<div class="searchRow" data-i="${i}">${r.label}<span class="type">${r.type}</span></div>`).join('') : `<p class="screenSub" style="padding:10px 6px;">No matches for "${q}".</p>`;
-  results.querySelectorAll('.searchRow').forEach((el,i)=> el.onclick=()=>rows[i].action());
+  places.filter(p=>p.name.toLowerCase().includes(qLower)).slice(0,5).forEach(p=>rows.push({label:p.name, type:'Place', action:()=>{document.getElementById('searchOverlay').classList.remove('show'); openPlace(p.id);}}));
+  events.filter(ev=>ev.title.toLowerCase().includes(qLower)).slice(0,5).forEach(ev=>rows.push({label:ev.title, type:'Event', action:()=>{document.getElementById('searchOverlay').classList.remove('show'); switchScreen('events');}}));
+  districts.filter(d=>d.name.toLowerCase().includes(qLower)).slice(0,5).forEach(d=>rows.push({label:d.name, type:'District', action:()=>{document.getElementById('searchOverlay').classList.remove('show'); switchScreen('districts');}}));
+  renderSearchRows(rows, q);
+
+  if(searchDebounce) clearTimeout(searchDebounce);
+  if(backendAvailable && q.length >= 2){
+    searchDebounce = setTimeout(async ()=>{
+      const r = await apiCallRaw('/api/users/search?q=' + encodeURIComponent(q), { method:'GET' });
+      if(r.reachable && r.json && r.json.success && document.getElementById('searchInput').value.trim() === q){
+        renderSearchRows(rows, q, r.json.data.users);
+      }
+    }, 300);
+  }
 });
+let searchDebounce = null;
+function renderSearchRows(baseRows, q, people){
+  const results=document.getElementById('searchResults');
+  let html = baseRows.map((r,i)=>`<div class="searchRow" data-local="${i}">${r.label}<span class="type">${r.type}</span></div>`).join('');
+  if(people && people.length){
+    html += people.map(p=>`<div class="searchRow" style="cursor:default;"><span>${p.displayName} <span style="color:var(--ink-soft);">@${p.username}</span></span><button class="pillBtn primary" data-connect="${p.id}" style="padding:5px 12px; font-size:11.5px;">Connect</button></div>`).join('');
+  }
+  if(!baseRows.length && !(people && people.length)){
+    html = `<p class="screenSub" style="padding:10px 6px;">No matches for "${q}".</p>`;
+  }
+  results.innerHTML = html;
+  results.querySelectorAll('[data-local]').forEach(el=> el.onclick=()=>baseRows[+el.dataset.local].action());
+  results.querySelectorAll('[data-connect]').forEach(btn=> btn.onclick=(ev)=>{ ev.stopPropagation(); sendConnectionRequest(btn.dataset.connect, btn); });
+}
 
 /* =========================================================
    NOTIFICATIONS DRAWER
