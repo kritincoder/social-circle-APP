@@ -251,6 +251,7 @@ input, textarea, select{ background:var(--card-bg); color:var(--ink); border:1px
 #notifOverlay.show{display:block;}
 .notifItem{padding:12px 0; border-bottom:1px solid var(--paper-dim); font-size:13.5px;}
 .notifItem .nt{font-size:11px; color:var(--ink-soft); margin-top:3px;}
+.notifActions{display:flex; gap:7px; margin-top:9px;}
 
 /* ============ DISTRICTS SCREEN ============ */
 .districtCard{border:1px solid var(--line); border-radius:16px; overflow:hidden; margin-bottom:14px; background:var(--card-bg); display:flex; flex-wrap:wrap;}
@@ -1005,7 +1006,8 @@ let backendAvailable = null; // becomes true/false after the first real check
 async function apiCallRaw(path, opts){
   try{
     opts = opts || {};
-    opts.headers = Object.assign({'Content-Type':'application/json'}, opts.headers||{});
+    const multipart = typeof FormData !== 'undefined' && opts.body instanceof FormData;
+    opts.headers = Object.assign(multipart ? {} : {'Content-Type':'application/json'}, opts.headers||{});
     opts.credentials = 'include';
     const res = await fetch(path, opts);
     let json = null;
@@ -1015,6 +1017,37 @@ async function apiCallRaw(path, opts){
     return { reachable:false, ok:false, status:0, json:null };
   }
 }
+
+// Shared API-JS facade for this web client and future React/mobile clients.
+window.SocialCircleAPI = Object.freeze({
+  request: apiCallRaw,
+  auth: {
+    me:()=>apiCallRaw('/api/auth/me',{method:'GET'}),
+    signup:data=>apiCallRaw('/api/auth/signup',{method:'POST',body:JSON.stringify(data)}),
+    login:data=>apiCallRaw('/api/auth/login',{method:'POST',body:JSON.stringify(data)}),
+    logout:()=>apiCallRaw('/api/auth/logout',{method:'POST'})
+  },
+  users: { search:q=>apiCallRaw('/api/users/search?q='+encodeURIComponent(q),{method:'GET'}) },
+  connections: {
+    list:()=>apiCallRaw('/api/connections',{method:'GET'}),
+    requests:()=>apiCallRaw('/api/connections/requests',{method:'GET'}),
+    send:userId=>apiCallRaw('/api/connections/request',{method:'POST',body:JSON.stringify({userId})}),
+    accept:id=>apiCallRaw(`/api/connections/requests/${id}/accept`,{method:'POST'}),
+    reject:id=>apiCallRaw(`/api/connections/requests/${id}/reject`,{method:'POST'}),
+    cancel:id=>apiCallRaw(`/api/connections/requests/${id}`,{method:'DELETE'})
+  },
+  profile: {
+    update:data=>apiCallRaw('/api/profile',{method:'PATCH',body:JSON.stringify(data)}),
+    uploadPhoto:file=>{const body=new FormData(); body.append('photo',file); return apiCallRaw('/api/profile/photo',{method:'POST',body});},
+    removePhoto:()=>apiCallRaw('/api/profile/photo',{method:'DELETE'})
+  },
+  social: {
+    feed:()=>apiCallRaw('/api/feed',{method:'GET'}),
+    createPost:data=>apiCallRaw('/api/posts',{method:'POST',body:JSON.stringify(data)}),
+    ratePlace:(placeId,rating)=>apiCallRaw(`/api/places/${encodeURIComponent(placeId)}/rating`,{method:'POST',body:JSON.stringify({rating})}),
+    notifications:()=>apiCallRaw('/api/notifications',{method:'GET'})
+  }
+});
 
 function showAuthError(msg){
   const el=document.getElementById('authError');
@@ -2275,12 +2308,33 @@ function renderSearchRows(baseRows, q, people){
 /* =========================================================
    NOTIFICATIONS DRAWER
 ========================================================= */
-function renderNotifs(){
+async function loadServerNotifs(){
+  if(!backendAvailable) return;
+  const result = await apiCallRaw('/api/notifications',{method:'GET'});
+  if(result.reachable && result.json && result.json.success){
+    renderNotifs(result.json.data.notifications || []);
+    const unread = (result.json.data.notifications || []).some(n=>!n.read_at);
+    const badge=document.getElementById('notifBadge'); if(badge) badge.style.display=unread?'block':'none';
+  }
+}
+function renderNotifs(serverItems=null){
   const list=document.getElementById('notifList');
-  list.innerHTML = notifications.length ? notifications.map(n=>`<div class="notifItem">${n.text}<div class="nt">${n.time}</div></div>`).join('') : `<div class="emptyState"><p>You're all caught up.</p></div>`;
+  const items = serverItems !== null ? serverItems : notifications.map(n=>({title:n.text,created_at:null}));
+  list.innerHTML = items.length ? items.map(n=>{
+    const action = n.type === 'connection_request' && n.request_id ? `<div class="notifActions"><button class="pillBtn primary" data-notif-accept="${n.request_id}">Accept</button><button class="pillBtn" data-notif-decline="${n.request_id}">Decline</button></div>` : '';
+    return `<div class="notifItem"><strong>${n.actor_name ? n.actor_name+' · ' : ''}</strong>${n.title || n.body}${n.body && n.title ? `<div>${n.body}</div>` : ''}<div class="nt">${n.created_at ? new Date(n.created_at).toLocaleString() : 'Recent'}</div>${action}</div>`;
+  }).join('') : `<div class="emptyState"><p>You're all caught up.</p></div>`;
+  list.querySelectorAll('[data-notif-accept]').forEach(button=>button.onclick=()=>respondToNotification(button.dataset.notifAccept,'accept'));
+  list.querySelectorAll('[data-notif-decline]').forEach(button=>button.onclick=()=>respondToNotification(button.dataset.notifDecline,'reject'));
+}
+async function respondToNotification(requestId, action){
+  const result = await apiCallRaw(`/api/connections/requests/${requestId}/${action}`,{method:'POST'});
+  if(result.reachable && result.json && result.json.success){ toast(action === 'accept' ? 'Request accepted' : 'Request declined'); await loadServerNotifs(); loadCircleFromServer(); }
+  else toast((result.json && result.json.error && result.json.error.message) || 'Could not update request');
 }
 renderNotifs();
 document.getElementById('notifBtn').onclick=()=>{
+  loadServerNotifs();
   document.getElementById('notifDrawer').classList.add('show');
   document.getElementById('notifOverlay').classList.add('show');
   const badge=document.getElementById('notifBadge'); if(badge) badge.style.display='none';
