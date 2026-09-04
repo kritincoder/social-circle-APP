@@ -1257,6 +1257,7 @@ function switchScreen(id){
   document.querySelectorAll('.navItem').forEach(n=>n.classList.toggle('active', n.dataset.screen===id));
   if(id==='map' && window._gmap){ setTimeout(()=>google.maps.event.trigger(window._gmap, 'resize'),50); }
   if(id==='news' && newsDeck.length<2){ fetchLiveNews(true); }
+  if((id==='circle' || id==='requests') && backendAvailable && currentUser && currentUser.id){ loadCircleFromServer(); }
 }
 document.querySelectorAll('[data-screen]').forEach(el=>{
   if(el.classList.contains('navItem')) return;
@@ -1745,17 +1746,7 @@ function renderCircle(){
     list.innerHTML = `<div class="emptyState">
       <p>No friends yet — this circle is empty.</p>
       <p class="emptySub">Demo mode: no backend is attached, so this list can't be real. Deploy the backend (see chat) to search for real people and connect.</p>
-      <button class="pillBtn primary" id="inviteBtn" style="margin-top:10px;">Invite a friend</button>
     </div>`;
-    const invBtn=document.getElementById('inviteBtn');
-    if(invBtn) invBtn.onclick=async()=>{
-      invBtn.disabled=true;
-      const link = await getInviteLink();
-      const ok = await copyToClipboard(link);
-      invBtn.disabled=false;
-      toast(ok ? 'Invite link copied' : link);
-      track('invite_sent',{});
-    };
     return;
   }
   friends.forEach(f=>{
