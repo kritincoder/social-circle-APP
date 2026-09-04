@@ -26,8 +26,7 @@ CREATE TABLE IF NOT EXISTS connection_requests (
   status VARCHAR(12) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CHECK (sender_id <> receiver_id),
-  UNIQUE (sender_id, receiver_id)
+  CHECK (sender_id <> receiver_id)
 );
 
 CREATE TABLE IF NOT EXISTS connections (
@@ -53,6 +52,8 @@ CREATE TABLE IF NOT EXISTS user_settings (
 CREATE INDEX IF NOT EXISTS users_username_search ON users (LOWER(username));
 CREATE INDEX IF NOT EXISTS users_email_search ON users (LOWER(email));
 CREATE INDEX IF NOT EXISTS requests_receiver_status ON connection_requests (receiver_id, status);
+ALTER TABLE connection_requests DROP CONSTRAINT IF EXISTS connection_requests_sender_id_receiver_id_key;
+CREATE UNIQUE INDEX IF NOT EXISTS one_pending_request_per_pair ON connection_requests(sender_id, receiver_id) WHERE status = 'pending';
 
 CREATE TABLE IF NOT EXISTS notifications (
   id BIGSERIAL PRIMARY KEY,
