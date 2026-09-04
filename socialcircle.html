@@ -251,6 +251,7 @@ input, textarea, select{ background:var(--card-bg); color:var(--ink); border:1px
 #notifOverlay.show{display:block;}
 .notifItem{padding:12px 0; border-bottom:1px solid var(--paper-dim); font-size:13.5px;}
 .notifItem .nt{font-size:11px; color:var(--ink-soft); margin-top:3px;}
+.notifActions{display:flex; gap:7px; margin-top:9px;}
 
 /* ============ DISTRICTS SCREEN ============ */
 .districtCard{border:1px solid var(--line); border-radius:16px; overflow:hidden; margin-bottom:14px; background:var(--card-bg); display:flex; flex-wrap:wrap;}
@@ -569,6 +570,15 @@ svg{display:block;}
       <div id="reqSection"></div>
       <h3 style="font-size:15px; margin:18px 0 6px;">Your friends</h3>
       <div id="friendsList"></div>
+    </div>
+  </section>
+
+  <!-- REQUESTS -->
+  <section class="screen" id="screen-requests">
+    <div class="screenInner">
+      <h2 class="screenTitle">Friend requests</h2>
+      <p class="screenSub">Review people who want to join your Circle.</p>
+      <div id="requestsSection"></div>
     </div>
   </section>
 
@@ -1194,6 +1204,7 @@ const NAV_PRIMARY = [
    existed in .sidenav, which is display:none on mobile — that was the bug). */
 const NAV_SECONDARY = [
   {id:'circle', label:'Circle', ic:'circle'},
+  {id:'requests', label:'Requests', ic:'bell'},
   {id:'discover', label:'Swipe discovery', ic:'swipe'},
   {id:'districts', label:'Districts', ic:'pin'},
   {id:'events', label:'Events', ic:'calendar'},
@@ -1667,7 +1678,7 @@ async function sendConnectionRequest(userId, btn){
 }
 
 function renderCircle(){
-  const req=document.getElementById('reqSection');
+  const requestSections=[document.getElementById('reqSection'),document.getElementById('requestsSection')].filter(Boolean);
   const list=document.getElementById('friendsList');
 
   if(backendAvailable){
@@ -1679,21 +1690,21 @@ function renderCircle(){
       <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#54677C,#2C9464)">${r.display_name[0]}</div>
       <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.display_name}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username} \u00b7 pending</p></div>
       <div class="friendActions"><button class="pillBtn" data-cancel="${r.id}">Cancel</button></div></div>`).join('') : '';
-    req.innerHTML = incomingHtml + outgoingHtml;
+    requestSections.forEach(section=>section.innerHTML = incomingHtml + outgoingHtml);
 
-    req.querySelectorAll('[data-acc]').forEach(b=>b.onclick=async()=>{
+    document.querySelectorAll('#reqSection [data-acc], #requestsSection [data-acc]').forEach(b=>b.onclick=async()=>{
       b.disabled=true;
       const r = await apiCallRaw(`/api/connections/requests/${b.dataset.acc}/accept`, { method:'POST' });
       if(r.reachable && r.json && r.json.success){ toast('Request accepted'); loadCircleFromServer(); }
       else { toast('Could not accept request'); b.disabled=false; }
     });
-    req.querySelectorAll('[data-dec]').forEach(b=>b.onclick=async()=>{
+    document.querySelectorAll('#reqSection [data-dec], #requestsSection [data-dec]').forEach(b=>b.onclick=async()=>{
       b.disabled=true;
       const r = await apiCallRaw(`/api/connections/requests/${b.dataset.dec}/reject`, { method:'POST' });
       if(r.reachable && r.json && r.json.success){ toast('Request declined'); loadCircleFromServer(); }
       else { toast('Could not decline request'); b.disabled=false; }
     });
-    req.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=async()=>{
+    document.querySelectorAll('#reqSection [data-cancel], #requestsSection [data-cancel]').forEach(b=>b.onclick=async()=>{
       b.disabled=true;
       const r = await apiCallRaw(`/api/connections/requests/${b.dataset.cancel}`, { method:'DELETE' });
       if(r.reachable && r.json && r.json.success){ toast('Request cancelled'); loadCircleFromServer(); }
@@ -1720,12 +1731,14 @@ function renderCircle(){
   }
 
   // ---- local demo mode (no backend attached) — original prototype behaviour ----
-  req.innerHTML = friendRequests.length ? `<h3 style="font-size:15px; margin-bottom:8px;">Friend requests</h3>` + friendRequests.map(r=>`
+  requestSections.forEach(section=>section.innerHTML = friendRequests.length ? `<h3 style="font-size:15px; margin-bottom:8px;">Friend requests</h3>` + friendRequests.map(r=>`
     <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#1F98A9,#DB8236)">${r.name[0]}</div>
     <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.name}</h4><p style="font-size:12px;color:var(--ink-soft);">${r.note}</p></div>
-    <div class="friendActions"><button class="pillBtn primary" data-acc="${r.id}">Accept</button><button class="pillBtn" data-dec="${r.id}">Decline</button></div></div>`).join('') : '';
-  req.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{ toast('Friend request accepted'); b.closest('.reqCard').remove(); });
-  req.querySelectorAll('[data-dec]').forEach(b=>b.onclick=()=>{ toast('Request declined'); b.closest('.reqCard').remove(); });
+    <div class="friendActions"><button class="pillBtn primary" data-acc="${r.id}">Accept</button><button class="pillBtn" data-dec="${r.id}">Decline</button></div></div>`).join('') : '');
+  requestSections.forEach(section=>{
+    section.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{ toast('Friend request accepted'); b.closest('.reqCard').remove(); });
+    section.querySelectorAll('[data-dec]').forEach(b=>b.onclick=()=>{ toast('Request declined'); b.closest('.reqCard').remove(); });
+  });
 
   list.innerHTML='';
   if(friends.length===0){
@@ -2307,12 +2320,33 @@ function renderSearchRows(baseRows, q, people){
 /* =========================================================
    NOTIFICATIONS DRAWER
 ========================================================= */
-function renderNotifs(){
+async function loadServerNotifs(){
+  if(!backendAvailable) return;
+  const result = await apiCallRaw('/api/notifications',{method:'GET'});
+  if(result.reachable && result.json && result.json.success){
+    renderNotifs(result.json.data.notifications || []);
+    const unread = (result.json.data.notifications || []).some(n=>!n.read_at);
+    const badge=document.getElementById('notifBadge'); if(badge) badge.style.display=unread?'block':'none';
+  }
+}
+function renderNotifs(serverItems=null){
   const list=document.getElementById('notifList');
-  list.innerHTML = notifications.length ? notifications.map(n=>`<div class="notifItem">${n.text}<div class="nt">${n.time}</div></div>`).join('') : `<div class="emptyState"><p>You're all caught up.</p></div>`;
+  const items = serverItems !== null ? serverItems : notifications.map(n=>({title:n.text,created_at:null}));
+  list.innerHTML = items.length ? items.map(n=>{
+    const action = n.type === 'connection_request' && n.request_id ? `<div class="notifActions"><button class="pillBtn primary" data-notif-accept="${n.request_id}">Accept</button><button class="pillBtn" data-notif-decline="${n.request_id}">Decline</button></div>` : '';
+    return `<div class="notifItem"><strong>${n.actor_name ? n.actor_name+' · ' : ''}</strong>${n.title || n.body}${n.body && n.title ? `<div>${n.body}</div>` : ''}<div class="nt">${n.created_at ? new Date(n.created_at).toLocaleString() : 'Recent'}</div>${action}</div>`;
+  }).join('') : `<div class="emptyState"><p>You're all caught up.</p></div>`;
+  list.querySelectorAll('[data-notif-accept]').forEach(button=>button.onclick=()=>respondToNotification(button.dataset.notifAccept,'accept'));
+  list.querySelectorAll('[data-notif-decline]').forEach(button=>button.onclick=()=>respondToNotification(button.dataset.notifDecline,'reject'));
+}
+async function respondToNotification(requestId, action){
+  const result = await apiCallRaw(`/api/connections/requests/${requestId}/${action}`,{method:'POST'});
+  if(result.reachable && result.json && result.json.success){ toast(action === 'accept' ? 'Request accepted' : 'Request declined'); await loadServerNotifs(); loadCircleFromServer(); }
+  else toast((result.json && result.json.error && result.json.error.message) || 'Could not update request');
 }
 renderNotifs();
 document.getElementById('notifBtn').onclick=()=>{
+  loadServerNotifs();
   document.getElementById('notifDrawer').classList.add('show');
   document.getElementById('notifOverlay').classList.add('show');
   const badge=document.getElementById('notifBadge'); if(badge) badge.style.display='none';
