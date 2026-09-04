@@ -1653,14 +1653,19 @@ setInterval(()=>fetchLiveNews(true), 180000);
 let serverConnections = [], serverIncoming = [], serverOutgoing = [];
 
 async function loadCircleFromServer(){
+  const requestSections=[document.getElementById('reqSection'),document.getElementById('requestsSection')].filter(Boolean);
+  requestSections.forEach(section=>{ section.innerHTML='<p class="screenSub">Loading requests…</p>'; });
   const [connRes, reqRes] = await Promise.all([
     apiCallRaw('/api/connections', { method:'GET' }),
     apiCallRaw('/api/connections/requests', { method:'GET' })
   ]);
-  if(connRes.reachable && connRes.json && connRes.json.success) serverConnections = connRes.json.data.connections;
+  if(connRes.reachable && connRes.json && connRes.json.success) serverConnections = connRes.json.data?.connections || connRes.json.connections || [];
   if(reqRes.reachable && reqRes.json && reqRes.json.success){
-    serverIncoming = reqRes.json.data.incoming;
-    serverOutgoing = reqRes.json.data.outgoing;
+    const requestData=reqRes.json.data || reqRes.json;
+    serverIncoming = requestData.incoming || [];
+    serverOutgoing = requestData.outgoing || [];
+  } else if(reqRes.reachable){
+    requestSections.forEach(section=>{ section.innerHTML='<div class="emptyState"><p>Requests could not be loaded.</p><p class="emptySub">Please refresh and try again.</p></div>'; });
   }
   renderCircle();
 }
@@ -1683,14 +1688,20 @@ function renderCircle(){
   const list=document.getElementById('friendsList');
 
   if(backendAvailable){
-    const incomingHtml = serverIncoming.length ? `<h3 style="font-size:15px; margin-bottom:8px;">Connection requests</h3>` + serverIncoming.map(r=>`
-      <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#1F98A9,#DB8236)">${r.display_name[0]}</div>
-      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.display_name}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username}</p></div>
-      <div class="friendActions"><button class="pillBtn primary" data-acc="${r.id}">Accept</button><button class="pillBtn" data-dec="${r.id}">Decline</button></div></div>`).join('') : '';
-    const outgoingHtml = serverOutgoing.length ? `<h3 style="font-size:15px; margin:14px 0 8px;">Sent requests</h3>` + serverOutgoing.map(r=>`
-      <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#54677C,#2C9464)">${r.display_name[0]}</div>
-      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.display_name}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username} \u00b7 pending</p></div>
-      <div class="friendActions"><button class="pillBtn" data-cancel="${r.id}">Cancel</button></div></div>`).join('') : '';
+    const incomingHtml = serverIncoming.length ? `<h3 style="font-size:15px; margin-bottom:8px;">Connection requests</h3>` + serverIncoming.map(r=>{
+      const requestId=r.requestId || r.request_id || r.id;
+      const displayName=r.displayName || r.display_name || r.name || 'Friend';
+      return `<div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#1F98A9,#DB8236)">${displayName[0]}</div>
+      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${displayName}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username || ''}</p></div>
+      <div class="friendActions"><button class="pillBtn primary" data-acc="${requestId}">Accept</button><button class="pillBtn" data-dec="${requestId}">Decline</button></div></div>`;
+    }).join('') : '';
+    const outgoingHtml = serverOutgoing.length ? `<h3 style="font-size:15px; margin:14px 0 8px;">Sent requests</h3>` + serverOutgoing.map(r=>{
+      const requestId=r.requestId || r.request_id || r.id;
+      const displayName=r.displayName || r.display_name || r.name || 'Friend';
+      return `<div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#54677C,#2C9464)">${displayName[0]}</div>
+      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${displayName}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username || ''} \u00b7 pending</p></div>
+      <div class="friendActions"><button class="pillBtn" data-cancel="${requestId}">Cancel</button></div></div>`;
+    }).join('') : '';
     requestSections.forEach(section=>section.innerHTML = incomingHtml + outgoingHtml);
 
     document.querySelectorAll('#reqSection [data-acc], #requestsSection [data-acc]').forEach(b=>b.onclick=async()=>{
