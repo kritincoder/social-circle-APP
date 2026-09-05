@@ -651,6 +651,10 @@ svg{display:block;}
     </div>
   </section>
 
+  <section class="screen" id="screen-friend-profile">
+    <div class="screenInner" id="friendProfileBody"></div>
+  </section>
+
   <!-- SETTINGS -->
   <section class="screen" id="screen-settings">
     <div class="screenInner" style="max-width:560px;">
@@ -1733,12 +1737,13 @@ function renderCircle(){
     }
     serverConnections.forEach(f=>{
       const row=document.createElement('div'); row.className='friendRow';
-      row.innerHTML=`<div class="friendAv" style="background:linear-gradient(135deg,var(--gold),var(--coral))">${f.display_name[0]}</div>
-        <div><h4>${f.display_name}</h4><p>@${f.username}</p></div>
-        <div class="friendActions"><button class="pillBtn" data-msg="${f.display_name}">Message</button></div>`;
+      row.innerHTML=`<button class="friendAv" data-profile="${f.id}" style="background:linear-gradient(135deg,var(--gold),var(--coral));border:0">${f.display_name[0]}</button>
+        <div style="cursor:pointer" data-profile="${f.id}"><h4>${f.display_name}</h4><p>@${f.username}</p></div>
+        <div class="friendActions"><button class="pillBtn" data-msg="${f.display_name}" data-msg-id="${f.id}">Message</button></div>`;
       list.appendChild(row);
     });
-    list.querySelectorAll('[data-msg]').forEach(b=>b.onclick=()=>{ switchScreen('messages'); toast(`Opening chat with ${b.dataset.msg} \u2014 messaging isn't wired to the backend yet, see the limitations note.`); });
+    list.querySelectorAll('[data-profile]').forEach(b=>b.onclick=()=>openFriendProfile(b.dataset.profile));
+    list.querySelectorAll('[data-msg]').forEach(b=>b.onclick=()=>openDirectConversation(Number(b.dataset.msgId), b.dataset.msg));
     return;
   }
 
@@ -1788,6 +1793,32 @@ function renderCircle(){
   list.querySelectorAll('[data-report]').forEach(b=>{ b.onclick=()=>{ toast('Report submitted'); track('report_submitted',{friendId:b.dataset.report}); }; });
 }
 renderCircle();
+
+async function openFriendProfile(userId){
+  const result=await apiCallRaw(`/api/users/${userId}`,{method:'GET'});
+  if(!(result.reachable && result.json && result.json.success)){ toast('Could not load this profile'); return; }
+  const user=result.json.data.user;
+  document.getElementById('friendProfileBody').innerHTML=`<button class="pillBtn" onclick="switchScreen('circle')">${icon('back',14)} Back</button>
+    <div class="profileHead" style="margin-top:22px;"><div class="av">${(user.displayName || 'F')[0].toUpperCase()}</div><div><h2>${user.displayName}</h2><p class="screenSub" style="margin:3px 0 0;">@${user.username}</p></div></div>
+    <p class="screenSub">${user.bio || 'A member of your Social Circle.'}</p>
+    <button class="pillBtn primary" data-friend-profile-message="${user.id}">Message ${user.displayName}</button>`;
+  document.querySelector('[data-friend-profile-message]').onclick=()=>openDirectConversation(user.id,user.displayName);
+  switchScreen('friend-profile');
+}
+
+async function openDirectConversation(userId, name){
+  let convo=conversations.find(item=>item.directUserId===userId);
+  if(!convo){ convo={id:`direct-${userId}`,name,isGroup:false,directUserId:userId,unread:0,messages:[]}; conversations.push(convo); }
+  const result=await apiCallRaw(`/api/messages/${userId}`,{method:'GET'});
+  if(result.reachable && result.json && result.json.success){
+    convo.messages=(result.json.data.messages || []).map(message=>({from:message.sender_id===currentUser.id?'me':'them',text:message.content,createdAt:message.created_at}));
+  }
+  state.activeConvo=convo.id;
+  renderConvoList(); renderThread();
+  document.getElementById('msgWrap').classList.add('threadOpen');
+  switchScreen('messages');
+  track('chat_started',{with:name,userId});
+}
 
 /* =========================================================
    MESSAGES
@@ -1876,7 +1907,15 @@ document.getElementById('msgInput').addEventListener('keydown', e=>{ if(e.key===
 function sendMsg(){
   const input=document.getElementById('msgInput'); const val=input.value.trim();
   if(!val || !state.activeConvo) return;
-  conversations.find(c=>c.id===state.activeConvo).messages.push({from:'me', text:val});
+  const convo=conversations.find(c=>c.id===state.activeConvo);
+  if(convo.directUserId){
+    apiCallRaw(`/api/messages/${convo.directUserId}`,{method:'POST',body:JSON.stringify({content:val})}).then(result=>{
+      if(!(result.reachable && result.json && result.json.success)){ toast('Message could not be sent'); return; }
+      convo.messages.push({from:'me',text:val}); input.value=''; renderThread(); renderConvoList();
+    });
+    return;
+  }
+  convo.messages.push({from:'me', text:val});
   input.value=''; renderThread(); renderConvoList();
 }
 document.getElementById('backBtn').onclick=()=>document.getElementById('msgWrap').classList.remove('threadOpen');
