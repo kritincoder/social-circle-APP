@@ -5,7 +5,8 @@ const crypto = require('crypto');
 const multer = require('multer');
 const { pool, hashPassword, validPassword, publicUser, currentUser, createSession, sessionCookie } = require('./auth');
 const { ok, fail } = require('./response');
-const { notifyUser } = require('./realtime');
+let notifyUser = () => {};
+try { ({ notifyUser } = require('./realtime')); } catch (error) { console.warn('Realtime transport unavailable; continuing without realtime notifications.'); }
 
 const upload = multer({ dest: path.join(__dirname, '..', 'uploads'), limits: { fileSize: 5 * 1024 * 1024 } });
 const root = path.join(__dirname, '..');
