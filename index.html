@@ -1031,6 +1031,26 @@ async function apiCallRaw(path, opts){
   }
 }
 
+let realtimeSocket=null, realtimeRetry=null;
+let activeCall=null, activePeer=null, activeLocalStream=null;
+function connectRealtime(){
+  if(!backendAvailable || !currentUser || realtimeSocket) return;
+  const protocol=location.protocol==='https:'?'wss':'ws';
+  realtimeSocket=new WebSocket(`${protocol}://${location.host}/realtime`);
+  realtimeSocket.onmessage=event=>{ try{ const message=JSON.parse(event.data); handleRealtimeEvent(message.event,message.data||{}); }catch(error){} };
+  realtimeSocket.onclose=()=>{ realtimeSocket=null; if(!realtimeRetry) realtimeRetry=setTimeout(()=>{realtimeRetry=null; connectRealtime();},3000); };
+}
+function sendRealtime(event,data){ if(realtimeSocket && realtimeSocket.readyState===1) realtimeSocket.send(JSON.stringify({event,data})); }
+function handleRealtimeEvent(event,data){
+  if(event==='notification'){ loadServerNotifs(); if(data.type==='connection_accepted'){ toast('Your connection request was accepted'); loadCircleFromServer(); } }
+  if(event==='message:new'){ const message=data.message; const friendId=message.sender_id===currentUser.id?message.receiver_id:message.sender_id; const convo=conversations.find(item=>item.directUserId===friendId || (data.circleId && item.circleId===data.circleId)); if(convo){ convo.messages.push({from:message.sender_id===currentUser.id?'me':'them',text:message.content,createdAt:message.created_at}); if(state.activeConvo===convo.id){ renderThread(); } else { toast(`New message from ${convo.name}`); } } }
+  if(event==='call:incoming') showIncomingCall(data.call);
+  if(event==='call:response') handleCallResponse(data);
+  if(event==='call:signal') handleCallSignal(data);
+  if(event==='call:ended') endRealCall(false);
+}
+function sendCallSignal(data){ sendRealtime('call:signal',data); }
+
 // Shared API-JS facade for this web client and future React/mobile clients.
 window.SocialCircleAPI = Object.freeze({
   request: apiCallRaw,
@@ -1088,7 +1108,7 @@ function enterApp(user){
   track('onboarding_completed',{name:displayName});
   initMap();
   loadPersistedState();
-  if(backendAvailable && user.id) loadCircleFromServer();
+  if(backendAvailable && user.id){ loadCircleFromServer(); connectRealtime(); }
   const params=new URLSearchParams(location.search);
   if(params.get('place')) setTimeout(()=>openPlace(params.get('place')), 300);
 }
@@ -1262,6 +1282,7 @@ function switchScreen(id){
   if(id==='map' && window._gmap){ setTimeout(()=>google.maps.event.trigger(window._gmap, 'resize'),50); }
   if(id==='news' && newsDeck.length<2){ fetchLiveNews(true); }
   if((id==='circle' || id==='requests') && backendAvailable && currentUser && currentUser.id){ loadCircleFromServer(); }
+  if(id==='messages' && backendAvailable && currentUser && currentUser.id){ loadConversationsFromServer(); }
 }
 document.querySelectorAll('[data-screen]').forEach(el=>{
   if(el.classList.contains('navItem')) return;
@@ -1672,6 +1693,7 @@ async function loadCircleFromServer(){
     requestSections.forEach(section=>{ section.innerHTML='<div class="emptyState"><p>Requests could not be loaded.</p><p class="emptySub">Please refresh and try again.</p></div>'; });
   }
   renderCircle();
+  loadConversationsFromServer();
 }
 
 async function sendConnectionRequest(userId, btn){
@@ -1698,7 +1720,7 @@ function renderCircle(){
       const userId=r.userId || r.user_id || r.id;
       return `<div class="reqCard"><button class="friendAv" data-profile="${userId}" style="background:linear-gradient(135deg,#1F98A9,#DB8236);border:0">${displayName[0]}</button>
       <div style="flex:1;cursor:pointer" data-profile="${userId}"><h4 style="font-size:14px;font-weight:600;">${displayName}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username || ''}</p></div>
-      <div class="friendActions"><button class="pillBtn" data-profile="${userId}">View profile</button><button class="pillBtn primary" data-acc="${requestId}">Accept</button><button class="pillBtn" data-dec="${requestId}">Decline</button></div></div>`;
+      <div class="friendActions"><button class="pillBtn" data-profile="${userId}">View profile</button><button class="pillBtn" data-request-msg="${userId}" data-request-name="${displayName}">Message</button><button class="pillBtn primary" data-acc="${requestId}">Accept</button><button class="pillBtn" data-dec="${requestId}">Decline</button></div></div>`;
     }).join('') : '';
     const outgoingHtml = serverOutgoing.length ? `<h3 style="font-size:15px; margin:14px 0 8px;">Sent requests</h3>` + serverOutgoing.map(r=>{
       const requestId=r.requestId || r.request_id || r.id;
@@ -1706,11 +1728,12 @@ function renderCircle(){
       const userId=r.userId || r.user_id || r.id;
       return `<div class="reqCard"><button class="friendAv" data-profile="${userId}" style="background:linear-gradient(135deg,#54677C,#2C9464);border:0">${displayName[0]}</button>
       <div style="flex:1;cursor:pointer" data-profile="${userId}"><h4 style="font-size:14px;font-weight:600;">${displayName}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username || ''} \u00b7 pending</p></div>
-      <div class="friendActions"><button class="pillBtn" data-profile="${userId}">View profile</button><button class="pillBtn" data-cancel="${requestId}">Cancel</button></div></div>`;
+      <div class="friendActions"><button class="pillBtn" data-profile="${userId}">View profile</button><button class="pillBtn" data-request-msg="${userId}" data-request-name="${displayName}">Message</button><button class="pillBtn" data-cancel="${requestId}">Cancel</button></div></div>`;
     }).join('') : '';
     requestSections.forEach(section=>section.innerHTML = incomingHtml + outgoingHtml);
 
     document.querySelectorAll('#reqSection [data-profile], #requestsSection [data-profile]').forEach(button=>button.onclick=()=>openFriendProfile(button.dataset.profile));
+    document.querySelectorAll('#reqSection [data-request-msg], #requestsSection [data-request-msg]').forEach(button=>button.onclick=()=>openDirectConversation(Number(button.dataset.requestMsg), button.dataset.requestName));
 
     document.querySelectorAll('#reqSection [data-acc], #requestsSection [data-acc]').forEach(b=>b.onclick=async()=>{
       b.disabled=true;
@@ -1799,6 +1822,21 @@ function renderCircle(){
 }
 renderCircle();
 
+async function loadConversationsFromServer(){
+  if(!backendAvailable || !currentUser) return;
+  serverConnections.forEach(friend=>{
+    const friendId=friend.id;
+    if(!conversations.some(convo=>convo.directUserId===friendId)) conversations.push({id:`direct-${friendId}`,name:friend.displayName||friend.display_name||'Friend',isGroup:false,directUserId:friendId,unread:0,messages:[]});
+  });
+  const result=await apiCallRaw('/api/circles',{method:'GET'});
+  if(result.reachable && result.json && result.json.success){
+    (result.json.data.circles || []).forEach(circle=>{
+      if(!conversations.some(convo=>convo.circleId===circle.id)) conversations.push({id:`circle-${circle.id}`,name:circle.name,isGroup:true,circleId:circle.id,unread:0,messages:[]});
+    });
+  }
+  renderConvoList();
+}
+
 async function openFriendProfile(userId){
   const result=await apiCallRaw(`/api/users/${userId}`,{method:'GET'});
   if(!(result.reachable && result.json && result.json.success)){ toast('Could not load this profile'); return; }
@@ -1836,19 +1874,30 @@ function renderConvoList(){
   }
   conversations.forEach(c=>{
     const last=c.messages[c.messages.length-1];
-    const preview = last.shared ? (icon('pin',12) + ' ' + last.shared.title) : last.text;
+    const preview = last ? (last.shared ? (icon('pin',12) + ' ' + last.shared.title) : last.text) : 'No messages yet';
     const el=document.createElement('div'); el.className='convoItem'+(c.id===state.activeConvo?' active':'');
     el.innerHTML=`<div class="convoAvatar">${c.name[0]}</div><div><h4>${c.name}</h4><p>${preview}</p></div>`;
-    el.onclick=()=>{ state.activeConvo=c.id; renderConvoList(); renderThread(); document.getElementById('msgWrap').classList.add('threadOpen'); track('chat_started',{convo:c.id}); };
+    el.onclick=()=>openConversation(c);
     list.appendChild(el);
   });
 }
+async function openConversation(convo){
+  state.activeConvo=convo.id;
+  if(convo.directUserId) await openDirectConversation(convo.directUserId,convo.name);
+  else if(convo.circleId){
+    const result=await apiCallRaw(`/api/circles/${convo.circleId}/messages`,{method:'GET'});
+    if(result.reachable && result.json && result.json.success) convo.messages=(result.json.data.messages||[]).map(message=>({from:message.sender_id===currentUser.id?'me':'them',name:message.display_name,text:message.content,createdAt:message.created_at}));
+    renderConvoList(); renderThread(); document.getElementById('msgWrap').classList.add('threadOpen'); track('group_chat_started',{circleId:convo.circleId});
+  }
+}
 document.getElementById('newGroupBtn').onclick=()=>{
-  if(friends.length<2){ toast('Add at least two friends before starting a group'); return; }
+  if(backendAvailable && serverConnections.length<2){ toast('Add at least two friends before starting a group'); return; }
+  if(!backendAvailable && friends.length<2){ toast('Add at least two friends before starting a group'); return; }
   openNewGroup();
 };
 function openNewGroup(){
-  const rows = friends.map(f=>`<label class="groupPickRow"><input type="checkbox" value="${f.id}"> <span class="friendAv" style="background:${f.avatarBg}; width:32px; height:32px; font-size:12px;">${f.name[0]}</span> ${f.name}</label>`).join('');
+  const groupFriends=backendAvailable?serverConnections:friends;
+  const rows = groupFriends.map(f=>{ const name=f.displayName||f.display_name||f.name; return `<label class="groupPickRow"><input type="checkbox" value="${f.id}"> <span class="friendAv" style="background:${f.avatarBg||'linear-gradient(135deg,var(--gold),var(--coral))'}; width:32px; height:32px; font-size:12px;">${name[0]}</span> ${name}</label>`; }).join('');
   const html = `
     <h3 style="font-size:18px;">New group</h3>
     <p class="screenSub" style="margin:4px 0 14px;">Pick who's in it, then give it a name.</p>
@@ -1859,11 +1908,18 @@ function openNewGroup(){
   `;
   document.getElementById('groupOverlayBody').innerHTML = html;
   document.getElementById('groupOverlay').classList.add('show');
-  document.getElementById('groupCreateBtn').onclick=()=>{
+  document.getElementById('groupCreateBtn').onclick=async()=>{
     const picked = [...document.querySelectorAll('#groupPickList input:checked')].map(i=>i.value);
     const name = document.getElementById('groupNameInput').value.trim();
     if(picked.length<2){ toast('Pick at least two friends for a group'); return; }
     if(!name){ toast('Give the group a name'); return; }
+    if(backendAvailable){
+      const result=await apiCallRaw('/api/circles',{method:'POST',body:JSON.stringify({name,memberIds:picked})});
+      if(!(result.reachable && result.json && result.json.success)){ toast((result.json&&result.json.error&&result.json.error.message)||'Could not create group'); return; }
+      const circle=result.json.data.circle;
+      conversations.push({id:`circle-${circle.id}`,name:circle.name,isGroup:true,circleId:circle.id,unread:0,messages:[]});
+      renderConvoList(); document.getElementById('groupOverlay').classList.remove('show'); toast('Group created'); return;
+    }
     const id = 'c'+(conversations.length+1)+Math.random().toString(36).slice(2,5);
     conversations.push({id, name, isGroup:true, unread:0, messages:[{from:'them', name:friends.find(f=>f.id===picked[0]).name, text:'Group created \u2014 say hi!'}]});
     state.activeConvo=id;
@@ -1913,6 +1969,13 @@ function sendMsg(){
   const input=document.getElementById('msgInput'); const val=input.value.trim();
   if(!val || !state.activeConvo) return;
   const convo=conversations.find(c=>c.id===state.activeConvo);
+  if(convo.circleId){
+    apiCallRaw(`/api/circles/${convo.circleId}/messages`,{method:'POST',body:JSON.stringify({content:val})}).then(result=>{
+      if(!(result.reachable && result.json && result.json.success)){ toast((result.json&&result.json.error&&result.json.error.message)||'Message could not be sent'); return; }
+      convo.messages.push({from:'me',text:val}); input.value=''; renderThread(); renderConvoList();
+    });
+    return;
+  }
   if(convo.directUserId){
     apiCallRaw(`/api/messages/${convo.directUserId}`,{method:'POST',body:JSON.stringify({content:val})}).then(result=>{
       if(!(result.reachable && result.json && result.json.success)){ toast('Message could not be sent'); return; }
@@ -1930,6 +1993,59 @@ renderConvoList(); renderThread();
    VOICE / VIDEO CALLS — synthesized ringtone, ring→connect flow
 ========================================================= */
 let audioCtx=null;
+async function startRealCall(userId,name,callType){
+  if(!backendAvailable){ toast('Calling requires the server connection'); return; }
+  const result=await apiCallRaw('/api/calls',{method:'POST',body:JSON.stringify({calleeId:userId,callType})});
+  if(!(result.reachable && result.json && result.json.success)){ toast((result.json&&result.json.error&&result.json.error.message)||'Could not start call'); return; }
+  activeCall=result.json.data.call; activeCall.peerUserId=userId; activeCall.isCaller=true; activeCall.name=name;
+  try { activeLocalStream=await navigator.mediaDevices.getUserMedia({audio:true,video:callType==='video'}); } catch(error) { toast('Camera or microphone permission was denied'); await endRealCall(false); return; }
+  showRealCallShell(name,callType,'Calling…');
+}
+function showRealCallShell(name,callType,status){
+  const card=document.querySelector('#callOverlay .callCard'); card.classList.toggle('videoMode',callType==='video');
+  callState={muted:false,camera:true,speaker:false,video:callType==='video'};
+  document.getElementById('callName').textContent=name||'Friend'; document.getElementById('callStatusText').textContent=status; document.getElementById('ringDot').style.display='inline-block';
+  const frame=document.getElementById('callVideoFrame'); frame.classList.toggle('on',callType==='video'); frame.innerHTML=callType==='video'?'<video id="remoteCallVideo" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>':'';
+  document.getElementById('callOverlay').classList.add('show'); updateCallButtons();
+}
+function showIncomingCall(call){
+  if(activeCall) return;
+  activeCall={...call,peerUserId:call.caller_id,isCaller:false,name:'Incoming call'}; showRealCallShell('Incoming call',call.call_type,'Incoming '+call.call_type+' call');
+  const controls=document.querySelector('#callOverlay .callControls'); controls.querySelectorAll('[data-incoming-call]').forEach(button=>button.remove());
+  const accept=document.createElement('button'); accept.className='callBtn active'; accept.textContent='Accept'; accept.dataset.incomingCall='accept';
+  const decline=document.createElement('button'); decline.className='callBtn end'; decline.textContent='Decline'; decline.dataset.incomingCall='decline';
+  controls.prepend(decline,accept); accept.onclick=()=>acceptRealCall(); decline.onclick=()=>endRealCall(true);
+}
+async function acceptRealCall(){
+  if(!activeCall) return;
+  const result=await apiCallRaw(`/api/calls/${activeCall.id}/respond`,{method:'POST',body:JSON.stringify({accept:true})});
+  if(!(result.reachable && result.json && result.json.success)){ toast('Could not accept call'); return; }
+  try { activeLocalStream=await navigator.mediaDevices.getUserMedia({audio:true,video:activeCall.call_type==='video'}); } catch(error) { toast('Camera or microphone permission was denied'); return; }
+  document.querySelectorAll('[data-incoming-call]').forEach(button=>button.remove()); await setupPeer(); document.getElementById('callStatusText').textContent='Connected'; document.getElementById('ringDot').style.display='none';
+}
+async function setupPeer(){
+  activePeer=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+  activeLocalStream.getTracks().forEach(track=>activePeer.addTrack(track,activeLocalStream));
+  activePeer.onicecandidate=event=>{ if(event.candidate) sendCallSignal({toUserId:activeCall.peerUserId,callId:activeCall.id,type:'candidate',candidate:event.candidate}); };
+  activePeer.ontrack=event=>{ const video=document.getElementById('remoteCallVideo'); if(video) video.srcObject=event.streams[0]; };
+  if(activeCall.isCaller){ const offer=await activePeer.createOffer(); await activePeer.setLocalDescription(offer); sendCallSignal({toUserId:activeCall.peerUserId,callId:activeCall.id,type:'offer',description:offer}); }
+}
+async function handleCallResponse(data){
+  if(!activeCall || data.call.id!==activeCall.id || !data.accepted) return;
+  await setupPeer(); document.getElementById('callStatusText').textContent='Connected'; document.getElementById('ringDot').style.display='none';
+}
+async function handleCallSignal(data){
+  if(!activeCall || data.callId!==activeCall.id) return;
+  if(!activePeer) await setupPeer();
+  if(data.type==='offer'){ await activePeer.setRemoteDescription(data.description); const answer=await activePeer.createAnswer(); await activePeer.setLocalDescription(answer); sendCallSignal({toUserId:data.fromUserId,callId:activeCall.id,type:'answer',description:answer}); }
+  if(data.type==='answer') await activePeer.setRemoteDescription(data.description);
+  if(data.type==='candidate' && data.candidate) await activePeer.addIceCandidate(data.candidate);
+}
+async function endRealCall(notifyServer=true){
+  if(notifyServer && activeCall) await apiCallRaw(`/api/calls/${activeCall.id}/end`,{method:'POST'});
+  if(activePeer){ activePeer.close(); activePeer=null; } if(activeLocalStream){ activeLocalStream.getTracks().forEach(track=>track.stop()); activeLocalStream=null; }
+  activeCall=null; document.getElementById('callOverlay').classList.remove('show'); document.querySelectorAll('[data-incoming-call]').forEach(button=>button.remove());
+}
 function getAudioCtx(){
   if(!audioCtx){
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -2021,24 +2137,27 @@ function endCall(){
   card.classList.remove('ringing','videoMode');
   track('call_ended', {seconds:callSeconds});
 }
-document.getElementById('callMute').onclick=()=>{ callState.muted=!callState.muted; updateCallButtons(); toast(callState.muted?'Muted':'Unmuted'); };
+document.getElementById('callMute').onclick=()=>{ callState.muted=!callState.muted; if(activeLocalStream) activeLocalStream.getAudioTracks().forEach(track=>track.enabled=!callState.muted); updateCallButtons(); toast(callState.muted?'Muted':'Unmuted'); };
 document.getElementById('callSpeaker').onclick=()=>{ callState.speaker=!callState.speaker; updateCallButtons(); toast(callState.speaker?'Speaker on':'Speaker off'); };
 document.getElementById('callCamera').onclick=()=>{
   if(!callState.video) return;
   callState.camera=!callState.camera; updateCallButtons();
+  if(activeLocalStream) activeLocalStream.getVideoTracks().forEach(track=>track.enabled=callState.camera);
   document.getElementById('callVideoFrame').style.opacity = callState.camera?1:0.15;
   toast(callState.camera?'Camera on':'Camera off');
 };
-document.getElementById('callEnd').onclick=endCall;
+document.getElementById('callEnd').onclick=()=>endRealCall(true);
 document.getElementById('callBtn').onclick=()=>{
   const c=conversations.find(x=>x.id===state.activeConvo);
   if(!c){ toast('Open a conversation first'); return; }
-  openCall(c.name, false);
+  if(!c.directUserId){ toast('Audio calls are currently one-to-one only'); return; }
+  startRealCall(c.directUserId,c.name,'audio');
 };
 document.getElementById('videoCallBtn').onclick=()=>{
   const c=conversations.find(x=>x.id===state.activeConvo);
   if(!c){ toast('Open a conversation first'); return; }
-  openCall(c.name, true);
+  if(!c.directUserId){ toast('Video calls are currently one-to-one only'); return; }
+  startRealCall(c.directUserId,c.name,'video');
 };
 
 /* =========================================================
@@ -2310,7 +2429,7 @@ document.getElementById('settingsThemeToggle').onclick=()=>applyTheme(!state.dar
   };
 });
 document.getElementById('logoutBtn').onclick=async()=>{
-  endCall();
+  endRealCall(false);
   if(backendAvailable) await apiCallRaw('/api/auth/logout', { method:'POST' });
   currentUser = null;
   setAvatarDisplay(null, 'Y');
@@ -2379,11 +2498,14 @@ function renderNotifs(serverItems=null){
   const list=document.getElementById('notifList');
   const items = serverItems !== null ? serverItems : notifications.map(n=>({title:n.text,created_at:null}));
   list.innerHTML = items.length ? items.map(n=>{
-    const action = n.type === 'connection_request' && n.request_id ? `<div class="notifActions"><button class="pillBtn primary" data-notif-accept="${n.request_id}">Accept</button><button class="pillBtn" data-notif-decline="${n.request_id}">Decline</button></div>` : '';
+    const requestUserId=n.actor_id || n.user_id;
+    const action = n.type === 'connection_request' && n.request_id ? `<div class="notifActions"><button class="pillBtn primary" data-notif-accept="${n.request_id}">Accept</button><button class="pillBtn" data-notif-decline="${n.request_id}">Decline</button><button class="pillBtn" data-notif-profile="${requestUserId}">Profile</button></div>` : n.type === 'connection_accepted' && requestUserId ? `<div class="notifActions"><button class="pillBtn primary" data-notif-message="${requestUserId}" data-notif-name="${n.actor_name || 'Friend'}">Message</button><button class="pillBtn" data-notif-profile="${requestUserId}">Profile</button></div>` : '';
     return `<div class="notifItem"><strong>${n.actor_name ? n.actor_name+' · ' : ''}</strong>${n.title || n.body}${n.body && n.title ? `<div>${n.body}</div>` : ''}<div class="nt">${n.created_at ? new Date(n.created_at).toLocaleString() : 'Recent'}</div>${action}</div>`;
   }).join('') : `<div class="emptyState"><p>You're all caught up.</p></div>`;
   list.querySelectorAll('[data-notif-accept]').forEach(button=>button.onclick=()=>respondToNotification(button.dataset.notifAccept,'accept'));
   list.querySelectorAll('[data-notif-decline]').forEach(button=>button.onclick=()=>respondToNotification(button.dataset.notifDecline,'reject'));
+  list.querySelectorAll('[data-notif-profile]').forEach(button=>button.onclick=()=>openFriendProfile(button.dataset.notifProfile));
+  list.querySelectorAll('[data-notif-message]').forEach(button=>button.onclick=()=>openDirectConversation(Number(button.dataset.notifMessage),button.dataset.notifName));
 }
 async function respondToNotification(requestId, action){
   const result = await apiCallRaw(`/api/connections/requests/${requestId}/${action}`,{method:'POST'});
