@@ -139,6 +139,19 @@ CREATE TABLE IF NOT EXISTS group_calls (
   ended_at TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS call_sessions (
+  id BIGSERIAL PRIMARY KEY,
+  caller_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  callee_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  call_type VARCHAR(10) NOT NULL CHECK (call_type IN ('audio','video')),
+  status VARCHAR(12) NOT NULL DEFAULT 'ringing' CHECK (status IN ('ringing','active','declined','ended')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ended_at TIMESTAMPTZ,
+  CHECK (caller_id <> callee_id)
+);
+
+CREATE INDEX IF NOT EXISTS call_sessions_callee_status ON call_sessions(callee_id, status);
+
 CREATE TABLE IF NOT EXISTS invites (
   code VARCHAR(40) PRIMARY KEY,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
