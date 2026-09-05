@@ -1663,7 +1663,7 @@ async function loadCircleFromServer(){
     apiCallRaw('/api/connections', { method:'GET' }),
     apiCallRaw('/api/connections/requests', { method:'GET' })
   ]);
-  if(connRes.reachable && connRes.json && connRes.json.success) serverConnections = connRes.json.data?.connections || connRes.json.connections || [];
+  if(connRes.reachable && connRes.json && connRes.json.success) serverConnections = connRes.json.data?.connections || connRes.json.data?.users || connRes.json.connections || connRes.json.users || [];
   if(reqRes.reachable && reqRes.json && reqRes.json.success){
     const requestData=reqRes.json.data || reqRes.json;
     serverIncoming = requestData.incoming || [];
@@ -1737,9 +1737,10 @@ function renderCircle(){
     }
     serverConnections.forEach(f=>{
       const row=document.createElement('div'); row.className='friendRow';
-      row.innerHTML=`<button class="friendAv" data-profile="${f.id}" style="background:linear-gradient(135deg,var(--gold),var(--coral));border:0">${f.display_name[0]}</button>
-        <div style="cursor:pointer" data-profile="${f.id}"><h4>${f.display_name}</h4><p>@${f.username}</p></div>
-        <div class="friendActions"><button class="pillBtn" data-msg="${f.display_name}" data-msg-id="${f.id}">Message</button></div>`;
+      const friendName=f.displayName || f.display_name || f.name || 'Friend';
+      row.innerHTML=`<button class="friendAv" data-profile="${f.id}" style="background:linear-gradient(135deg,var(--gold),var(--coral));border:0">${friendName[0]}</button>
+        <div style="cursor:pointer" data-profile="${f.id}"><h4>${friendName}</h4><p>@${f.username}</p></div>
+        <div class="friendActions"><button class="pillBtn" data-msg="${friendName}" data-msg-id="${f.id}">Message</button></div>`;
       list.appendChild(row);
     });
     list.querySelectorAll('[data-profile]').forEach(b=>b.onclick=()=>openFriendProfile(b.dataset.profile));
