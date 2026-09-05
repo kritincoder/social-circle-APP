@@ -21,6 +21,10 @@ The API runs on the same origin as the website. On first startup it applies `sch
 - `/api/places/:placeId/rating`: private friend ratings
 - `/api/notifications`: connection/app notifications
 - `/api/state`: preferences and saved places/events
-- Database tables also cover circles, members, messages, calls, and invites for the next UI slices.
+- `/api/messages/:userId`: persistent one-to-one messages between accepted friends
+- `/api/circles`: persisted groups and group messages
+- `/api/calls`: authenticated one-to-one audio/video call sessions
+
+Authenticated realtime events are delivered over `/realtime` using WebSocket. One-to-one calls use browser WebRTC with Google STUN as a default. Production deployments should configure TURN servers for users behind restrictive NATs. Group calls are not enabled until a multi-party SFU or mesh signaling policy is selected; the UI does not claim that the existing group buttons are working calls.
 
 Production should set a strong `ADMIN_PASSWORD`, use HTTPS, and provide a managed PostgreSQL `DATABASE_URL`.
