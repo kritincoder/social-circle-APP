@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS connection_requests (
   status VARCHAR(12) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CHECK (sender_id <> receiver_id)
+  CHECK (sender_id <> receiver_id),
+  UNIQUE (sender_id, receiver_id)
 );
 
 CREATE TABLE IF NOT EXISTS connections (
@@ -52,14 +53,11 @@ CREATE TABLE IF NOT EXISTS user_settings (
 CREATE INDEX IF NOT EXISTS users_username_search ON users (LOWER(username));
 CREATE INDEX IF NOT EXISTS users_email_search ON users (LOWER(email));
 CREATE INDEX IF NOT EXISTS requests_receiver_status ON connection_requests (receiver_id, status);
-ALTER TABLE connection_requests DROP CONSTRAINT IF EXISTS connection_requests_sender_id_receiver_id_key;
-CREATE UNIQUE INDEX IF NOT EXISTS one_pending_request_per_pair ON connection_requests(sender_id, receiver_id) WHERE status = 'pending';
 
 CREATE TABLE IF NOT EXISTS notifications (
   id BIGSERIAL PRIMARY KEY,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   actor_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
-  request_id BIGINT REFERENCES connection_requests(id) ON DELETE CASCADE,
   type VARCHAR(40) NOT NULL,
   title VARCHAR(160) NOT NULL,
   body TEXT NOT NULL DEFAULT '',
@@ -139,19 +137,6 @@ CREATE TABLE IF NOT EXISTS group_calls (
   ended_at TIMESTAMPTZ
 );
 
-CREATE TABLE IF NOT EXISTS call_sessions (
-  id BIGSERIAL PRIMARY KEY,
-  caller_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  callee_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  call_type VARCHAR(10) NOT NULL CHECK (call_type IN ('audio','video')),
-  status VARCHAR(12) NOT NULL DEFAULT 'ringing' CHECK (status IN ('ringing','active','declined','ended')),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  ended_at TIMESTAMPTZ,
-  CHECK (caller_id <> callee_id)
-);
-
-CREATE INDEX IF NOT EXISTS call_sessions_callee_status ON call_sessions(callee_id, status);
-
 CREATE TABLE IF NOT EXISTS invites (
   code VARCHAR(40) PRIMARY KEY,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -177,6 +162,5 @@ CREATE TABLE IF NOT EXISTS content_reactions (
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT '';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;
-ALTER TABLE notifications ADD COLUMN IF NOT EXISTS request_id BIGINT REFERENCES connection_requests(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS notifications_user_created ON notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS posts_created ON posts(created_at DESC);
