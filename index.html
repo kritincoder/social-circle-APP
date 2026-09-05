@@ -1695,18 +1695,22 @@ function renderCircle(){
     const incomingHtml = serverIncoming.length ? `<h3 style="font-size:15px; margin-bottom:8px;">Connection requests</h3>` + serverIncoming.map(r=>{
       const requestId=r.requestId || r.request_id || r.id;
       const displayName=r.displayName || r.display_name || r.name || 'Friend';
-      return `<div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#1F98A9,#DB8236)">${displayName[0]}</div>
-      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${displayName}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username || ''}</p></div>
-      <div class="friendActions"><button class="pillBtn primary" data-acc="${requestId}">Accept</button><button class="pillBtn" data-dec="${requestId}">Decline</button></div></div>`;
+      const userId=r.userId || r.user_id || r.id;
+      return `<div class="reqCard"><button class="friendAv" data-profile="${userId}" style="background:linear-gradient(135deg,#1F98A9,#DB8236);border:0">${displayName[0]}</button>
+      <div style="flex:1;cursor:pointer" data-profile="${userId}"><h4 style="font-size:14px;font-weight:600;">${displayName}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username || ''}</p></div>
+      <div class="friendActions"><button class="pillBtn" data-profile="${userId}">View profile</button><button class="pillBtn primary" data-acc="${requestId}">Accept</button><button class="pillBtn" data-dec="${requestId}">Decline</button></div></div>`;
     }).join('') : '';
     const outgoingHtml = serverOutgoing.length ? `<h3 style="font-size:15px; margin:14px 0 8px;">Sent requests</h3>` + serverOutgoing.map(r=>{
       const requestId=r.requestId || r.request_id || r.id;
       const displayName=r.displayName || r.display_name || r.name || 'Friend';
-      return `<div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#54677C,#2C9464)">${displayName[0]}</div>
-      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${displayName}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username || ''} \u00b7 pending</p></div>
-      <div class="friendActions"><button class="pillBtn" data-cancel="${requestId}">Cancel</button></div></div>`;
+      const userId=r.userId || r.user_id || r.id;
+      return `<div class="reqCard"><button class="friendAv" data-profile="${userId}" style="background:linear-gradient(135deg,#54677C,#2C9464);border:0">${displayName[0]}</button>
+      <div style="flex:1;cursor:pointer" data-profile="${userId}"><h4 style="font-size:14px;font-weight:600;">${displayName}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username || ''} \u00b7 pending</p></div>
+      <div class="friendActions"><button class="pillBtn" data-profile="${userId}">View profile</button><button class="pillBtn" data-cancel="${requestId}">Cancel</button></div></div>`;
     }).join('') : '';
     requestSections.forEach(section=>section.innerHTML = incomingHtml + outgoingHtml);
+
+    document.querySelectorAll('#reqSection [data-profile], #requestsSection [data-profile]').forEach(button=>button.onclick=()=>openFriendProfile(button.dataset.profile));
 
     document.querySelectorAll('#reqSection [data-acc], #requestsSection [data-acc]').forEach(b=>b.onclick=async()=>{
       b.disabled=true;
