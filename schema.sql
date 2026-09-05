@@ -118,6 +118,17 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS direct_messages (
+  id BIGSERIAL PRIMARY KEY,
+  sender_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  receiver_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (sender_id <> receiver_id)
+);
+
+CREATE INDEX IF NOT EXISTS direct_messages_pair_created ON direct_messages(sender_id, receiver_id, created_at);
+
 CREATE TABLE IF NOT EXISTS group_calls (
   id BIGSERIAL PRIMARY KEY,
   circle_id BIGINT NOT NULL REFERENCES circles(id) ON DELETE CASCADE,
