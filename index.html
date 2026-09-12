@@ -1146,25 +1146,28 @@ document.getElementById('authForm').addEventListener('submit', async e=>{
   authSubmitBtn.disabled = true;
   authSubmitBtn.textContent = signupMode ? 'Creating account…' : 'Logging in…';
 
-  if(backendAvailable){
-    let r;
-    if(signupMode){
-      const username = document.getElementById('fUsername').value.trim().toLowerCase();
-      const displayName = document.getElementById('fName').value.trim();
-      const confirmPassword = document.getElementById('fPassConfirm').value;
-      if(!username){ showAuthError('Choose a username.'); authSubmitBtn.disabled=false; authSubmitBtn.textContent=originalLabel; return; }
-      r = await apiCallRaw('/api/auth/signup', { method:'POST', body: JSON.stringify({ username, email, password, confirmPassword, displayName }) });
-    } else {
-      r = await apiCallRaw('/api/auth/login', { method:'POST', body: JSON.stringify({ identifier: email, password }) });
-    }
-    authSubmitBtn.disabled = false; authSubmitBtn.textContent = originalLabel;
-    if(r.reachable && r.json && r.json.success){ enterApp(r.json.data.user); }
-    else if(r.reachable && r.json && r.json.error){ showAuthError(r.json.error.message); }
-    else { showAuthError('Could not reach the server. Please try again.'); }
+  let r;
+  if(signupMode){
+    const username = document.getElementById('fUsername').value.trim().toLowerCase();
+    const displayName = document.getElementById('fName').value.trim();
+    const confirmPassword = document.getElementById('fPassConfirm').value;
+    if(!username){ showAuthError('Choose a username.'); authSubmitBtn.disabled=false; authSubmitBtn.textContent=originalLabel; return; }
+    r = await apiCallRaw('/api/auth/signup', { method:'POST', body: JSON.stringify({ username, email, password, confirmPassword, displayName }) });
   } else {
-    // No backend attached to this file right now (e.g. a Claude preview) —
+    r = await apiCallRaw('/api/auth/login', { method:'POST', body: JSON.stringify({ identifier: email, password }) });
+  }
+  authSubmitBtn.disabled = false; authSubmitBtn.textContent = originalLabel;
+
+  if(r.reachable && isApiResponse(r.json)){
+    backendAvailable = true;
+    if(r.json.success){ enterApp(r.json.data.user); }
+    else if(r.json.error){ showAuthError(r.json.error.message); }
+    else { showAuthError('Something went wrong. Please try again.'); }
+  } else if(backendAvailable){
+    showAuthError('Could not reach the server. Please try again.');
+  } else {
+    // No backend attached to this file at all (e.g. a Claude preview) —
     // local demo mode, so the prototype still works standalone.
-    authSubmitBtn.disabled = false; authSubmitBtn.textContent = originalLabel;
     const nm = document.getElementById('fName').value.trim();
     const displayName = nm || (email.split('@')[0] || 'You');
     enterApp({ id:null, displayName, email, bio:null, profilePhotoUrl:null });
@@ -1207,7 +1210,11 @@ function isApiResponse(json){ return !!json && typeof json.success === 'boolean'
 // On load: ask the backend if we already have a session (cookie-based —
 // this is what makes "refresh doesn't log you out" actually true).
 (async function bootstrapAuth(){
-  const r = await apiCallRaw('/api/auth/me', { method:'GET' });
+  let r = await apiCallRaw('/api/auth/me', { method:'GET' });
+  for(let attempt=0; attempt<3 && !(r.reachable && isApiResponse(r.json)); attempt++){
+    await new Promise(resolve=>setTimeout(resolve, 700));
+    r = await apiCallRaw('/api/auth/me', { method:'GET' });
+  }
   backendAvailable = r.reachable && isApiResponse(r.json);
   if(backendAvailable && r.json.success && r.json.data && r.json.data.user){
     enterApp(r.json.data.user);
