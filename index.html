@@ -1042,8 +1042,8 @@ function connectRealtime(){
 }
 function sendRealtime(event,data){ if(realtimeSocket && realtimeSocket.readyState===1) realtimeSocket.send(JSON.stringify({event,data})); }
 function handleRealtimeEvent(event,data){
-  if(event==='notification'){ loadServerNotifs(); if(data.type==='connection_accepted'){ toast('Your connection request was accepted'); loadCircleFromServer(); } }
-  if(event==='message:new'){ const message=data.message; const friendId=message.sender_id===currentUser.id?message.receiver_id:message.sender_id; const convo=conversations.find(item=>item.directUserId===friendId || (data.circleId && item.circleId===data.circleId)); if(convo){ convo.messages.push({from:message.sender_id===currentUser.id?'me':'them',text:message.content,createdAt:message.created_at}); if(state.activeConvo===convo.id){ renderThread(); } else { toast(`New message from ${convo.name}`); } } }
+  if(event==='notification'){ loadServerNotifs(); if(data.type==='connection_accepted'){ toast('Your connection request was accepted'); loadCircleFromServer(); } if(data.type==='connection_request'){ toast('New connection request'); loadCircleFromServer(); } }
+  if(event==='message:new'){ const message=data.message; const friendId=Number(message.sender_id)===Number(currentUser.id)?Number(message.receiver_id):Number(message.sender_id); const convo=conversations.find(item=>item.directUserId===friendId || (data.circleId && item.circleId===data.circleId)); if(convo){ convo.messages.push({from:Number(message.sender_id)===Number(currentUser.id)?'me':'them',text:message.content,createdAt:message.created_at}); if(state.activeConvo===convo.id){ renderThread(); } else { toast(`New message from ${convo.name}`); } } }
   if(event==='call:incoming') showIncomingCall(data.call);
   if(event==='call:response') handleCallResponse(data);
   if(event==='call:signal') handleCallSignal(data);
@@ -1825,7 +1825,7 @@ renderCircle();
 async function loadConversationsFromServer(){
   if(!backendAvailable || !currentUser) return;
   serverConnections.forEach(friend=>{
-    const friendId=friend.id;
+    const friendId=Number(friend.id);
     if(!conversations.some(convo=>convo.directUserId===friendId)) conversations.push({id:`direct-${friendId}`,name:friend.displayName||friend.display_name||'Friend',isGroup:false,directUserId:friendId,unread:0,messages:[]});
   });
   const result=await apiCallRaw('/api/circles',{method:'GET'});
@@ -1850,6 +1850,7 @@ async function openFriendProfile(userId){
 }
 
 async function openDirectConversation(userId, name){
+  userId = Number(userId);
   let convo=conversations.find(item=>item.directUserId===userId);
   if(!convo){ convo={id:`direct-${userId}`,name,isGroup:false,directUserId:userId,unread:0,messages:[]}; conversations.push(convo); }
   const result=await apiCallRaw(`/api/messages/${userId}`,{method:'GET'});
