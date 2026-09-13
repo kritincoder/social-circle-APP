@@ -175,15 +175,19 @@ CREATE TABLE IF NOT EXISTS content_reactions (
   PRIMARY KEY(user_id, item_type, item_id)
 );
 
+-- Live location sharing. One row per user; presence of a row means the user
+-- has published coordinates at least once. Whether a friend may READ them is
+-- gated by user_settings.live_location at query time, not by this table.
+CREATE TABLE IF NOT EXISTS user_locations (
+  user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  latitude NUMERIC(10,7) NOT NULL,
+  longitude NUMERIC(10,7) NOT NULL,
+  accuracy NUMERIC(10,2),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT '';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS request_id BIGINT REFERENCES connection_requests(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS notifications_user_created ON notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS posts_created ON posts(created_at DESC);
-
--- Live location: current/most-recent shared position only, gated by the
--- existing user_settings.live_location toggle. No history table — only the
--- latest point is kept, matching "current/recent, not a location history".
-ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS live_latitude NUMERIC(10,7);
-ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS live_longitude NUMERIC(10,7);
-ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS live_location_updated_at TIMESTAMPTZ;
