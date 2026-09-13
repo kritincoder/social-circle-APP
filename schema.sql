@@ -180,3 +180,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS request_id BIGINT REFERENCES connection_requests(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS notifications_user_created ON notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS posts_created ON posts(created_at DESC);
+
+-- Live location: current/most-recent shared position only, gated by the
+-- existing user_settings.live_location toggle. No history table — only the
+-- latest point is kept, matching "current/recent, not a location history".
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS live_latitude NUMERIC(10,7);
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS live_longitude NUMERIC(10,7);
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS live_location_updated_at TIMESTAMPTZ;
