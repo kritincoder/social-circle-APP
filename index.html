@@ -1084,7 +1084,7 @@ function enterApp(user){
   track('onboarding_completed',{name:displayName});
   initMap();
   loadPersistedState();
-  if(backendAvailable && user.id) loadCircleFromServer();
+  if(backendAvailable && user.id){ loadCircleFromServer(); if(typeof loadFeedFromServer==='function') loadFeedFromServer(); if(typeof restoreLiveLocationSharing==='function') restoreLiveLocationSharing(); }
   const params=new URLSearchParams(location.search);
   if(params.get('place')) setTimeout(()=>openPlace(params.get('place')), 300);
 }
@@ -1122,25 +1122,28 @@ document.getElementById('authForm').addEventListener('submit', async e=>{
   authSubmitBtn.disabled = true;
   authSubmitBtn.textContent = signupMode ? 'Creating account…' : 'Logging in…';
 
-  if(backendAvailable){
-    let r;
-    if(signupMode){
-      const username = document.getElementById('fUsername').value.trim().toLowerCase();
-      const displayName = document.getElementById('fName').value.trim();
-      const confirmPassword = document.getElementById('fPassConfirm').value;
-      if(!username){ showAuthError('Choose a username.'); authSubmitBtn.disabled=false; authSubmitBtn.textContent=originalLabel; return; }
-      r = await apiCallRaw('/api/auth/signup', { method:'POST', body: JSON.stringify({ username, email, password, confirmPassword, displayName }) });
-    } else {
-      r = await apiCallRaw('/api/auth/login', { method:'POST', body: JSON.stringify({ identifier: email, password }) });
-    }
-    authSubmitBtn.disabled = false; authSubmitBtn.textContent = originalLabel;
-    if(r.reachable && r.json && r.json.success){ enterApp(r.json.data.user); }
-    else if(r.reachable && r.json && r.json.error){ showAuthError(r.json.error.message); }
-    else { showAuthError('Could not reach the server. Please try again.'); }
+  let r;
+  if(signupMode){
+    const username = document.getElementById('fUsername').value.trim().toLowerCase();
+    const displayName = document.getElementById('fName').value.trim();
+    const confirmPassword = document.getElementById('fPassConfirm').value;
+    if(!username){ showAuthError('Choose a username.'); authSubmitBtn.disabled=false; authSubmitBtn.textContent=originalLabel; return; }
+    r = await apiCallRaw('/api/auth/signup', { method:'POST', body: JSON.stringify({ username, email, password, confirmPassword, displayName }) });
   } else {
-    // No backend attached to this file right now (e.g. a Claude preview) —
+    r = await apiCallRaw('/api/auth/login', { method:'POST', body: JSON.stringify({ identifier: email, password }) });
+  }
+  authSubmitBtn.disabled = false; authSubmitBtn.textContent = originalLabel;
+
+  if(r.reachable && isApiResponse(r.json)){
+    backendAvailable = true;
+    if(r.json.success){ enterApp(r.json.data.user); }
+    else if(r.json.error){ showAuthError(r.json.error.message); }
+    else { showAuthError('Something went wrong. Please try again.'); }
+  } else if(backendAvailable){
+    showAuthError('Could not reach the server. Please try again.');
+  } else {
+    // No backend attached to this file at all (e.g. a Claude preview) —
     // local demo mode, so the prototype still works standalone.
-    authSubmitBtn.disabled = false; authSubmitBtn.textContent = originalLabel;
     const nm = document.getElementById('fName').value.trim();
     const displayName = nm || (email.split('@')[0] || 'You');
     enterApp({ id:null, displayName, email, bio:null, profilePhotoUrl:null });
@@ -1154,12 +1157,18 @@ document.getElementById('authForm').addEventListener('submit', async e=>{
    shows a plain note instead of a non-functional button. */
 const GOOGLE_CLIENT_ID = window.GOOGLE_CLIENT_ID || '';
 async function onGoogleCredential(response){
-  if(!backendAvailable){ toast('Demo mode — Google sign-in needs the backend deployed.'); return; }
   showAuthError(null);
   const r = await apiCallRaw('/api/auth/google', { method:'POST', body: JSON.stringify({ credential: response.credential }) });
-  if(r.reachable && r.json && r.json.success){ enterApp(r.json.data.user); }
-  else if(r.reachable && r.json && r.json.error){ showAuthError(r.json.error.message); }
-  else { showAuthError('Could not reach the server. Please try again.'); }
+  if(r.reachable && isApiResponse(r.json)){
+    backendAvailable = true;
+    if(r.json.success){ enterApp(r.json.data.user); }
+    else if(r.json.error){ showAuthError(r.json.error.message); }
+    else { showAuthError('Something went wrong. Please try again.'); }
+  } else if(backendAvailable){
+    showAuthError('Could not reach the server. Please try again.');
+  } else {
+    toast('Demo mode — Google sign-in needs the backend deployed.');
+  }
 }
 function tryInitGoogleButton(attempt){
   if(!GOOGLE_CLIENT_ID){ document.getElementById('googleFallbackNote').style.display='block'; return; }
@@ -1183,7 +1192,11 @@ function isApiResponse(json){ return !!json && typeof json.success === 'boolean'
 // On load: ask the backend if we already have a session (cookie-based —
 // this is what makes "refresh doesn't log you out" actually true).
 (async function bootstrapAuth(){
-  const r = await apiCallRaw('/api/auth/me', { method:'GET' });
+  let r = await apiCallRaw('/api/auth/me', { method:'GET' });
+  for(let attempt=0; attempt<4 && !(r.reachable && isApiResponse(r.json)); attempt++){
+    await new Promise(resolve=>setTimeout(resolve, 700));
+    r = await apiCallRaw('/api/auth/me', { method:'GET' });
+  }
   backendAvailable = r.reachable && isApiResponse(r.json);
   if(backendAvailable && r.json.success && r.json.data && r.json.data.user){
     enterApp(r.json.data.user);
@@ -1258,6 +1271,7 @@ function switchScreen(id){
   if(id==='map' && window._gmap){ setTimeout(()=>google.maps.event.trigger(window._gmap, 'resize'),50); }
   if(id==='news' && newsDeck.length<2){ fetchLiveNews(true); }
   if((id==='circle' || id==='requests') && backendAvailable && currentUser && currentUser.id){ loadCircleFromServer(); }
+  if(id==='map' && backendAvailable){ startFriendLocationPolling(); } else if(typeof stopFriendLocationPolling==='function'){ stopFriendLocationPolling(); }
 }
 document.querySelectorAll('[data-screen]').forEach(el=>{
   if(el.classList.contains('navItem')) return;
@@ -1657,12 +1671,50 @@ async function loadCircleFromServer(){
     apiCallRaw('/api/connections', { method:'GET' }),
     apiCallRaw('/api/connections/requests', { method:'GET' })
   ]);
-  if(connRes.reachable && connRes.json && connRes.json.success) serverConnections = connRes.json.data.connections;
-  if(reqRes.reachable && reqRes.json && reqRes.json.success){
-    serverIncoming = reqRes.json.data.incoming;
-    serverOutgoing = reqRes.json.data.outgoing;
+  if(connRes.reachable && connRes.json && connRes.json.success){
+    const d = connRes.json.data || connRes.json;
+    serverConnections = d.connections || d.users || [];
   }
-  renderCircle();
+  if(reqRes.reachable && reqRes.json && reqRes.json.success){
+    const d = reqRes.json.data || reqRes.json;
+    serverIncoming = d.incoming || [];
+    serverOutgoing = d.outgoing || [];
+  }
+  try{ renderCircle(); }catch(error){ console.error('renderCircle failed:', error); }
+  try{ if(typeof syncConversationsWithFriends === 'function') syncConversationsWithFriends(); }catch(error){ console.error('syncConversationsWithFriends failed:', error); }
+}
+
+function friendDisplayName(p){ return (p && (p.displayName || p.display_name || p.name)) || 'Friend'; }
+
+/* Problem 4 — real post persistence. app.js already has working
+   POST /api/posts and GET /api/feed routes (feed already restricts to the
+   author + accepted friends server-side — see app.js); the frontend simply
+   never called either one. serverPosts are prepended ahead of the existing
+   demo feed content each render, so nothing already working is removed. */
+let serverPosts = [];
+function mapServerPost(p){
+  const place = p.place_id ? places.find(x=>x.id===p.place_id) : null;
+  const isMine = currentUser && currentUser.id && Number(p.user_id)===Number(currentUser.id);
+  const authorName = p.display_name || p.username || 'A friend';
+  return {
+    type:'friend',
+    color: place ? place.color : '#1F98A9',
+    kicker: isMine ? 'You posted' : `${authorName} posted`,
+    title: place ? place.name : authorName,
+    body: p.content,
+    place: place ? place.id : undefined,
+    serverPostId: p.id
+  };
+}
+async function loadFeedFromServer(){
+  if(!backendAvailable) return;
+  const r = await apiCallRaw('/api/feed', { method:'GET' });
+  if(r.reachable && r.json && r.json.success){
+    const d = r.json.data || r.json;
+    serverPosts = (d.feed || []).filter(Boolean);
+    feed = [...serverPosts.map(mapServerPost), ...feed.filter(f=>!f.serverPostId)];
+    renderFeed();
+  }
 }
 
 async function sendConnectionRequest(userId, btn){
@@ -1683,14 +1735,30 @@ function renderCircle(){
   const list=document.getElementById('friendsList');
 
   if(backendAvailable){
-    const incomingHtml = serverIncoming.length ? `<h3 style="font-size:15px; margin-bottom:8px;">Connection requests</h3>` + serverIncoming.map(r=>`
-      <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#1F98A9,#DB8236)">${r.display_name[0]}</div>
-      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.display_name}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username}</p></div>
-      <div class="friendActions"><button class="pillBtn primary" data-acc="${r.id}">Accept</button><button class="pillBtn" data-dec="${r.id}">Decline</button></div></div>`).join('') : '';
-    const outgoingHtml = serverOutgoing.length ? `<h3 style="font-size:15px; margin:14px 0 8px;">Sent requests</h3>` + serverOutgoing.map(r=>`
-      <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#54677C,#2C9464)">${r.display_name[0]}</div>
-      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.display_name}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username} \u00b7 pending</p></div>
-      <div class="friendActions"><button class="pillBtn" data-cancel="${r.id}">Cancel</button></div></div>`).join('') : '';
+    const safeIncoming=(serverIncoming||[]).filter(Boolean);
+    const safeOutgoing=(serverOutgoing||[]).filter(Boolean);
+    const safeConnections=(serverConnections||[]).filter(Boolean);
+
+    const incomingHtml = safeIncoming.length ? `<h3 style="font-size:15px; margin-bottom:8px;">Connection requests</h3>` + safeIncoming.map(r=>{
+      const name=friendDisplayName(r); const initial=String(name).charAt(0)||'F';
+      return `
+      <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#1F98A9,#DB8236)">${initial}</div>
+      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${name}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username||''}</p></div>
+      <div class="friendActions"><button class="pillBtn primary" data-acc="${r.id}">Accept</button><button class="pillBtn" data-dec="${r.id}">Decline</button></div></div>`;
+    }).join('') : '';
+    const outgoingHtml = safeOutgoing.length ? `<h3 style="font-size:15px; margin:14px 0 8px;">Sent requests</h3>` + safeOutgoing.map(r=>{
+      const name=friendDisplayName(r); const initial=String(name).charAt(0)||'F';
+      // NOTE: for outgoing requests the backend's `id` field is the OTHER
+      // user's id, not the request id — the actual request id to cancel is
+      // `requestId` (see app.js: outgoing rows are not overridden with
+      // `id: row.request_id` the way incoming rows are). Using `r.id` here
+      // previously sent the wrong id to the cancel endpoint.
+      const cancelId = r.requestId || r.request_id || r.id;
+      return `
+      <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#54677C,#2C9464)">${initial}</div>
+      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${name}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username||''} \u00b7 pending</p></div>
+      <div class="friendActions"><button class="pillBtn" data-cancel="${cancelId}">Cancel</button></div></div>`;
+    }).join('') : '';
     requestSections.forEach(section=>section.innerHTML = incomingHtml + outgoingHtml);
 
     document.querySelectorAll('#reqSection [data-acc], #requestsSection [data-acc]').forEach(b=>b.onclick=async()=>{
@@ -1713,21 +1781,22 @@ function renderCircle(){
     });
 
     list.innerHTML='';
-    if(serverConnections.length===0){
+    if(safeConnections.length===0){
       list.innerHTML = `<div class="emptyState">
         <p>Your Circle is just getting started.</p>
         <p class="emptySub">Use the search icon at the top to find people you know by username or name, and send them a connect request.</p>
       </div>`;
       return;
     }
-    serverConnections.forEach(f=>{
+    safeConnections.forEach(f=>{
       const row=document.createElement('div'); row.className='friendRow';
-      row.innerHTML=`<div class="friendAv" style="background:linear-gradient(135deg,var(--gold),var(--coral))">${f.display_name[0]}</div>
-        <div><h4>${f.display_name}</h4><p>@${f.username}</p></div>
-        <div class="friendActions"><button class="pillBtn" data-msg="${f.display_name}">Message</button></div>`;
+      const name=friendDisplayName(f); const initial=String(name).charAt(0)||'F';
+      row.innerHTML=`<div class="friendAv" style="background:linear-gradient(135deg,var(--gold),var(--coral))">${initial}</div>
+        <div><h4>${name}</h4><p>@${f.username||''}</p></div>
+        <div class="friendActions"><button class="pillBtn" data-msg-id="${f.id}" data-msg="${name}">Message</button></div>`;
       list.appendChild(row);
     });
-    list.querySelectorAll('[data-msg]').forEach(b=>b.onclick=()=>{ switchScreen('messages'); toast(`Opening chat with ${b.dataset.msg} \u2014 messaging isn't wired to the backend yet, see the limitations note.`); });
+    list.querySelectorAll('[data-msg-id]').forEach(b=>b.onclick=()=>{ openDirectConversation(b.dataset.msgId, b.dataset.msg); });
     return;
   }
 
@@ -1781,6 +1850,57 @@ renderCircle();
 /* =========================================================
    MESSAGES
 ========================================================= */
+// Real accepted-friend conversations, sourced from the same serverConnections
+// data Circle uses — never a separate/fake friend list. directUserId is
+// always stored as a Number so a friend loaded as "7" (a Postgres BIGINT
+// string) and a friend clicked as 7 (a JS number) always match the same
+// conversation object instead of silently creating a duplicate.
+function syncConversationsWithFriends(){
+  if(!backendAvailable) return;
+  (serverConnections||[]).filter(Boolean).forEach(f=>{
+    const friendId = Number(f.id);
+    if(!Number.isFinite(friendId)) return;
+    let convo = conversations.find(c=>c.directUserId===friendId);
+    if(!convo){
+      conversations.push({ id:`direct-${friendId}`, directUserId:friendId, name:friendDisplayName(f), isGroup:false, unread:0, messages:[], loaded:false });
+    } else {
+      convo.name = friendDisplayName(f);
+    }
+  });
+  renderConvoList();
+}
+
+async function openDirectConversation(userId, name){
+  userId = Number(userId);
+  if(!Number.isFinite(userId)) return;
+  let convo = conversations.find(c=>c.directUserId===userId);
+  if(!convo){ convo = { id:`direct-${userId}`, directUserId:userId, name: name || 'Friend', isGroup:false, unread:0, messages:[], loaded:false }; conversations.push(convo); }
+  else if(name) convo.name = name;
+  state.activeConvo = convo.id;
+  switchScreen('messages');
+  document.getElementById('msgWrap').classList.add('threadOpen');
+  renderConvoList();
+  renderThread();
+  track('chat_started',{convo:convo.id});
+  if(backendAvailable && !convo.loaded){
+    const r = await apiCallRaw(`/api/messages/${userId}`, { method:'GET' });
+    if(r.reachable && r.json && r.json.success){
+      const d = r.json.data || r.json;
+      const rows = d.messages || [];
+      convo.messages = rows.map(m=>({
+        from: Number(m.sender_id ?? m.senderId) === Number(currentUser.id) ? 'me' : 'them',
+        text: m.content || m.text || '',
+        createdAt: m.created_at || m.createdAt
+      }));
+      convo.loaded = true;
+      if(state.activeConvo===convo.id) renderThread();
+      renderConvoList();
+    } else if(r.reachable){
+      toast((r.json && r.json.error && r.json.error.message) || 'Could not load messages');
+    }
+  }
+}
+
 function renderConvoList(){
   const list=document.getElementById('convoItems'); list.innerHTML='';
   if(conversations.length===0){
@@ -1789,10 +1909,14 @@ function renderConvoList(){
   }
   conversations.forEach(c=>{
     const last=c.messages[c.messages.length-1];
-    const preview = last.shared ? (icon('pin',12) + ' ' + last.shared.title) : last.text;
+    const preview = last ? (last.shared ? (icon('pin',12) + ' ' + last.shared.title) : last.text) : (c.directUserId ? 'No messages yet' : '');
+    const nameSafe = c.name || 'Friend';
     const el=document.createElement('div'); el.className='convoItem'+(c.id===state.activeConvo?' active':'');
-    el.innerHTML=`<div class="convoAvatar">${c.name[0]}</div><div><h4>${c.name}</h4><p>${preview}</p></div>`;
-    el.onclick=()=>{ state.activeConvo=c.id; renderConvoList(); renderThread(); document.getElementById('msgWrap').classList.add('threadOpen'); track('chat_started',{convo:c.id}); };
+    el.innerHTML=`<div class="convoAvatar">${String(nameSafe).charAt(0)||'F'}</div><div><h4>${nameSafe}</h4><p>${preview}</p></div>`;
+    el.onclick=()=>{
+      if(c.directUserId){ openDirectConversation(c.directUserId, c.name); }
+      else { state.activeConvo=c.id; renderConvoList(); renderThread(); document.getElementById('msgWrap').classList.add('threadOpen'); track('chat_started',{convo:c.id}); }
+    };
     list.appendChild(el);
   });
 }
@@ -1862,11 +1986,29 @@ function renderThread(){
 }
 document.getElementById('sendBtn').onclick=sendMsg;
 document.getElementById('msgInput').addEventListener('keydown', e=>{ if(e.key==='Enter') sendMsg(); });
-function sendMsg(){
+async function sendMsg(){
   const input=document.getElementById('msgInput'); const val=input.value.trim();
   if(!val || !state.activeConvo) return;
-  conversations.find(c=>c.id===state.activeConvo).messages.push({from:'me', text:val});
-  input.value=''; renderThread(); renderConvoList();
+  const convo = conversations.find(c=>c.id===state.activeConvo);
+  if(!convo) return;
+  input.value='';
+  if(convo.directUserId && backendAvailable){
+    const pendingMsg = {from:'me', text:val, pending:true};
+    convo.messages.push(pendingMsg);
+    renderThread(); renderConvoList();
+    const r = await apiCallRaw(`/api/messages/${convo.directUserId}`, { method:'POST', body: JSON.stringify({ content: val }) });
+    if(r.reachable && r.json && r.json.success){
+      delete pendingMsg.pending;
+    } else {
+      const idx = convo.messages.indexOf(pendingMsg);
+      if(idx>-1) convo.messages.splice(idx,1);
+      toast((r.json && r.json.error && r.json.error.message) || 'Message failed to send');
+    }
+    renderThread(); renderConvoList();
+  } else {
+    convo.messages.push({from:'me', text:val});
+    renderThread(); renderConvoList();
+  }
 }
 document.getElementById('backBtn').onclick=()=>document.getElementById('msgWrap').classList.remove('threadOpen');
 renderConvoList(); renderThread();
@@ -2081,13 +2223,28 @@ function openCreate(placeId){
   }, 60);
 }
 createOverlay.addEventListener('click', e=>{ if(e.target===createOverlay) createOverlay.classList.remove('show'); });
-document.getElementById('postSubmit').onclick=()=>{
+document.getElementById('postSubmit').onclick=async()=>{
   const text=document.getElementById('postText').value.trim();
   if(!text){ toast('Say a little about what it was like first'); return; }
   if(!postChosenPlace){ toast('Search for a place near you, or drop a pin on the map, first'); return; }
   const p=postChosenPlace;
-  feed.unshift({type:'friend', color:p.color, kicker:'You posted', title:p.name, body:`"${text}" \u00b7 Rating ${state.postRating}/5${state.postTags.size?' \u00b7 '+[...state.postTags].join(', '):''}`, place:p.id||undefined});
-  renderFeed();
+  const body = `"${text}" \u00b7 Rating ${state.postRating}/5${state.postTags.size?' \u00b7 '+[...state.postTags].join(', '):''}`;
+  const submitBtn=document.getElementById('postSubmit');
+  submitBtn.disabled=true;
+  if(backendAvailable && currentUser && currentUser.id){
+    const r = await apiCallRaw('/api/posts', { method:'POST', body: JSON.stringify({ content: body, placeId: p.id || null, placeName: p.name, placeLat: p.lat, placeLng: p.lng }) });
+    submitBtn.disabled=false;
+    if(!(r.reachable && r.json && r.json.success)){
+      toast((r.json && r.json.error && r.json.error.message) || 'Could not save your post — please try again');
+      return;
+    }
+    await loadFeedFromServer();
+  } else {
+    feed.unshift({type:'friend', color:p.color, kicker:'You posted', title:p.name, body, place:p.id||undefined});
+    renderFeed();
+    submitBtn.disabled=false;
+    toast('Demo mode — post shown locally, not saved');
+  }
   track('post_created',{place:p.id||p.name, lat:p.lat, lng:p.lng, rating:state.postRating, tags:[...state.postTags]});
   document.getElementById('postText').value='';
   state.postTags=new Set();
@@ -2245,15 +2402,83 @@ function applyTheme(dark){
 document.getElementById('themeBtn').onclick=()=>applyTheme(!state.darkMode);
 document.getElementById('authThemeBtn').onclick=()=>applyTheme(!state.darkMode);
 document.getElementById('settingsThemeToggle').onclick=()=>applyTheme(!state.darkMode);
+/* Problem 5 — live location. Turning the existing toggle on/off now actually
+   starts/stops sending the device's position to the real backend
+   (POST /api/location), which itself refuses to accept updates unless this
+   same setting is on server-side too — see app.js. Turning it off here also
+   stops sending immediately, on top of the backend no longer exposing the
+   last known point to friends. */
 [['toggleLive','liveLocation'],['toggleFriendActivity','friendActivity'],['toggleDigest','digest'],['toggleDiscoverable','discoverable']].forEach(([id,key])=>{
   const el=document.getElementById(id);
   el.onclick=()=>{
     el.classList.toggle('on');
-    state.settings[key]=el.classList.contains('on');
+    const on = el.classList.contains('on');
+    state.settings[key]=on;
     persistState();
-    toast(el.classList.contains('on')?'Turned on':'Turned off');
+    toast(on?'Turned on':'Turned off');
+    if(id==='toggleLive'){ if(on) startLocationSharing(); else stopLocationSharing(); }
   };
 });
+
+let locationWatchId = null;
+function startLocationSharing(){
+  if(!navigator.geolocation){ toast('Location is not available on this device'); return; }
+  if(locationWatchId !== null) return;
+  locationWatchId = navigator.geolocation.watchPosition(
+    pos => { if(backendAvailable) apiCallRaw('/api/location', { method:'POST', body: JSON.stringify({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }) }); },
+    () => { toast('Could not access your location — check browser permissions'); },
+    { enableHighAccuracy:false, maximumAge:20000, timeout:15000 }
+  );
+}
+function stopLocationSharing(){
+  if(locationWatchId !== null){ navigator.geolocation.clearWatch(locationWatchId); locationWatchId = null; }
+}
+// Called once after login/refresh so a previously-enabled sharing setting
+// actually resumes sending updates instead of silently doing nothing until
+// the user re-toggles it.
+function restoreLiveLocationSharing(){
+  if(state.settings.liveLocation) startLocationSharing();
+}
+
+// Friend live-location markers on the map — polled (this app has no
+// WebSocket client at all yet, so a full realtime rewrite is out of scope;
+// polling while the map is open is the smallest reliable addition that
+// still avoids a full page refresh). Every read goes through
+// GET /api/friends/:id/location, which itself re-checks friendship and the
+// target's sharing flag on every single call.
+let friendLocationMarkers = [];
+let friendLocationPollInterval = null;
+async function refreshFriendLocationMarkers(){
+  if(!window._gmap || !backendAvailable) return;
+  const friendsToCheck = (serverConnections||[]).filter(Boolean);
+  const results = await Promise.all(friendsToCheck.map(f=>apiCallRaw(`/api/friends/${f.id}/location`, { method:'GET' })));
+  friendLocationMarkers.forEach(m=>m.setMap(null));
+  friendLocationMarkers = [];
+  friendsToCheck.forEach((f,i)=>{
+    const r = results[i];
+    if(!(r.reachable && r.json && r.json.success)) return;
+    const d = r.json.data || r.json;
+    if(!d.sharing || !d.location) return;
+    const marker = new google.maps.Marker({
+      position:{ lat:Number(d.location.latitude), lng:Number(d.location.longitude) },
+      map: window._gmap,
+      title: friendDisplayName(f) + ' \u2014 live location',
+      icon:{ path:google.maps.SymbolPath.CIRCLE, scale:8, fillColor:'#2C9464', fillOpacity:1, strokeColor:'#fff', strokeWeight:2 }
+    });
+    marker.addListener('click', ()=>openSheet(`<div class="feedKicker"><span class="dot" style="background:#2C9464"></span>LIVE LOCATION</div><h3>${friendDisplayName(f)}</h3><p style="color:var(--ink-soft);font-size:13.5px;margin-top:6px;">Updated ${new Date(d.location.updatedAt).toLocaleTimeString()}</p>`));
+    friendLocationMarkers.push(marker);
+  });
+}
+function startFriendLocationPolling(){
+  refreshFriendLocationMarkers();
+  if(friendLocationPollInterval) return;
+  friendLocationPollInterval = setInterval(refreshFriendLocationMarkers, 20000);
+}
+function stopFriendLocationPolling(){
+  if(friendLocationPollInterval){ clearInterval(friendLocationPollInterval); friendLocationPollInterval=null; }
+  friendLocationMarkers.forEach(m=>m.setMap(null));
+  friendLocationMarkers=[];
+}
 document.getElementById('logoutBtn').onclick=async()=>{
   endCall();
   if(backendAvailable) await apiCallRaw('/api/auth/logout', { method:'POST' });
