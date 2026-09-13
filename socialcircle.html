@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -855,6 +857,11 @@ let feed = [
   {type:'event', color:'#E15A42', kicker:'A friend sent you this', title:'CP Book Swap — Sep 13', body:'Bring three, take three. Mostly sci-fi and design books.', eventId:'e7'},
   {type:'friend', color:'#54677C', kicker:'A friend goes most weekends', title:'CP Inner Circle Bookshops', body:'"Secondhand stacks worth an hour of getting lost in."', place:'p10'},
 ];
+// The seed cards above are demo flavour. Once a real backend is attached, the
+// "friend" cards are replaced by real posts from /api/feed; the district/event/
+// news cards are kept so Explore/News still feel populated.
+const SEED_FEED = feed.slice();
+const POST_COLORS = ['#1F98A9','#DB8236','#2C9464','#54677C','#CE9A2E','#E15A42'];
 
 const conversations = [];
 
@@ -1084,7 +1091,13 @@ function enterApp(user){
   track('onboarding_completed',{name:displayName});
   initMap();
   loadPersistedState();
-  if(backendAvailable && user.id) loadCircleFromServer();
+  if(backendAvailable && user.id){
+    loadCircleFromServer();
+    loadServerNotifs();
+    loadFeedFromServer();
+    connectRealtime();
+    startLocationSharing();
+  }
   const params=new URLSearchParams(location.search);
   if(params.get('place')) setTimeout(()=>openPlace(params.get('place')), 300);
 }
@@ -1122,6 +1135,7 @@ document.getElementById('authForm').addEventListener('submit', async e=>{
   authSubmitBtn.disabled = true;
   authSubmitBtn.textContent = signupMode ? 'Creating account…' : 'Logging in…';
 
+  await ensureBackendChecked(); // never decide demo-vs-real before the backend probe has answered
   if(backendAvailable){
     let r;
     if(signupMode){
@@ -1154,6 +1168,7 @@ document.getElementById('authForm').addEventListener('submit', async e=>{
    shows a plain note instead of a non-functional button. */
 const GOOGLE_CLIENT_ID = window.GOOGLE_CLIENT_ID || '';
 async function onGoogleCredential(response){
+  await ensureBackendChecked();
   if(!backendAvailable){ toast('Demo mode — Google sign-in needs the backend deployed.'); return; }
   showAuthError(null);
   const r = await apiCallRaw('/api/auth/google', { method:'POST', body: JSON.stringify({ credential: response.credential }) });
@@ -1180,15 +1195,88 @@ tryInitGoogleButton(0);
 // permanent, confusing error on every login attempt.
 function isApiResponse(json){ return !!json && typeof json.success === 'boolean'; }
 
-// On load: ask the backend if we already have a session (cookie-based —
-// this is what makes "refresh doesn't log you out" actually true).
+// Backend detection, resolved exactly once and shared by every caller.
+//
+// The old bug: `backendAvailable` started as null and was only set by an
+// un-awaited bootstrap probe. If the user submitted login/search before that
+// probe returned — or the very first request hit a still-warming Railway
+// container — the code read the falsy null and dropped into "Demo mode: no
+// backend attached", even though the backend was there. ensureBackendChecked()
+// makes every path that branches on backendAvailable wait for a real answer,
+// and retries once so a single cold/racing request can't latch demo mode.
+let backendProbePromise = null;
+async function probeBackend(){
+  let r = await apiCallRaw('/api/auth/me', { method:'GET' });
+  if(!r.reachable){ await new Promise(res=>setTimeout(res, 700)); r = await apiCallRaw('/api/auth/me', { method:'GET' }); }
+  return r;
+}
+function ensureBackendChecked(){
+  if(backendAvailable !== null) return Promise.resolve(backendAvailable);
+  if(!backendProbePromise){
+    backendProbePromise = probeBackend().then(r=>{ backendAvailable = r.reachable && isApiResponse(r.json); return r; });
+  }
+  return backendProbePromise.then(()=>backendAvailable);
+}
+
+// On load: resolve backend availability, and if that probe already carried a
+// live session (cookie-based) log straight in — this is what makes "refresh
+// doesn't log you out" actually true.
 (async function bootstrapAuth(){
-  const r = await apiCallRaw('/api/auth/me', { method:'GET' });
-  backendAvailable = r.reachable && isApiResponse(r.json);
-  if(backendAvailable && r.json.success && r.json.data && r.json.data.user){
+  await ensureBackendChecked();
+  const r = backendProbePromise ? await backendProbePromise : null;
+  if(backendAvailable && r && r.json && r.json.success && r.json.data && r.json.data.user){
     enterApp(r.json.data.user);
   }
 })();
+
+/* =========================================================
+   REALTIME — the backend runs a WebSocket server at /realtime and pushes
+   'notification' / 'message:new' / 'call:*' events (see server.js + realtime.js),
+   but nothing here ever connected to it, so incoming friend requests, acceptances
+   and messages only appeared after a manual tab switch. This client connects on
+   login, refreshes the relevant UI live, and falls back to short polling if the
+   socket can't stay up. The database stays the source of truth — every event just
+   triggers a reload of real data, it never fabricates state on its own.
+========================================================= */
+let realtimeSocket=null, realtimeRetry=0, realtimePollTimer=null;
+function realtimeUrl(){ return (location.protocol==='https:'?'wss:':'ws:') + '//' + location.host + '/realtime'; }
+function connectRealtime(){
+  if(!backendAvailable || !currentUser || !currentUser.id) return;
+  if(realtimeSocket && (realtimeSocket.readyState===0 || realtimeSocket.readyState===1)) return;
+  let socket;
+  try{ socket = new WebSocket(realtimeUrl()); }
+  catch(e){ startRealtimePolling(); return; }
+  realtimeSocket = socket;
+  socket.onopen = ()=>{ realtimeRetry=0; stopRealtimePolling(); };
+  socket.onmessage = (ev)=>{ try{ const msg=JSON.parse(ev.data); handleRealtimeEvent(msg.event, msg.data||{}); }catch(e){} };
+  socket.onerror = ()=>{ try{ socket.close(); }catch(e){} };
+  socket.onclose = ()=>{
+    realtimeSocket=null;
+    if(!backendAvailable || !currentUser) return;
+    startRealtimePolling(); // keep the UI live while we back off and retry
+    realtimeRetry++;
+    setTimeout(connectRealtime, Math.min(30000, 1000*Math.pow(2, realtimeRetry)));
+  };
+}
+function handleRealtimeEvent(event, data){
+  if(event==='notification'){
+    loadServerNotifs();
+    if(data.type==='connection_request'){ toast('New connection request'); loadCircleFromServer(); }
+    else if(data.type==='connection_accepted'){ toast('Connection accepted'); loadCircleFromServer(); }
+  } else if(event==='message:new'){
+    onIncomingMessage(data);
+  }
+}
+// Fallback when the socket is unavailable (blocked proxy, sleeping host): poll the
+// same real endpoints so requests/acceptances still surface without a refresh.
+function startRealtimePolling(){
+  if(realtimePollTimer) return;
+  realtimePollTimer = setInterval(()=>{
+    if(!backendAvailable || !currentUser){ stopRealtimePolling(); return; }
+    loadServerNotifs(); loadCircleFromServer();
+  }, 20000);
+}
+function stopRealtimePolling(){ if(realtimePollTimer){ clearInterval(realtimePollTimer); realtimePollTimer=null; } }
 
 /* =========================================================
    NAV
@@ -1256,8 +1344,10 @@ function switchScreen(id){
   target.classList.add('active');
   document.querySelectorAll('.navItem').forEach(n=>n.classList.toggle('active', n.dataset.screen===id));
   if(id==='map' && window._gmap){ setTimeout(()=>google.maps.event.trigger(window._gmap, 'resize'),50); }
+  if(id==='map' && backendAvailable && currentUser && currentUser.id){ loadFriendLocations(); }
   if(id==='news' && newsDeck.length<2){ fetchLiveNews(true); }
   if((id==='circle' || id==='requests') && backendAvailable && currentUser && currentUser.id){ loadCircleFromServer(); }
+  if(id==='messages' && backendAvailable && currentUser && currentUser.id){ renderConvoList(); }
 }
 document.querySelectorAll('[data-screen]').forEach(el=>{
   if(el.classList.contains('navItem')) return;
@@ -1302,6 +1392,62 @@ function renderFeed(){
   list.querySelectorAll('.pillBtn[data-goto]').forEach(btn=>btn.onclick=()=>switchScreen(btn.dataset.goto));
 }
 renderFeed();
+
+// Map a persisted post (from /api/feed or POST /api/posts) into a feed card.
+// Content is user-supplied, so it is HTML-escaped here before renderFeed injects it.
+function serverPostToCard(p){
+  const mine = Number(p.user_id)===(currentUser&&currentUser.id!=null?Number(currentUser.id):null);
+  const color = POST_COLORS[Math.abs(Number(p.user_id)||0) % POST_COLORS.length];
+  // Only wire the "View place" link when the place is one this client can open
+  // locally; a custom pinned place still shows as a card, just without that link.
+  const openable = p.place_id && places.some(x=>x.id===p.place_id) ? p.place_id : undefined;
+  return {
+    type:'friend', color,
+    kicker: mine ? 'You posted' : `${escHtml(p.display_name||p.username||'A friend')} posted`,
+    title: escHtml(p.place_name || 'A place in your circle'),
+    body: escHtml(p.content||''),
+    place: openable
+  };
+}
+// Replace the "friend" seed cards with real posts, keep the other seed cards.
+async function loadFeedFromServer(){
+  if(!backendAvailable) return;
+  const r = await apiCallRaw('/api/feed', { method:'GET' });
+  if(r.reachable && r.json && r.json.success){
+    const serverCards = (r.json.data.feed||[]).map(serverPostToCard);
+    feed = [...serverCards, ...SEED_FEED.filter(c=>c.type!=='friend')];
+    renderFeed();
+  }
+}
+
+/* =========================================================
+   LIVE LOCATION (privacy-controlled)
+   Two independent switches, mirroring the backend: the "Live location" toggle in
+   Settings controls whether we SHARE (writes user_settings.live_location via
+   persistState + pushes coordinates), and coordinates are only ever pushed while
+   that toggle is on. Friends' locations are read from /api/locations, which the
+   backend restricts to accepted connections who are themselves sharing — so a
+   user's location never becomes public, and non-friends can't retrieve it.
+========================================================= */
+let locShareTimer=null;
+async function pushMyLocation(){
+  if(!backendAvailable || !currentUser || !state.settings.liveLocation) return;
+  const pos = await getUserLocation();
+  if(!pos) return;
+  await apiCallRaw('/api/location', { method:'POST', body: JSON.stringify({ latitude:pos.lat, longitude:pos.lng }) });
+}
+function startLocationSharing(){
+  stopLocationSharing();
+  if(!backendAvailable || !currentUser || !state.settings.liveLocation) return;
+  pushMyLocation();
+  locShareTimer = setInterval(pushMyLocation, 60000); // refresh position every minute while sharing
+}
+function stopLocationSharing(){ if(locShareTimer){ clearInterval(locShareTimer); locShareTimer=null; } }
+async function loadFriendLocations(){
+  if(!backendAvailable || !currentUser) return;
+  const r = await apiCallRaw('/api/locations', { method:'GET' });
+  if(r.reachable && r.json && r.json.success){ friendLocations = r.json.data.locations || []; renderMapMarkers(); }
+}
 
 /* =========================================================
    EXPLORE
@@ -1384,6 +1530,7 @@ renderStack();
    MAP — Google Maps JS API
 ========================================================= */
 let gMarkers=[];
+let friendLocations=[]; // accepted friends currently sharing live location (from /api/locations)
 function initMap(){
   if(window._gmap) return;
   if(typeof google === 'undefined' || !google.maps){ setTimeout(initMap, 300); return; }
@@ -1444,6 +1591,23 @@ function renderMapMarkers(){
         icon:{ path:'M -7,-7 7,-7 7,7 -7,7 z', scale:1, fillColor:'#54677C', fillOpacity:1, strokeColor:'#fff', strokeWeight:2 }
       });
       marker.addListener('click', ()=>openSheet(eventSheetHtml(e)));
+      gMarkers.push(marker);
+    });
+  }
+  // Live locations of accepted friends who have sharing switched on. These come
+  // only from /api/locations, which the backend already filters to your accepted
+  // connections who opted in — never a hardcoded coordinate.
+  const showFriends = state.mapLayer==='all'||state.mapLayer==='friends';
+  if(showFriends && Array.isArray(friendLocations)){
+    friendLocations.forEach(fl=>{
+      const lat=Number(fl.latitude), lng=Number(fl.longitude);
+      if(!Number.isFinite(lat)||!Number.isFinite(lng)) return;
+      const label=(fl.display_name||fl.username||'Friend');
+      const marker = new google.maps.Marker({
+        position:{lat,lng}, map:window._gmap, title:label+' (live)',
+        icon:{ path:google.maps.SymbolPath.CIRCLE, scale:8, fillColor:'#E15A42', fillOpacity:1, strokeColor:'#fff', strokeWeight:3 }
+      });
+      marker.addListener('click', ()=>openSheet(`<div class="feedKicker"><span class="dot" style="background:#E15A42"></span>LIVE LOCATION</div><h3>${escHtml(label)}</h3><p style="color:var(--ink-soft);font-size:13px;margin-top:6px;">Sharing live · updated ${fl.updated_at?new Date(fl.updated_at).toLocaleTimeString():'recently'}</p><div class="feedMeta"><button class="pillBtn" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}','_blank')">Directions</button></div>`));
       gMarkers.push(marker);
     });
   }
@@ -1663,6 +1827,7 @@ async function loadCircleFromServer(){
     serverOutgoing = reqRes.json.data.outgoing;
   }
   renderCircle();
+  if(backendAvailable && document.getElementById('screen-messages').classList.contains('active')) renderServerConvoList();
 }
 
 async function sendConnectionRequest(userId, btn){
@@ -1682,15 +1847,22 @@ function renderCircle(){
   const requestSections=[document.getElementById('reqSection'),document.getElementById('requestsSection')].filter(Boolean);
   const list=document.getElementById('friendsList');
 
+  // Defensive helpers: a server row with a missing/blank name must never throw
+  // (`undefined[0]`) and blow away the whole Circle render \u2014 that silent crash
+  // was why accepted friends / pending requests sometimes "didn't appear".
+  const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const initial=s=>{ const v=String(s==null?'':s).trim(); return v?esc(v[0].toUpperCase()):'?'; };
+  const nameOf=r=>r.display_name||r.displayName||r.username||'Someone';
+
   if(backendAvailable){
     const incomingHtml = serverIncoming.length ? `<h3 style="font-size:15px; margin-bottom:8px;">Connection requests</h3>` + serverIncoming.map(r=>`
-      <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#1F98A9,#DB8236)">${r.display_name[0]}</div>
-      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.display_name}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username}</p></div>
+      <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#1F98A9,#DB8236)">${initial(nameOf(r))}</div>
+      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${esc(nameOf(r))}</h4><p style="font-size:12px;color:var(--ink-soft);">@${esc(r.username||'')}</p></div>
       <div class="friendActions"><button class="pillBtn primary" data-acc="${r.id}">Accept</button><button class="pillBtn" data-dec="${r.id}">Decline</button></div></div>`).join('') : '';
     const outgoingHtml = serverOutgoing.length ? `<h3 style="font-size:15px; margin:14px 0 8px;">Sent requests</h3>` + serverOutgoing.map(r=>`
-      <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#54677C,#2C9464)">${r.display_name[0]}</div>
-      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${r.display_name}</h4><p style="font-size:12px;color:var(--ink-soft);">@${r.username} \u00b7 pending</p></div>
-      <div class="friendActions"><button class="pillBtn" data-cancel="${r.id}">Cancel</button></div></div>`).join('') : '';
+      <div class="reqCard"><div class="friendAv" style="background:linear-gradient(135deg,#54677C,#2C9464)">${initial(nameOf(r))}</div>
+      <div style="flex:1;"><h4 style="font-size:14px;font-weight:600;">${esc(nameOf(r))}</h4><p style="font-size:12px;color:var(--ink-soft);">@${esc(r.username||'')} \u00b7 pending</p></div>
+      <div class="friendActions"><button class="pillBtn" data-cancel="${r.requestId||r.id}">Cancel</button></div></div>`).join('') : '';
     requestSections.forEach(section=>section.innerHTML = incomingHtml + outgoingHtml);
 
     document.querySelectorAll('#reqSection [data-acc], #requestsSection [data-acc]').forEach(b=>b.onclick=async()=>{
@@ -1722,12 +1894,12 @@ function renderCircle(){
     }
     serverConnections.forEach(f=>{
       const row=document.createElement('div'); row.className='friendRow';
-      row.innerHTML=`<div class="friendAv" style="background:linear-gradient(135deg,var(--gold),var(--coral))">${f.display_name[0]}</div>
-        <div><h4>${f.display_name}</h4><p>@${f.username}</p></div>
-        <div class="friendActions"><button class="pillBtn" data-msg="${f.display_name}">Message</button></div>`;
+      row.innerHTML=`<div class="friendAv" style="background:linear-gradient(135deg,var(--gold),var(--coral))">${initial(nameOf(f))}</div>
+        <div><h4>${esc(nameOf(f))}</h4><p>@${esc(f.username||'')}</p></div>
+        <div class="friendActions"><button class="pillBtn" data-msg-id="${f.id}" data-msg-name="${esc(nameOf(f))}">Message</button></div>`;
       list.appendChild(row);
     });
-    list.querySelectorAll('[data-msg]').forEach(b=>b.onclick=()=>{ switchScreen('messages'); toast(`Opening chat with ${b.dataset.msg} \u2014 messaging isn't wired to the backend yet, see the limitations note.`); });
+    list.querySelectorAll('[data-msg-id]').forEach(b=>b.onclick=()=>{ openConversationWith(Number(b.dataset.msgId), b.dataset.msgName); });
     return;
   }
 
@@ -1780,8 +1952,110 @@ renderCircle();
 
 /* =========================================================
    MESSAGES
+
+   Backend-wired 1:1 messaging. Previously the whole Messages screen ran on a
+   local `conversations` demo array and sendMsg() only pushed into memory — the
+   Circle "Message" button even toasted "not wired to the backend yet". Now, when
+   a backend is present, the conversation list is the user's accepted connections,
+   history loads from GET /api/messages/:userId, sends go to POST, and realtime
+   message:new events drop straight into the open thread. IDs from Postgres arrive
+   as strings (BIGINT), so every comparison is normalised with Number() to avoid
+   the classic `"7" !== 7` bug that opens the wrong thread or drops a message.
 ========================================================= */
+const dmState = { threads:{}, activeId:null }; // activeId = friend's numeric user id
+function meId(){ return currentUser && currentUser.id != null ? Number(currentUser.id) : null; }
+function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function friendName(userId){ const f=(serverConnections||[]).find(c=>Number(c.id)===Number(userId)); return f ? (f.display_name||f.username) : 'Friend'; }
+
+async function openConversationWith(userId, name){
+  userId = Number(userId);
+  if(!userId) return;
+  switchScreen('messages');
+  state.activeConvo = userId;
+  dmState.activeId = userId;
+  document.getElementById('msgWrap').classList.add('threadOpen');
+  renderServerConvoList();
+  document.getElementById('threadTitle').textContent = name || friendName(userId);
+  document.getElementById('threadMsgs').innerHTML = `<div class="emptyState"><p>Loading…</p></div>`;
+  const r = await apiCallRaw(`/api/messages/${userId}`, { method:'GET' });
+  if(r.reachable && r.json && r.json.success){
+    dmState.threads[userId] = r.json.data.messages || [];
+    if(Number(dmState.activeId)===userId) renderServerThread();
+  } else {
+    document.getElementById('threadMsgs').innerHTML = `<div class="emptyState"><p>${escHtml((r.json && r.json.error && r.json.error.message) || 'Could not load this conversation.')}</p></div>`;
+  }
+  track('chat_started',{with:userId});
+}
+function renderServerConvoList(){
+  const list=document.getElementById('convoItems'); list.innerHTML='';
+  const friends = serverConnections || [];
+  if(friends.length===0){
+    list.innerHTML = `<div class="emptyState"><p>No conversations yet.</p><p class="emptySub">Accept a connection in Circle, then tap Message to start chatting.</p></div>`;
+    return;
+  }
+  friends.forEach(f=>{
+    const uid=Number(f.id);
+    const thread=dmState.threads[uid];
+    const last=thread && thread.length ? thread[thread.length-1].content : 'Tap to open the conversation';
+    const el=document.createElement('div'); el.className='convoItem'+(uid===Number(dmState.activeId)?' active':'');
+    el.innerHTML=`<div class="convoAvatar">${escHtml((f.display_name||f.username||'?').trim()[0]||'?')}</div><div><h4>${escHtml(f.display_name||f.username)}</h4><p>${escHtml(last)}</p></div>`;
+    el.onclick=()=>openConversationWith(uid, f.display_name||f.username);
+    list.appendChild(el);
+  });
+}
+function renderServerThread(){
+  const threadPane=document.getElementById('threadPane');
+  const box=document.getElementById('threadMsgs');
+  const uid=Number(dmState.activeId);
+  document.getElementById('pinnedRow').style.display='none';
+  if(!uid){ threadPane.classList.add('noConvo'); document.getElementById('threadTitle').textContent=''; box.innerHTML=`<div class="emptyState"><p>No conversation selected yet.</p></div>`; return; }
+  threadPane.classList.remove('noConvo');
+  document.getElementById('threadTitle').textContent = friendName(uid);
+  const msgs = dmState.threads[uid] || [];
+  if(!msgs.length){ box.innerHTML=`<div class="emptyState"><p>No messages yet — say hello.</p></div>`; return; }
+  box.innerHTML='';
+  msgs.forEach(m=>{
+    const mine = Number(m.sender_id)===meId();
+    const row=document.createElement('div'); row.className='msgRow'+(mine?' me':'');
+    row.innerHTML=`<div class="bubble">${escHtml(m.content)}</div>`;
+    box.appendChild(row);
+  });
+  box.scrollTop=box.scrollHeight;
+}
+async function sendServerMsg(){
+  const input=document.getElementById('msgInput'); const val=input.value.trim();
+  const uid=Number(dmState.activeId);
+  if(!val || !uid) return;
+  input.value='';
+  const r = await apiCallRaw(`/api/messages/${uid}`, { method:'POST', body: JSON.stringify({ content: val }) });
+  if(r.reachable && r.json && r.json.success){
+    const msg=r.json.data.message;
+    (dmState.threads[uid] = dmState.threads[uid] || []).push(msg);
+    if(Number(dmState.activeId)===uid) renderServerThread();
+    renderServerConvoList();
+  } else {
+    input.value=val; // restore so the text isn't lost
+    toast((r.json && r.json.error && r.json.error.message) || 'Could not send message');
+  }
+}
+// Realtime inbound DM (from handleRealtimeEvent). Only accepted friends can reach
+// here (the backend enforces it), so drop it into that friend's thread and, if the
+// thread is open, render immediately; otherwise nudge the list + a toast.
+function onIncomingMessage(data){
+  const msg = data && data.message;
+  if(!msg || data.circleId) return; // group-circle messages aren't part of the 1:1 UI
+  const other = Number(msg.sender_id)===meId() ? Number(msg.receiver_id) : Number(msg.sender_id);
+  (dmState.threads[other] = dmState.threads[other] || []).push(msg);
+  if(Number(dmState.activeId)===other && document.getElementById('screen-messages').classList.contains('active')){
+    renderServerThread();
+  } else if(Number(msg.sender_id)!==meId()){
+    toast(`New message from ${friendName(other)}`);
+  }
+  if(document.getElementById('screen-messages').classList.contains('active')) renderServerConvoList();
+}
+
 function renderConvoList(){
+  if(backendAvailable) return renderServerConvoList();
   const list=document.getElementById('convoItems'); list.innerHTML='';
   if(conversations.length===0){
     list.innerHTML = `<div class="emptyState"><p>No conversations yet.</p><p class="emptySub">Start one from a friend's profile in Circle, or create a group.</p></div>`;
@@ -1828,6 +2102,7 @@ function openNewGroup(){
 }
 document.getElementById('groupOverlay').addEventListener('click', e=>{ if(e.target.id==='groupOverlay') e.currentTarget.classList.remove('show'); });
 function renderThread(){
+  if(backendAvailable) return renderServerThread();
   const c=conversations.find(x=>x.id===state.activeConvo);
   const threadPane=document.getElementById('threadPane');
   if(!c){
@@ -1863,6 +2138,7 @@ function renderThread(){
 document.getElementById('sendBtn').onclick=sendMsg;
 document.getElementById('msgInput').addEventListener('keydown', e=>{ if(e.key==='Enter') sendMsg(); });
 function sendMsg(){
+  if(backendAvailable) return sendServerMsg();
   const input=document.getElementById('msgInput'); const val=input.value.trim();
   if(!val || !state.activeConvo) return;
   conversations.find(c=>c.id===state.activeConvo).messages.push({from:'me', text:val});
@@ -2081,11 +2357,39 @@ function openCreate(placeId){
   }, 60);
 }
 createOverlay.addEventListener('click', e=>{ if(e.target===createOverlay) createOverlay.classList.remove('show'); });
-document.getElementById('postSubmit').onclick=()=>{
+document.getElementById('postSubmit').onclick=async ()=>{
   const text=document.getElementById('postText').value.trim();
   if(!text){ toast('Say a little about what it was like first'); return; }
   if(!postChosenPlace){ toast('Search for a place near you, or drop a pin on the map, first'); return; }
   const p=postChosenPlace;
+  const btn=document.getElementById('postSubmit');
+
+  if(backendAvailable){
+    btn.disabled=true; btn.textContent='Posting\u2026';
+    // Send the place details so the backend can find-or-create the places row and
+    // satisfy the posts.place_id foreign key \u2014 this is what makes posts survive a refresh.
+    const r = await apiCallRaw('/api/posts', { method:'POST', body: JSON.stringify({
+      content: text,
+      rating: state.postRating,
+      place: { id: p.id || undefined, name: p.name, lat: p.lat, lng: p.lng }
+    }) });
+    btn.disabled=false; btn.textContent='Post';
+    if(r.reachable && r.json && r.json.success){
+      track('post_created',{place:p.id||p.name, lat:p.lat, lng:p.lng, rating:state.postRating, tags:[...state.postTags]});
+      document.getElementById('postText').value='';
+      state.postTags=new Set();
+      postChosenPlace=null;
+      createOverlay.classList.remove('show');
+      await loadFeedFromServer(); // reload from Postgres so the card is the persisted one
+      switchScreen('home');
+      toast('Posted to your circle');
+    } else {
+      toast((r.json && r.json.error && r.json.error.message) || 'Could not save your post');
+    }
+    return;
+  }
+
+  // ---- demo mode (no backend attached) \u2014 original in-memory behaviour ----
   feed.unshift({type:'friend', color:p.color, kicker:'You posted', title:p.name, body:`"${text}" \u00b7 Rating ${state.postRating}/5${state.postTags.size?' \u00b7 '+[...state.postTags].join(', '):''}`, place:p.id||undefined});
   renderFeed();
   track('post_created',{place:p.id||p.name, lat:p.lat, lng:p.lng, rating:state.postRating, tags:[...state.postTags]});
@@ -2250,7 +2554,11 @@ document.getElementById('settingsThemeToggle').onclick=()=>applyTheme(!state.dar
   el.onclick=()=>{
     el.classList.toggle('on');
     state.settings[key]=el.classList.contains('on');
-    persistState();
+    persistState(); // writes user_settings (incl. live_location) to the backend
+    if(key==='liveLocation'){
+      if(state.settings.liveLocation){ startLocationSharing(); }
+      else { stopLocationSharing(); if(backendAvailable) apiCallRaw('/api/location', { method:'DELETE' }); }
+    }
     toast(el.classList.contains('on')?'Turned on':'Turned off');
   };
 });
@@ -2284,8 +2592,9 @@ document.getElementById('searchInput').addEventListener('input', e=>{
   renderSearchRows(rows, q);
 
   if(searchDebounce) clearTimeout(searchDebounce);
-  if(backendAvailable && q.length >= 2){
+  if(q.length >= 2){
     searchDebounce = setTimeout(async ()=>{
+      if(!(await ensureBackendChecked())) return; // demo mode — local rows only
       const r = await apiCallRaw('/api/users/search?q=' + encodeURIComponent(q), { method:'GET' });
       if(r.reachable && r.json && r.json.success && document.getElementById('searchInput').value.trim() === q){
         renderSearchRows(rows, q, r.json.data.users);
