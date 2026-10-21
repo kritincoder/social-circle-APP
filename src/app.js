@@ -170,6 +170,24 @@ async function recordCallHistory(call, status) {
     return row;
   } catch (error) { console.warn('Call history not recorded:', error.message); return null; }
 }
+// Authorisation for in-call events: the sender must actually be one of the two
+// participants of that call, and the addressed user must be the other one. This is
+// what stops a client from using a reaction (or any call event) to poke a stranger.
+async function callParticipants(callId) {
+  try {
+    const row = (await pool.query("SELECT caller_id, callee_id, status FROM call_sessions WHERE id=$1", [Number(callId)])).rows[0];
+    return row || null;
+  } catch (error) { return null; }
+}
+async function isCallPair(callId, fromUserId, toUserId) {
+  const row = await callParticipants(callId);
+  if (!row) return false;
+  if (!['ringing', 'active'].includes(row.status)) return false;
+  const a = Number(row.caller_id), b = Number(row.callee_id);
+  const f = Number(fromUserId), t = Number(toUserId);
+  return (f === a && t === b) || (f === b && t === a);
+}
+
 // A socket dropping (tab closed, network lost) must not leave the other side ringing.
 async function endStaleCallsFor(userId) {
   try {
@@ -281,4 +299,4 @@ app.get('*', (_request, response) => response.sendFile(path.join(root, 'socialci
 
 async function initialize() { await pool.query(fs.readFileSync(path.join(root, 'schema.sql'), 'utf8')); const password = process.env.ADMIN_PASSWORD || 'admin@123'; await pool.query(`INSERT INTO users(username,email,password_hash,display_name,is_admin) VALUES('admin','admin@socialcircle.local',$1,'Administrator',TRUE) ON CONFLICT(username) DO UPDATE SET password_hash=EXCLUDED.password_hash,is_admin=TRUE`, [await hashPassword(password)]); }
 initialize().catch(error => { console.error('Database startup failed:', error.message); process.exit(1); });
-module.exports = { createApp: () => app, addClient, notifyUser, isUserOnline, endStaleCallsFor };
+module.exports = { createApp: () => app, addClient, notifyUser, isUserOnline, endStaleCallsFor, isCallPair };
