@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1101,6 +1100,7 @@ function enterApp(user){
     loadServerNotifs();
     loadFeedFromServer();
     loadConversations();
+    loadRtcConfig();
     connectRealtime();
     startLocationSharing();
   }
@@ -2017,6 +2017,7 @@ const dmState = convoState; // back-compat alias
 function meId(){ return currentUser && currentUser.id != null ? Number(currentUser.id) : null; }
 function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function convoKey(kind, id){ return kind + ':' + Number(id); }
+function callHistoryDuration(seconds){ const n=Math.max(0,Number(seconds)||0); const m=Math.floor(n/60), r=n%60; return m ? (m+'m '+r+'s') : (r+'s'); }
 function friendName(userId){
   const d=(convoState.direct||[]).find(x=>Number(x.peer_id)===Number(userId));
   if(d) return d.display_name||d.username;
@@ -2142,6 +2143,30 @@ function renderServerThread(){
   if(!msgs.length){ box.innerHTML=`<div class="emptyState"><p>No messages yet — say hello.</p></div>`; return; }
   box.innerHTML='';
   msgs.forEach(m=>{
+    // Persisted call-history entry (kind='call'), stored in direct_messages by the
+    // backend so both participants see the same row and it survives a reload.
+    // Wording is rendered per viewer; the underlying row is identical for both.
+    if(m.kind==='call'){
+      const meta = m.meta || {};
+      const outgoing = Number(meta.callerId)===meId();
+      const word = meta.callType==='video' ? 'video' : 'audio';
+      let text;
+      if(meta.status==='ended'){
+        const dur = meta.seconds!=null ? callHistoryDuration(meta.seconds) : '';
+        text = `${outgoing?'Outgoing':'Incoming'} ${word} call${dur?' · '+dur:''}`;
+      } else if(meta.status==='declined'){
+        text = outgoing ? `${word[0].toUpperCase()+word.slice(1)} call declined` : `You declined a ${word} call`;
+      } else {
+        text = outgoing ? `No answer · ${word} call` : `Missed ${word} call`;
+      }
+      const row=document.createElement('div');
+      row.className='msgRow';
+      row.style.justifyContent='center';
+      row.innerHTML=`<div style="display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:14px;background:var(--paper-dim);color:var(--ink-soft);font-size:12px;max-width:85%;">`
+        + icon(meta.callType==='video'?'video':'phone',14) + `<span>${escHtml(text)}</span></div>`;
+      box.appendChild(row);
+      return;
+    }
     const mine = Number(m.sender_id)===meId();
     const row=document.createElement('div');
     row.className='msgRow'+(mine?' me':'');
@@ -2402,7 +2427,23 @@ let callState={muted:false, camera:true, speaker:false, video:false};
    Mesh is appropriate for small circles; it is not an SFU and will not scale to
    large groups (see the note returned with this change).
 ========================================================= */
-const RTC_CONFIG = { iceServers: [{ urls: ['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302'] }] };
+/* ICE servers are fetched from the backend (GET /api/rtc-config) so TURN
+   credentials live in server environment variables and are never baked into this
+   page. STUN alone only works when at least one peer is directly reachable; on
+   symmetric NAT / mobile networks a TURN relay is required, so the server exposes
+   whatever is configured and we warn loudly when TURN is absent. */
+let RTC_CONFIG = { iceServers: [{ urls: ['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302'] }] };
+let rtcConfigLoaded = false;
+async function loadRtcConfig(){
+  if(rtcConfigLoaded || !backendAvailable) return RTC_CONFIG;
+  const r = await apiCallRaw('/api/rtc-config', { method:'GET' });
+  if(r.reachable && r.json && r.json.success && r.json.data && Array.isArray(r.json.data.iceServers) && r.json.data.iceServers.length){
+    RTC_CONFIG = { iceServers: r.json.data.iceServers };
+    rtcConfigLoaded = true;
+    if(!r.json.data.hasTurn) console.warn('[calls] No TURN server configured. Calls will fail for users behind symmetric NAT. Set TURN_URLS / TURN_USERNAME / TURN_CREDENTIAL on the server.');
+  }
+  return RTC_CONFIG;
+}
 
 const callSession = {
   active:false, mode:null, role:null, callId:null, peerId:null, circleId:null,
@@ -2477,7 +2518,12 @@ function renderVideoTiles(){
       el=document.createElement('video');
       el.dataset.peer=key; el.autoplay=true; el.playsInline=true;
       if(key==='self') el.muted=true;
-      el.style.cssText='flex:1 1 42%;min-width:110px;max-height:100%;border-radius:10px;background:#111;object-fit:cover;';
+      // Mirror ONLY our own preview, the familiar selfie view. This is a CSS
+      // transform on the local element, so the track we transmit is unaffected and
+      // the remote participant sees us in natural orientation. Remote tiles are
+      // never flipped.
+      el.style.cssText='flex:1 1 42%;min-width:110px;max-height:100%;border-radius:10px;background:#111;object-fit:cover;'
+        + (key==='self' ? 'transform:scaleX(-1);' : '');
       tiles.appendChild(el);
     }
     const stream = key==='self' ? callSession.localStream : (callSession.peers[key] && callSession.peers[key].stream);
@@ -2503,7 +2549,7 @@ function markCallConnected(){
 
 function sendCallSignal(toUserId, payload){
   if(!(realtimeSocket && realtimeSocket.readyState===1)){ toast('Realtime connection is down — cannot signal the call'); return false; }
-  realtimeSocket.send(JSON.stringify({ event:'call:signal', data: Object.assign({ toUserId: Number(toUserId) }, payload) }));
+  realtimeSocket.send(JSON.stringify({ event:'call:signal', data: Object.assign({ toUserId: Number(toUserId), callId: callSession.callId || null }, payload) }));
   return true;
 }
 function createPeer(remoteUserId){
@@ -2561,6 +2607,9 @@ async function onCallSignal(data){
     if(pendingCallSignals.length>30) pendingCallSignals.shift();
     return;
   }
+  // Ignore signalling that belongs to a different (stale) call, so a late frame
+  // from a previous call can never corrupt the current one.
+  if(callSession.mode==='dm' && data.callId && callSession.callId && String(data.callId)!==String(callSession.callId)) return;
   try{
     if(data.kind==='offer'){
       const entry=createPeer(from);
@@ -2589,6 +2638,7 @@ async function onCallSignal(data){
 
 async function startDirectCall(peerId, isVideo){
   peerId=Number(peerId);
+  await loadRtcConfig();
   if(callSession.active){ toast('You are already in a call'); return; }
   if(!backendAvailable){ toast('Calling needs the backend connection'); return; }
   const stream=await getLocalMedia(isVideo); if(!stream) return;
@@ -2598,11 +2648,13 @@ async function startDirectCall(peerId, isVideo){
     toast((r.json && r.json.error && r.json.error.message) || 'Could not start the call');
     return;
   }
-  Object.assign(callSession,{ active:true, mode:'dm', role:'caller', callId:r.json.data.call.id, peerId, circleId:null,
+  const info=r.json.data||{};
+  Object.assign(callSession,{ active:true, mode:'dm', role:'caller', callId:info.call.id, peerId, circleId:null,
     isVideo:!!isVideo, localStream:stream, peers:{}, incoming:null, accepted:false, timerRunning:false, memberIds:[] });
   callState={muted:false, camera:true, speaker:false, video:!!isVideo};
   setCallMode(false);
-  setCallHeader(friendName(peerId), 'Calling…', isVideo);
+  setCallHeader(friendName(peerId), info.recipientOnline===false ? 'Not reachable right now…' : (info.recipientBusy ? 'On another call…' : 'Ringing…'), isVideo);
+  if(info.recipientOnline===false) toast('They are offline — they will not be notified until they open the app');
   document.getElementById('ringDot').style.display='inline-block';
   const card=callCardEl(); if(card) card.classList.add('ringing');
   renderVideoTiles(); updateCallButtons(); showCallOverlay(); startRingtone();
@@ -2611,6 +2663,7 @@ async function startDirectCall(peerId, isVideo){
 }
 async function startGroupCall(circleId, isVideo){
   circleId=Number(circleId);
+  await loadRtcConfig();
   if(callSession.active){ toast('You are already in a call'); return; }
   if(!backendAvailable){ toast('Calling needs the backend connection'); return; }
   const stream=await getLocalMedia(isVideo); if(!stream) return;
@@ -2634,7 +2687,12 @@ async function startGroupCall(circleId, isVideo){
 
 function onIncomingCall(data){
   const call=data && data.call; if(!call) return;
-  if(callSession.active || callSession.incoming) return; // busy
+  if(callSession.active || callSession.incoming){
+    // Busy: decline immediately with a reason so the caller gets a definite answer
+    // instead of ringing out.
+    apiCallRaw('/api/calls/'+call.id+'/respond', { method:'POST', body: JSON.stringify({ accept:false, reason:'busy' }) });
+    return;
+  }
   callSession.incoming={ mode:'dm', callId:call.id, peerId:Number(call.caller_id), isVideo:call.call_type==='video' };
   const who=(data.caller && (data.caller.displayName||data.caller.username)) || friendName(call.caller_id);
   setCallMode(true);
@@ -2657,6 +2715,7 @@ function onIncomingGroupCall(data){
 }
 async function acceptIncomingCall(){
   const inc=callSession.incoming; if(!inc) return;
+  await loadRtcConfig();
   const stream=await getLocalMedia(inc.isVideo); if(!stream) return;
   if(inc.mode==='dm'){
     // Be ready to receive the caller's offer BEFORE telling them we accepted — the
@@ -2691,17 +2750,28 @@ function rejectIncomingCall(){
 }
 async function onCallResponse(data){
   if(!callSession.active || callSession.mode!=='dm') return;
+  // Only act on a response for the call we are actually in.
+  const respId = data && data.call ? String(data.call.id) : null;
+  if(respId && callSession.callId && respId!==String(callSession.callId)) return;
   if(data && data.accepted){
     callSession.accepted=true;
     document.getElementById('callStatusText').textContent='Connecting…';
     await offerTo(callSession.peerId);   // caller offers once the callee has accepted
   } else {
-    teardownCall('Call declined');
+    teardownCall(data && data.reason==='busy' ? 'They are on another call' : 'Call declined');
   }
 }
-function onCallEnded(){
-  if(callSession.active && callSession.mode==='dm') teardownCall('Call ended');
-  else if(callSession.incoming && callSession.incoming.mode==='dm'){
+function onCallEnded(data){
+  // A call:ended for a DIFFERENT call must never tear down the one we are in —
+  // stale or overlapping call rows would otherwise kill a healthy call.
+  const endedId = data && data.call ? String(data.call.id) : null;
+  if(callSession.active && callSession.mode==='dm'){
+    if(endedId && callSession.callId && endedId!==String(callSession.callId)) return;
+    teardownCall(data && data.reason==='disconnected' ? 'Call ended — connection lost' : 'Call ended');
+    return;
+  }
+  if(callSession.incoming && callSession.incoming.mode==='dm'){
+    if(endedId && endedId!==String(callSession.incoming.callId)) return;
     callSession.incoming=null; stopRingtone(); hideCallOverlay(); setCallMode(false);
     const card=callCardEl(); if(card) card.classList.remove('ringing');
   }
@@ -2747,6 +2817,16 @@ document.getElementById('callCamera').onclick=()=>{
   toast(callState.camera?'Camera on':'Camera off');
 };
 document.getElementById('callEnd').onclick=endCall;
+window.addEventListener('beforeunload', ()=>{
+  try{
+    if(callSession.active){
+      Object.keys(callSession.peers).forEach(id=>sendCallSignal(id,{ kind:'bye' }));
+      if(callSession.mode==='dm' && callSession.callId && navigator.sendBeacon) navigator.sendBeacon('/api/calls/'+callSession.callId+'/end');
+    } else if(callSession.incoming && callSession.incoming.mode==='dm' && navigator.sendBeacon){
+      navigator.sendBeacon('/api/calls/'+callSession.incoming.callId+'/end');
+    }
+  }catch(e){}
+});
 document.getElementById('callAccept').onclick=acceptIncomingCall;
 document.getElementById('callReject').onclick=rejectIncomingCall;
 
