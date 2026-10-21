@@ -1,5 +1,4 @@
 
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -703,14 +702,20 @@ svg{display:block;}
       <h3 id="callName">Friend</h3>
       <div class="callStatus" id="callStatus"><span class="ringDot" id="ringDot"></span><span id="callStatusText">Calling…</span></div>
       <div class="callTimer" id="callTimer">00:00</div>
-      <div class="callControls">
+      <div class="callControls" id="callLiveControls">
         <button class="callBtn" id="callMute" title="Mute"></button>
         <button class="callBtn" id="callCamera" title="Camera"></button>
         <button class="callBtn end" id="callEnd" title="End call"></button>
         <button class="callBtn" id="callSpeaker" title="Speaker"></button>
       </div>
+      <div class="callControls" id="callIncomingControls" style="display:none;">
+        <button class="callBtn" id="callAccept" title="Accept" style="background:#2C9464;color:#fff;"></button>
+        <button class="callBtn end" id="callReject" title="Reject"></button>
+      </div>
     </div>
   </div>
+  <!-- Remote audio sinks (one <audio> per peer). Hidden: audio only, no layout. -->
+  <div id="callRemoteAudio" style="position:absolute;width:0;height:0;overflow:hidden;"></div>
 </div>
 
 <!-- SEARCH OVERLAY -->
@@ -1095,6 +1100,7 @@ function enterApp(user){
     loadCircleFromServer();
     loadServerNotifs();
     loadFeedFromServer();
+    loadConversations();
     connectRealtime();
     startLocationSharing();
   }
@@ -1238,7 +1244,7 @@ function ensureBackendChecked(){
    socket can't stay up. The database stays the source of truth — every event just
    triggers a reload of real data, it never fabricates state on its own.
 ========================================================= */
-let realtimeSocket=null, realtimeRetry=0, realtimePollTimer=null;
+let realtimeSocket=null, realtimeRetry=0, realtimePollTimer=null, realtimePingTimer=null;
 function realtimeUrl(){ return (location.protocol==='https:'?'wss:':'ws:') + '//' + location.host + '/realtime'; }
 function connectRealtime(){
   if(!backendAvailable || !currentUser || !currentUser.id) return;
@@ -1247,25 +1253,61 @@ function connectRealtime(){
   try{ socket = new WebSocket(realtimeUrl()); }
   catch(e){ startRealtimePolling(); return; }
   realtimeSocket = socket;
-  socket.onopen = ()=>{ realtimeRetry=0; stopRealtimePolling(); };
+  socket.onopen = ()=>{
+    realtimeRetry=0; stopRealtimePolling(); startRealtimeKeepalive();
+    // Re-sync after any reconnect: anything delivered while the socket was down is
+    // fetched from Postgres, so a dropped connection never loses a message silently.
+    loadConversations();
+    if(convoState.activeKind && convoState.activeId) reloadActiveThread();
+  };
   socket.onmessage = (ev)=>{ try{ const msg=JSON.parse(ev.data); handleRealtimeEvent(msg.event, msg.data||{}); }catch(e){} };
   socket.onerror = ()=>{ try{ socket.close(); }catch(e){} };
   socket.onclose = ()=>{
     realtimeSocket=null;
+    stopRealtimeKeepalive();
     if(!backendAvailable || !currentUser) return;
     startRealtimePolling(); // keep the UI live while we back off and retry
     realtimeRetry++;
     setTimeout(connectRealtime, Math.min(30000, 1000*Math.pow(2, realtimeRetry)));
   };
 }
+// Idle WebSockets can be dropped by proxies with no close frame. A tiny outbound
+// frame every 25s keeps the connection warm; the server ignores unknown events.
+function startRealtimeKeepalive(){
+  stopRealtimeKeepalive();
+  realtimePingTimer = setInterval(()=>{
+    if(realtimeSocket && realtimeSocket.readyState===1){
+      try{ realtimeSocket.send(JSON.stringify({event:'ping'})); }catch(e){}
+    }
+  }, 25000);
+}
+function stopRealtimeKeepalive(){ if(realtimePingTimer){ clearInterval(realtimePingTimer); realtimePingTimer=null; } }
+async function reloadActiveThread(){
+  const kind=convoState.activeKind, id=Number(convoState.activeId);
+  if(!backendAvailable || !kind || !id) return;
+  const path = kind==='circle' ? `/api/circles/${id}/messages` : `/api/messages/${id}`;
+  const r = await apiCallRaw(path, { method:'GET' });
+  if(r.reachable && r.json && r.json.success){
+    convoState.threads[convoKey(kind,id)] = r.json.data.messages || [];
+    if(convoState.activeKind===kind && Number(convoState.activeId)===id) renderServerThread();
+  }
+}
 function handleRealtimeEvent(event, data){
   if(event==='notification'){
     loadServerNotifs();
     if(data.type==='connection_request'){ toast('New connection request'); loadCircleFromServer(); }
-    else if(data.type==='connection_accepted'){ toast('Connection accepted'); loadCircleFromServer(); }
-  } else if(event==='message:new'){
-    onIncomingMessage(data);
+    else if(data.type==='connection_accepted'){ toast('Connection accepted'); loadCircleFromServer(); loadConversations(); }
   }
+  else if(event==='message:new'){ onIncomingMessage(data); }
+  else if(event==='circle:new'){
+    loadConversations();
+    toast(`You were added to ${data && data.circle ? data.circle.name : 'a group'}`);
+  }
+  else if(event==='call:incoming'){ onIncomingCall(data); }
+  else if(event==='call:group-incoming'){ onIncomingGroupCall(data); }
+  else if(event==='call:response'){ onCallResponse(data); }
+  else if(event==='call:ended'){ onCallEnded(data); }
+  else if(event==='call:signal'){ onCallSignal(data); }
 }
 // Fallback when the socket is unavailable (blocked proxy, sleeping host): poll the
 // same real endpoints so requests/acceptances still surface without a refresh.
@@ -1347,7 +1389,7 @@ function switchScreen(id){
   if(id==='map' && backendAvailable && currentUser && currentUser.id){ loadFriendLocations(); }
   if(id==='news' && newsDeck.length<2){ fetchLiveNews(true); }
   if((id==='circle' || id==='requests') && backendAvailable && currentUser && currentUser.id){ loadCircleFromServer(); }
-  if(id==='messages' && backendAvailable && currentUser && currentUser.id){ renderConvoList(); }
+  if(id==='messages' && backendAvailable && currentUser && currentUser.id){ renderConvoList(); loadConversations(); }
 }
 document.querySelectorAll('[data-screen]').forEach(el=>{
   if(el.classList.contains('navItem')) return;
@@ -1827,7 +1869,9 @@ async function loadCircleFromServer(){
     serverOutgoing = reqRes.json.data.outgoing;
   }
   renderCircle();
-  if(backendAvailable && document.getElementById('screen-messages').classList.contains('active')) renderServerConvoList();
+  // Connections changed, so the Messages list (which is built from accepted
+  // connections) must resync too — a newly accepted friend becomes chat-able at once.
+  if(backendAvailable) loadConversations();
 }
 
 async function sendConnectionRequest(userId, btn){
@@ -1962,96 +2006,221 @@ renderCircle();
    as strings (BIGINT), so every comparison is normalised with Number() to avoid
    the classic `"7" !== 7` bug that opens the wrong thread or drops a message.
 ========================================================= */
-const dmState = { threads:{}, activeId:null }; // activeId = friend's numeric user id
+/* ---------- Unified conversation model: DMs + groups, Postgres-backed ----------
+   convoState mirrors GET /api/conversations — the real accepted connections and the
+   real circles stored in Postgres. Threads are cached per conversation key so a
+   realtime message can be appended without refetching, but Postgres remains the
+   source of truth and every open refetches history. Postgres BIGINTs arrive as
+   strings, so every id comparison goes through Number() to avoid "7" !== 7 bugs. */
+const convoState = { direct: [], groups: [], threads: {}, unread: {}, activeKind: null, activeId: null };
+const dmState = convoState; // back-compat alias
 function meId(){ return currentUser && currentUser.id != null ? Number(currentUser.id) : null; }
 function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function friendName(userId){ const f=(serverConnections||[]).find(c=>Number(c.id)===Number(userId)); return f ? (f.display_name||f.username) : 'Friend'; }
-
-async function openConversationWith(userId, name){
-  userId = Number(userId);
-  if(!userId) return;
-  switchScreen('messages');
-  state.activeConvo = userId;
-  dmState.activeId = userId;
-  document.getElementById('msgWrap').classList.add('threadOpen');
-  renderServerConvoList();
-  document.getElementById('threadTitle').textContent = name || friendName(userId);
-  document.getElementById('threadMsgs').innerHTML = `<div class="emptyState"><p>Loading…</p></div>`;
-  const r = await apiCallRaw(`/api/messages/${userId}`, { method:'GET' });
-  if(r.reachable && r.json && r.json.success){
-    dmState.threads[userId] = r.json.data.messages || [];
-    if(Number(dmState.activeId)===userId) renderServerThread();
-  } else {
-    document.getElementById('threadMsgs').innerHTML = `<div class="emptyState"><p>${escHtml((r.json && r.json.error && r.json.error.message) || 'Could not load this conversation.')}</p></div>`;
-  }
-  track('chat_started',{with:userId});
+function convoKey(kind, id){ return kind + ':' + Number(id); }
+function friendName(userId){
+  const d=(convoState.direct||[]).find(x=>Number(x.peer_id)===Number(userId));
+  if(d) return d.display_name||d.username;
+  const f=(serverConnections||[]).find(c=>Number(c.id)===Number(userId));
+  return f ? (f.display_name||f.username) : 'Friend';
 }
+function groupName(circleId){
+  const g=(convoState.groups||[]).find(x=>Number(x.peer_id)===Number(circleId));
+  return g ? g.name : 'Group';
+}
+function messagesScreenActive(){ const el=document.getElementById('screen-messages'); return !!el && el.classList.contains('active'); }
+
+async function loadConversations(){
+  if(!backendAvailable || !currentUser || !currentUser.id) return;
+  const r = await apiCallRaw('/api/conversations', { method:'GET' });
+  if(!(r.reachable && r.json && r.json.success)) return;
+  convoState.direct = r.json.data.direct || [];
+  convoState.groups = r.json.data.groups || [];
+  convoState.unread = {};
+  convoState.direct.forEach(d=>{ convoState.unread[convoKey('dm', d.peer_id)] = d.unread || 0; });
+  convoState.groups.forEach(g=>{ convoState.unread[convoKey('circle', g.peer_id)] = g.unread || 0; });
+  renderServerConvoList();
+  updateMessagesBadge();
+}
+function totalUnread(){ return Object.keys(convoState.unread).reduce((sum,k)=>sum+(convoState.unread[k]||0),0); }
+// Unread pill on the Messages nav entries (desktop sidenav + mobile tabbar/drawer).
+function updateMessagesBadge(){
+  const n = totalUnread();
+  document.querySelectorAll('[data-screen="messages"]').forEach(el=>{
+    let b = el.querySelector('.msgUnreadDot');
+    if(!n){ if(b) b.remove(); return; }
+    if(!b){
+      b=document.createElement('span'); b.className='msgUnreadDot';
+      b.style.cssText='margin-left:6px;min-width:17px;height:17px;padding:0 5px;border-radius:9px;background:#E15A42;color:#fff;font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none;';
+      el.appendChild(b);
+    }
+    b.textContent = n>99 ? '99+' : String(n);
+  });
+}
+async function markConversationRead(kind, id){
+  convoState.unread[convoKey(kind,id)] = 0;
+  const list = kind==='circle' ? convoState.groups : convoState.direct;
+  const row = (list||[]).find(x=>Number(x.peer_id)===Number(id));
+  if(row) row.unread = 0;
+  updateMessagesBadge();
+  if(backendAvailable) await apiCallRaw(`/api/conversations/${kind}/${Number(id)}/read`, { method:'POST' });
+}
+
+async function openConversation(kind, id, name){
+  id = Number(id);
+  if(!id) return;
+  switchScreen('messages');
+  convoState.activeKind = kind;
+  convoState.activeId = id;
+  state.activeConvo = id; // keep the legacy field populated
+  document.getElementById('msgWrap').classList.add('threadOpen');
+  document.getElementById('threadTitle').textContent = name || (kind==='circle' ? groupName(id) : friendName(id));
+  renderServerConvoList();
+  updateCallButtonsForConversation();
+  const box = document.getElementById('threadMsgs');
+  box.innerHTML = `<div class="emptyState"><p>Loading…</p></div>`;
+  const path = kind==='circle' ? `/api/circles/${id}/messages` : `/api/messages/${id}`;
+  const r = await apiCallRaw(path, { method:'GET' });
+  if(r.reachable && r.json && r.json.success){
+    convoState.threads[convoKey(kind,id)] = r.json.data.messages || [];
+    if(convoState.activeKind===kind && Number(convoState.activeId)===id) renderServerThread();
+    markConversationRead(kind, id);
+  } else {
+    box.innerHTML = `<div class="emptyState"><p>${escHtml((r.json && r.json.error && r.json.error.message) || 'Could not load this conversation.')}</p></div>`;
+  }
+  track('chat_started', { kind, id });
+}
+// Existing callers (Circle "Message" button) keep working unchanged.
+function openConversationWith(userId, name){ return openConversation('dm', userId, name); }
+function openGroupConversation(circleId, name){ return openConversation('circle', circleId, name); }
+
 function renderServerConvoList(){
-  const list=document.getElementById('convoItems'); list.innerHTML='';
-  const friends = serverConnections || [];
-  if(friends.length===0){
+  const list=document.getElementById('convoItems');
+  if(!list) return;
+  list.innerHTML='';
+  const rows=[];
+  (convoState.groups||[]).forEach(g=>rows.push({
+    kind:'circle', id:Number(g.peer_id), title:g.name, at:g.last_at,
+    sub: g.last_content ? ((g.last_sender_name? g.last_sender_name+': ':'')+g.last_content) : ((g.member_count||0)+' members')
+  }));
+  (convoState.direct||[]).forEach(d=>rows.push({
+    kind:'dm', id:Number(d.peer_id), title:(d.display_name||d.username), at:d.last_at,
+    sub: d.last_content || 'Tap to open the conversation'
+  }));
+  if(!rows.length){
     list.innerHTML = `<div class="emptyState"><p>No conversations yet.</p><p class="emptySub">Accept a connection in Circle, then tap Message to start chatting.</p></div>`;
     return;
   }
-  friends.forEach(f=>{
-    const uid=Number(f.id);
-    const thread=dmState.threads[uid];
-    const last=thread && thread.length ? thread[thread.length-1].content : 'Tap to open the conversation';
-    const el=document.createElement('div'); el.className='convoItem'+(uid===Number(dmState.activeId)?' active':'');
-    el.innerHTML=`<div class="convoAvatar">${escHtml((f.display_name||f.username||'?').trim()[0]||'?')}</div><div><h4>${escHtml(f.display_name||f.username)}</h4><p>${escHtml(last)}</p></div>`;
-    el.onclick=()=>openConversationWith(uid, f.display_name||f.username);
+  rows.sort((a,b)=>(b.at? new Date(b.at).getTime():0)-(a.at? new Date(a.at).getTime():0));
+  rows.forEach(r=>{
+    const un = convoState.unread[convoKey(r.kind,r.id)] || 0;
+    const isActive = convoState.activeKind===r.kind && Number(convoState.activeId)===r.id;
+    const el=document.createElement('div');
+    el.className='convoItem'+(isActive?' active':'');
+    el.innerHTML = `<div class="convoAvatar">${escHtml((String(r.title||'?').trim()[0]||'?').toUpperCase())}</div>`
+      + `<div style="flex:1;min-width:0;"><h4>${escHtml(r.title)}${r.kind==='circle'?' <span style="font-weight:500;color:var(--ink-soft);font-size:11px;">· group</span>':''}</h4><p>${escHtml(r.sub)}</p></div>`
+      + (un ? `<span style="min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#E15A42;color:#fff;font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none;">${un>99?'99+':un}</span>` : '');
+    el.onclick=()=>openConversation(r.kind, r.id, r.title);
     list.appendChild(el);
   });
 }
 function renderServerThread(){
   const threadPane=document.getElementById('threadPane');
   const box=document.getElementById('threadMsgs');
-  const uid=Number(dmState.activeId);
-  document.getElementById('pinnedRow').style.display='none';
-  if(!uid){ threadPane.classList.add('noConvo'); document.getElementById('threadTitle').textContent=''; box.innerHTML=`<div class="emptyState"><p>No conversation selected yet.</p></div>`; return; }
+  if(!threadPane || !box) return;
+  const kind=convoState.activeKind, id=Number(convoState.activeId);
+  const pinned=document.getElementById('pinnedRow');
+  if(pinned) pinned.style.display='none';
+  if(!kind || !id){
+    threadPane.classList.add('noConvo');
+    document.getElementById('threadTitle').textContent='';
+    box.innerHTML=`<div class="emptyState"><p>No conversation selected yet.</p></div>`;
+    return;
+  }
   threadPane.classList.remove('noConvo');
-  document.getElementById('threadTitle').textContent = friendName(uid);
-  const msgs = dmState.threads[uid] || [];
+  document.getElementById('threadTitle').textContent = kind==='circle' ? groupName(id) : friendName(id);
+  const msgs = convoState.threads[convoKey(kind,id)] || [];
   if(!msgs.length){ box.innerHTML=`<div class="emptyState"><p>No messages yet — say hello.</p></div>`; return; }
   box.innerHTML='';
   msgs.forEach(m=>{
     const mine = Number(m.sender_id)===meId();
-    const row=document.createElement('div'); row.className='msgRow'+(mine?' me':'');
-    row.innerHTML=`<div class="bubble">${escHtml(m.content)}</div>`;
+    const row=document.createElement('div');
+    row.className='msgRow'+(mine?' me':'');
+    const who = (!mine && kind==='circle')
+      ? `<strong style="display:block;font-size:11px;opacity:.6;margin-bottom:2px;">${escHtml(m.display_name||friendName(m.sender_id))}</strong>` : '';
+    row.innerHTML=`<div class="bubble">${who}${escHtml(m.content)}</div>`;
     box.appendChild(row);
   });
   box.scrollTop=box.scrollHeight;
 }
+// Append with de-duplication, so an echoed realtime event can never double a message.
+function appendToThread(kind, id, msg){
+  const key=convoKey(kind,id);
+  const arr = convoState.threads[key] = convoState.threads[key] || [];
+  if(msg && msg.id!=null && arr.some(m=>String(m.id)===String(msg.id))) return false;
+  arr.push(msg);
+  return true;
+}
+function bumpPreview(kind, id, msg){
+  const list = kind==='circle' ? convoState.groups : convoState.direct;
+  const row = (list||[]).find(x=>Number(x.peer_id)===Number(id));
+  if(!row) return;
+  row.last_content = msg.content;
+  row.last_at = msg.created_at;
+  row.last_sender_id = msg.sender_id;
+  if(kind==='circle') row.last_sender_name = Number(msg.sender_id)===meId() ? 'You' : (msg.display_name||friendName(msg.sender_id));
+}
 async function sendServerMsg(){
-  const input=document.getElementById('msgInput'); const val=input.value.trim();
-  const uid=Number(dmState.activeId);
-  if(!val || !uid) return;
+  const input=document.getElementById('msgInput');
+  const val=input.value.trim();
+  const kind=convoState.activeKind, id=Number(convoState.activeId);
+  if(!val || !kind || !id) return;
   input.value='';
-  const r = await apiCallRaw(`/api/messages/${uid}`, { method:'POST', body: JSON.stringify({ content: val }) });
+  const path = kind==='circle' ? `/api/circles/${id}/messages` : `/api/messages/${id}`;
+  const r = await apiCallRaw(path, { method:'POST', body: JSON.stringify({ content: val }) });
   if(r.reachable && r.json && r.json.success){
-    const msg=r.json.data.message;
-    (dmState.threads[uid] = dmState.threads[uid] || []).push(msg);
-    if(Number(dmState.activeId)===uid) renderServerThread();
+    const msg = r.json.data.message;
+    appendToThread(kind, id, msg);   // sender sees it immediately, from the saved row
+    bumpPreview(kind, id, msg);
+    renderServerThread();
     renderServerConvoList();
   } else {
-    input.value=val; // restore so the text isn't lost
+    input.value = val; // don't lose the text
     toast((r.json && r.json.error && r.json.error.message) || 'Could not send message');
   }
 }
-// Realtime inbound DM (from handleRealtimeEvent). Only accepted friends can reach
-// here (the backend enforces it), so drop it into that friend's thread and, if the
-// thread is open, render immediately; otherwise nudge the list + a toast.
+/* Inbound realtime message (DM or group). Drops straight into the cached thread and
+   renders if that conversation is open; otherwise raises the unread count and badge,
+   which persist because they are also stored server-side in conversation_reads. */
 function onIncomingMessage(data){
   const msg = data && data.message;
-  if(!msg || data.circleId) return; // group-circle messages aren't part of the 1:1 UI
-  const other = Number(msg.sender_id)===meId() ? Number(msg.receiver_id) : Number(msg.sender_id);
-  (dmState.threads[other] = dmState.threads[other] || []).push(msg);
-  if(Number(dmState.activeId)===other && document.getElementById('screen-messages').classList.contains('active')){
+  if(!msg) return;
+  const kind = data.circleId ? 'circle' : 'dm';
+  const id = kind==='circle'
+    ? Number(data.circleId)
+    : (Number(msg.sender_id)===meId() ? Number(msg.receiver_id) : Number(msg.sender_id));
+  const added = appendToThread(kind, id, msg);
+  bumpPreview(kind, id, msg);
+  const isActive = convoState.activeKind===kind && Number(convoState.activeId)===id;
+  const mine = Number(msg.sender_id)===meId();
+  if(isActive && messagesScreenActive()){
     renderServerThread();
-  } else if(Number(msg.sender_id)!==meId()){
-    toast(`New message from ${friendName(other)}`);
+    if(!mine) markConversationRead(kind, id);
+  } else if(!mine && added){
+    const key=convoKey(kind,id);
+    convoState.unread[key] = (convoState.unread[key]||0) + 1;
+    const list = kind==='circle' ? convoState.groups : convoState.direct;
+    const row = (list||[]).find(x=>Number(x.peer_id)===Number(id));
+    if(row) row.unread = convoState.unread[key];
+    updateMessagesBadge();
+    toast(kind==='circle' ? `New message in ${groupName(id)}` : `New message from ${friendName(id)}`);
   }
-  if(document.getElementById('screen-messages').classList.contains('active')) renderServerConvoList();
+  renderServerConvoList();
+  // First message from a brand-new conversation (or a group we were just added to):
+  // pull the authoritative list so it shows up without a reload.
+  const known = kind==='circle'
+    ? (convoState.groups||[]).some(g=>Number(g.peer_id)===id)
+    : (convoState.direct||[]).some(d=>Number(d.peer_id)===id);
+  if(!known) loadConversations();
 }
 
 function renderConvoList(){
@@ -2071,14 +2240,26 @@ function renderConvoList(){
   });
 }
 document.getElementById('newGroupBtn').onclick=()=>{
+  if(backendAvailable){
+    if((convoState.direct||[]).length<2){ toast('You need at least two accepted connections to start a group'); return; }
+    openNewGroup(); return;
+  }
   if(friends.length<2){ toast('Add at least two friends before starting a group'); return; }
   openNewGroup();
 };
 function openNewGroup(){
-  const rows = friends.map(f=>`<label class="groupPickRow"><input type="checkbox" value="${f.id}"> <span class="friendAv" style="background:${f.avatarBg}; width:32px; height:32px; font-size:12px;">${f.name[0]}</span> ${f.name}</label>`).join('');
+  /* Selectable people are the REAL accepted connections from Postgres
+     (convoState.direct, served by GET /api/conversations) — not the old demo
+     `friends` array, which was always empty and blocked group creation outright.
+     The backend independently re-checks every member with hasConnection(), so a
+     non-friend can never be added even if the form were tampered with. */
+  const people = backendAvailable
+    ? (convoState.direct||[]).map(d=>({ id:Number(d.peer_id), name:(d.display_name||d.username) }))
+    : friends.map(f=>({ id:f.id, name:f.name }));
+  const rows = people.map(p=>`<label class="groupPickRow"><input type="checkbox" value="${p.id}"> <span class="friendAv" style="background:linear-gradient(135deg,var(--gold),var(--coral)); width:32px; height:32px; font-size:12px;">${escHtml((String(p.name||'?').trim()[0]||'?').toUpperCase())}</span> ${escHtml(p.name)}</label>`).join('');
   const html = `
     <h3 style="font-size:18px;">New group</h3>
-    <p class="screenSub" style="margin:4px 0 14px;">Pick who's in it, then give it a name.</p>
+    <p class="screenSub" style="margin:4px 0 14px;">Pick at least two accepted connections, then give it a name.</p>
     <div id="groupPickList" style="display:flex; flex-direction:column; gap:10px; max-height:220px; overflow-y:auto;">${rows}</div>
     <div class="createLabel">Group name</div>
     <input type="text" id="groupNameInput" placeholder="e.g. Weekend Plans" style="width:100%; padding:11px 13px; border-radius:10px; border:1px solid var(--line); font-size:14px;">
@@ -2086,13 +2267,34 @@ function openNewGroup(){
   `;
   document.getElementById('groupOverlayBody').innerHTML = html;
   document.getElementById('groupOverlay').classList.add('show');
-  document.getElementById('groupCreateBtn').onclick=()=>{
-    const picked = [...document.querySelectorAll('#groupPickList input:checked')].map(i=>i.value);
-    const name = document.getElementById('groupNameInput').value.trim();
-    if(picked.length<2){ toast('Pick at least two friends for a group'); return; }
+  document.getElementById('groupCreateBtn').onclick=async()=>{
+    const picked=[...document.querySelectorAll('#groupPickList input:checked')].map(i=>Number(i.value)).filter(Boolean);
+    const name=document.getElementById('groupNameInput').value.trim();
+    if(picked.length<2){ toast('Pick at least two accepted connections for a group'); return; }
     if(!name){ toast('Give the group a name'); return; }
-    const id = 'c'+(conversations.length+1)+Math.random().toString(36).slice(2,5);
-    conversations.push({id, name, isGroup:true, unread:0, messages:[{from:'them', name:friends.find(f=>f.id===picked[0]).name, text:'Group created \u2014 say hi!'}]});
+
+    if(backendAvailable){
+      const btn=document.getElementById('groupCreateBtn');
+      btn.disabled=true; btn.textContent='Creating…';
+      const r=await apiCallRaw('/api/circles',{ method:'POST', body: JSON.stringify({ name, memberIds: picked }) });
+      btn.disabled=false; btn.textContent='Create group';
+      if(!(r.reachable && r.json && r.json.success)){
+        toast((r.json && r.json.error && r.json.error.message) || 'Could not create the group');
+        return;
+      }
+      const circle=r.json.data.circle;
+      document.getElementById('groupOverlay').classList.remove('show');
+      await loadConversations();               // the group now comes back from Postgres
+      openGroupConversation(circle.id, circle.name);
+      toast('Group created');
+      track('group_created',{ circleId:circle.id, members:picked.length+1 });
+      return;
+    }
+
+    // ---- demo mode (no backend attached) — original in-memory behaviour ----
+    const id='c'+(conversations.length+1)+Math.random().toString(36).slice(2,5);
+    const firstName=(friends.find(f=>String(f.id)===String(picked[0]))||{}).name||'Someone';
+    conversations.push({id, name, isGroup:true, unread:0, messages:[{from:'them', name:firstName, text:'Group created — say hi!'}]});
     state.activeConvo=id;
     renderConvoList(); renderThread();
     document.getElementById('msgWrap').classList.add('threadOpen');
@@ -2183,84 +2385,400 @@ function stopRingtone(){ if(ringInterval){ clearInterval(ringInterval); ringInte
 
 let callTimerInt=null, callSeconds=0, callRingTimeout=null;
 let callState={muted:false, camera:true, speaker:false, video:false};
+
+/* =========================================================
+   REAL 1:1 + GROUP CALLING (WebRTC)
+
+   Replaces the previous simulated call screen. Media is real getUserMedia audio/
+   video; the peer connection is a real RTCPeerConnection; SDP and ICE travel over
+   the backend's existing `call:signal` relay (server.js) — no second signalling
+   system was introduced. Call lifecycle is persisted by the existing routes:
+   POST /api/calls, /api/calls/:id/respond, /api/calls/:id/end for 1:1, and
+   POST /api/circles/:circleId/calls for groups (group_calls / call_sessions rows).
+
+   Group calls use a full mesh: one RTCPeerConnection per other participant. Glare
+   is avoided by a single rule — only someone ALREADY in the call sends an offer,
+   and only in response to the newcomer's `group-join`. A newcomer never offers.
+   Mesh is appropriate for small circles; it is not an SFU and will not scale to
+   large groups (see the note returned with this change).
+========================================================= */
+const RTC_CONFIG = { iceServers: [{ urls: ['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302'] }] };
+
+const callSession = {
+  active:false, mode:null, role:null, callId:null, peerId:null, circleId:null,
+  isVideo:false, localStream:null, peers:{}, incoming:null, accepted:false,
+  timerRunning:false, memberIds:[]
+};
+
+function callCardEl(){ return document.querySelector('#callOverlay .callCard'); }
+function showCallOverlay(){ document.getElementById('callOverlay').classList.add('show'); }
+function hideCallOverlay(){ document.getElementById('callOverlay').classList.remove('show'); }
+function setCallMode(incoming){
+  const live=document.getElementById('callLiveControls'), inc=document.getElementById('callIncomingControls');
+  if(live) live.style.display = incoming ? 'none' : 'flex';
+  if(inc) inc.style.display = incoming ? 'flex' : 'none';
+}
+function setCallHeader(title, status, isVideo){
+  const name=String(title||'Call');
+  document.getElementById('callName').textContent=name;
+  document.getElementById('callAvatar').textContent=(name.trim()[0]||'?').toUpperCase();
+  document.getElementById('callStatusText').textContent=status;
+  document.getElementById('callTimer').textContent='00:00';
+  const card=callCardEl(); if(card) card.classList.toggle('videoMode', !!isVideo);
+}
 function updateCallButtons(){
   const muteBtn=document.getElementById('callMute');
-  muteBtn.classList.toggle('active', callState.muted);
-  muteBtn.innerHTML = icon(callState.muted?'micOff':'mic');
+  if(muteBtn){ muteBtn.classList.toggle('active', callState.muted); muteBtn.innerHTML=icon(callState.muted?'micOff':'mic'); }
   const camBtn=document.getElementById('callCamera');
-  camBtn.style.display = callState.video ? 'flex':'none';
-  camBtn.classList.toggle('active', callState.camera);
-  document.getElementById('callSpeaker').classList.toggle('active', callState.speaker);
+  if(camBtn){ camBtn.style.display = callState.video ? 'flex':'none'; camBtn.classList.toggle('active', callState.camera); }
+  const spk=document.getElementById('callSpeaker');
+  if(spk) spk.classList.toggle('active', callState.speaker);
 }
-function openCall(name, isVideo){
-  const displayName = name || 'Friend';
-  document.getElementById('callName').textContent=displayName;
-  document.getElementById('callAvatar').textContent=displayName[0].toUpperCase();
-  document.getElementById('callStatusText').textContent='Calling…';
-  document.getElementById('callTimer').textContent='00:00';
-  document.getElementById('ringDot').style.display='inline-block';
-  callSeconds=0;
-  callState={muted:false, camera:true, speaker:false, video:!!isVideo};
-  const card=document.querySelector('#callOverlay .callCard');
-  card.classList.add('ringing');
-  card.classList.toggle('videoMode', !!isVideo);
-  const frame=document.getElementById('callVideoFrame');
-  if(isVideo){
-    frame.classList.add('on');
-    frame.style.opacity=1;
-    frame.style.backgroundImage = `url('${photoUrl(displayName+'-video',420,280)}')`;
-    frame.innerHTML = `<div class="selfView" style="background-image:url('${photoUrl('me-self',140,190)}')"></div>`;
-  } else {
-    frame.classList.remove('on'); frame.innerHTML='';
+
+// Real microphone / camera. Called on the user's click so the permission prompt is
+// tied to a gesture; a denial aborts the call instead of showing a fake call screen.
+async function getLocalMedia(isVideo){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    toast('This browser cannot access the microphone or camera'); return null;
   }
-  updateCallButtons();
-  document.getElementById('callOverlay').classList.add('show');
-  startRingtone();
-  track(isVideo?'video_call_started':'call_started', {with:displayName});
-  if(callTimerInt){ clearInterval(callTimerInt); callTimerInt=null; }
-  if(callRingTimeout) clearTimeout(callRingTimeout);
-  callRingTimeout=setTimeout(()=>{
-    if(!document.getElementById('callOverlay').classList.contains('show')) return;
-    stopRingtone();
-    card.classList.remove('ringing');
-    document.getElementById('ringDot').style.display='none';
-    document.getElementById('callStatusText').textContent = isVideo?'Video call':'Voice call';
-    callTimerInt=setInterval(()=>{
-      callSeconds++;
-      const m=String(Math.floor(callSeconds/60)).padStart(2,'0');
-      const s=String(callSeconds%60).padStart(2,'0');
-      document.getElementById('callTimer').textContent=m+':'+s;
-    },1000);
-  }, 2600);
+  try{
+    return await navigator.mediaDevices.getUserMedia({
+      audio:true,
+      video: isVideo ? { width:{ideal:1280}, height:{ideal:720} } : false
+    });
+  }catch(e){
+    const denied = e && (e.name==='NotAllowedError' || e.name==='SecurityError');
+    toast(denied ? 'Microphone/camera permission was denied' : 'Could not start your microphone or camera');
+    return null;
+  }
+}
+function attachRemoteAudio(userId, stream){
+  const host=document.getElementById('callRemoteAudio'); if(!host) return;
+  let el=host.querySelector('[data-peer="'+Number(userId)+'"]');
+  if(!el){ el=document.createElement('audio'); el.dataset.peer=String(Number(userId)); el.autoplay=true; host.appendChild(el); }
+  if(el.srcObject!==stream) el.srcObject=stream;
+}
+// Video tiles live inside the existing #callVideoFrame, so the call UI is reused
+// rather than redesigned. Self view is muted to avoid feedback.
+function renderVideoTiles(){
+  const frame=document.getElementById('callVideoFrame'); if(!frame) return;
+  if(!callSession.isVideo){ frame.classList.remove('on'); frame.innerHTML=''; frame.style.backgroundImage=''; return; }
+  frame.classList.add('on'); frame.style.backgroundImage='';
+  let tiles=document.getElementById('callTiles');
+  if(!tiles){
+    frame.innerHTML='<div id="callTiles" style="display:flex;flex-wrap:wrap;gap:6px;width:100%;height:100%;align-items:center;justify-content:center;"></div>';
+    tiles=document.getElementById('callTiles');
+  }
+  const want=['self'].concat(Object.keys(callSession.peers));
+  Array.prototype.slice.call(tiles.children).forEach(ch=>{ if(want.indexOf(ch.dataset.peer)<0) ch.remove(); });
+  want.forEach(key=>{
+    let el=tiles.querySelector('[data-peer="'+key+'"]');
+    if(!el){
+      el=document.createElement('video');
+      el.dataset.peer=key; el.autoplay=true; el.playsInline=true;
+      if(key==='self') el.muted=true;
+      el.style.cssText='flex:1 1 42%;min-width:110px;max-height:100%;border-radius:10px;background:#111;object-fit:cover;';
+      tiles.appendChild(el);
+    }
+    const stream = key==='self' ? callSession.localStream : (callSession.peers[key] && callSession.peers[key].stream);
+    if(stream && el.srcObject!==stream) el.srcObject=stream;
+  });
+}
+function markCallConnected(){
+  if(callSession.timerRunning) return;
+  callSession.timerRunning=true;
+  stopRingtone();
+  if(callRingTimeout){ clearTimeout(callRingTimeout); callRingTimeout=null; }
+  const card=callCardEl(); if(card) card.classList.remove('ringing');
+  document.getElementById('ringDot').style.display='none';
+  document.getElementById('callStatusText').textContent = callSession.isVideo?'Video call':'Voice call';
+  if(callTimerInt) clearInterval(callTimerInt);
+  callSeconds=0;
+  callTimerInt=setInterval(()=>{
+    callSeconds++;
+    const m=String(Math.floor(callSeconds/60)).padStart(2,'0'), s=String(callSeconds%60).padStart(2,'0');
+    document.getElementById('callTimer').textContent=m+':'+s;
+  },1000);
+}
+
+function sendCallSignal(toUserId, payload){
+  if(!(realtimeSocket && realtimeSocket.readyState===1)){ toast('Realtime connection is down — cannot signal the call'); return false; }
+  realtimeSocket.send(JSON.stringify({ event:'call:signal', data: Object.assign({ toUserId: Number(toUserId) }, payload) }));
+  return true;
+}
+function createPeer(remoteUserId){
+  const id=Number(remoteUserId);
+  if(callSession.peers[id]) return callSession.peers[id];
+  const pc=new RTCPeerConnection(RTC_CONFIG);
+  const entry={ pc, stream:null, queued:[] };
+  callSession.peers[id]=entry;
+  if(callSession.localStream) callSession.localStream.getTracks().forEach(t=>pc.addTrack(t, callSession.localStream));
+  pc.onicecandidate = e=>{ if(e.candidate) sendCallSignal(id, { kind:'ice', candidate:e.candidate, circleId: callSession.circleId||undefined }); };
+  pc.ontrack = e=>{
+    entry.stream = (e.streams && e.streams[0]) || new MediaStream([e.track]);
+    attachRemoteAudio(id, entry.stream);
+    renderVideoTiles();
+    markCallConnected();
+  };
+  pc.onconnectionstatechange = ()=>{
+    if(pc.connectionState==='connected') markCallConnected();
+    else if(pc.connectionState==='failed' || pc.connectionState==='closed') removePeer(id);
+  };
+  return entry;
+}
+async function offerTo(remoteUserId){
+  const entry=createPeer(remoteUserId);
+  const offer=await entry.pc.createOffer();
+  await entry.pc.setLocalDescription(offer);
+  sendCallSignal(remoteUserId, { kind:'offer', sdp: entry.pc.localDescription, circleId: callSession.circleId||undefined });
+}
+async function flushQueued(from){
+  const entry=callSession.peers[Number(from)]; if(!entry) return;
+  const q=entry.queued; entry.queued=[];
+  for(const c of q){ try{ await entry.pc.addIceCandidate(new RTCIceCandidate(c)); }catch(e){} }
+}
+function removePeer(id){
+  const key=Number(id);
+  const entry=callSession.peers[key]; if(!entry) return;
+  try{ entry.pc.close(); }catch(e){}
+  delete callSession.peers[key];
+  const a=document.querySelector('#callRemoteAudio [data-peer="'+key+'"]'); if(a) a.remove();
+  renderVideoTiles();
+}
+/* A signal can arrive a few milliseconds before our own accept bookkeeping has
+   finished, so anything that lands while the session is not yet active is buffered
+   and replayed by drainPendingCallSignals() instead of being dropped on the floor. */
+let pendingCallSignals=[];
+function drainPendingCallSignals(){
+  const q=pendingCallSignals; pendingCallSignals=[];
+  q.forEach(d=>{ onCallSignal(d); });
+}
+async function onCallSignal(data){
+  const from=Number(data && data.fromUserId);
+  if(!from) return;
+  if(!callSession.active){
+    pendingCallSignals.push(data);
+    if(pendingCallSignals.length>30) pendingCallSignals.shift();
+    return;
+  }
+  try{
+    if(data.kind==='offer'){
+      const entry=createPeer(from);
+      await entry.pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      await flushQueued(from);
+      const answer=await entry.pc.createAnswer();
+      await entry.pc.setLocalDescription(answer);
+      sendCallSignal(from, { kind:'answer', sdp: entry.pc.localDescription, circleId: callSession.circleId||undefined });
+    } else if(data.kind==='answer'){
+      const entry=callSession.peers[from]; if(!entry) return;
+      await entry.pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      await flushQueued(from);
+    } else if(data.kind==='ice'){
+      const entry=callSession.peers[from]; if(!entry || !data.candidate) return;
+      if(!entry.pc.remoteDescription || !entry.pc.remoteDescription.type){ entry.queued.push(data.candidate); return; }
+      await entry.pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+    } else if(data.kind==='group-join'){
+      // A newcomer announced themselves; we are already in, so we offer to them.
+      if(callSession.mode==='circle' && Number(data.circleId)===Number(callSession.circleId)) await offerTo(from);
+    } else if(data.kind==='bye'){
+      removePeer(from);
+      if(callSession.mode==='dm') teardownCall('Call ended');
+    }
+  }catch(e){ console.warn('call signal error', e); }
+}
+
+async function startDirectCall(peerId, isVideo){
+  peerId=Number(peerId);
+  if(callSession.active){ toast('You are already in a call'); return; }
+  if(!backendAvailable){ toast('Calling needs the backend connection'); return; }
+  const stream=await getLocalMedia(isVideo); if(!stream) return;
+  const r=await apiCallRaw('/api/calls', { method:'POST', body: JSON.stringify({ calleeId:peerId, callType:isVideo?'video':'audio' }) });
+  if(!(r.reachable && r.json && r.json.success)){
+    stream.getTracks().forEach(t=>t.stop());
+    toast((r.json && r.json.error && r.json.error.message) || 'Could not start the call');
+    return;
+  }
+  Object.assign(callSession,{ active:true, mode:'dm', role:'caller', callId:r.json.data.call.id, peerId, circleId:null,
+    isVideo:!!isVideo, localStream:stream, peers:{}, incoming:null, accepted:false, timerRunning:false, memberIds:[] });
+  callState={muted:false, camera:true, speaker:false, video:!!isVideo};
+  setCallMode(false);
+  setCallHeader(friendName(peerId), 'Calling…', isVideo);
+  document.getElementById('ringDot').style.display='inline-block';
+  const card=callCardEl(); if(card) card.classList.add('ringing');
+  renderVideoTiles(); updateCallButtons(); showCallOverlay(); startRingtone();
+  track(isVideo?'video_call_started':'call_started',{with:peerId});
+  callRingTimeout=setTimeout(()=>{ if(callSession.active && !callSession.accepted){ toast('No answer'); endCall(); } }, 45000);
+}
+async function startGroupCall(circleId, isVideo){
+  circleId=Number(circleId);
+  if(callSession.active){ toast('You are already in a call'); return; }
+  if(!backendAvailable){ toast('Calling needs the backend connection'); return; }
+  const stream=await getLocalMedia(isVideo); if(!stream) return;
+  const r=await apiCallRaw('/api/circles/'+circleId+'/calls', { method:'POST', body: JSON.stringify({ callType:isVideo?'video':'audio' }) });
+  if(!(r.reachable && r.json && r.json.success)){
+    stream.getTracks().forEach(t=>t.stop());
+    toast((r.json && r.json.error && r.json.error.message) || 'Could not start the group call');
+    return;
+  }
+  Object.assign(callSession,{ active:true, mode:'circle', role:'caller', callId:r.json.data.call.id, peerId:null, circleId,
+    isVideo:!!isVideo, localStream:stream, peers:{}, incoming:null, accepted:true, timerRunning:false,
+    memberIds:(r.json.data.memberIds||[]).map(Number) });
+  callState={muted:false, camera:true, speaker:false, video:!!isVideo};
+  setCallMode(false);
+  setCallHeader(groupName(circleId), 'Waiting for others to join…', isVideo);
+  document.getElementById('ringDot').style.display='inline-block';
+  const card=callCardEl(); if(card) card.classList.add('ringing');
+  renderVideoTiles(); updateCallButtons(); showCallOverlay(); startRingtone();
+  track(isVideo?'group_video_call_started':'group_call_started',{circleId});
+}
+
+function onIncomingCall(data){
+  const call=data && data.call; if(!call) return;
+  if(callSession.active || callSession.incoming) return; // busy
+  callSession.incoming={ mode:'dm', callId:call.id, peerId:Number(call.caller_id), isVideo:call.call_type==='video' };
+  const who=(data.caller && (data.caller.displayName||data.caller.username)) || friendName(call.caller_id);
+  setCallMode(true);
+  setCallHeader(who, call.call_type==='video'?'Incoming video call':'Incoming voice call', call.call_type==='video');
+  document.getElementById('ringDot').style.display='inline-block';
+  const card=callCardEl(); if(card) card.classList.add('ringing');
+  showCallOverlay(); startRingtone();
+}
+function onIncomingGroupCall(data){
+  const call=data && data.call; if(!call) return;
+  if(callSession.active || callSession.incoming) return;
+  const circleId=Number((data.circle && data.circle.id) || call.circle_id);
+  callSession.incoming={ mode:'circle', callId:call.id, circleId, isVideo:data.callType==='video', memberIds:(data.memberIds||[]).map(Number) };
+  const title=(data.circle && data.circle.name) || groupName(circleId);
+  setCallMode(true);
+  setCallHeader(title, data.callType==='video'?'Incoming group video call':'Incoming group call', data.callType==='video');
+  document.getElementById('ringDot').style.display='inline-block';
+  const card=callCardEl(); if(card) card.classList.add('ringing');
+  showCallOverlay(); startRingtone();
+}
+async function acceptIncomingCall(){
+  const inc=callSession.incoming; if(!inc) return;
+  const stream=await getLocalMedia(inc.isVideo); if(!stream) return;
+  if(inc.mode==='dm'){
+    // Be ready to receive the caller's offer BEFORE telling them we accepted — the
+    // offer can arrive within milliseconds of the respond request completing.
+    Object.assign(callSession,{ active:true, mode:'dm', role:'callee', callId:inc.callId, peerId:inc.peerId, circleId:null,
+      isVideo:inc.isVideo, localStream:stream, peers:{}, incoming:null, accepted:true, timerRunning:false, memberIds:[] });
+    setCallHeader(friendName(callSession.peerId), 'Connecting…', callSession.isVideo);
+    callState={muted:false, camera:true, speaker:false, video:callSession.isVideo};
+    setCallMode(false); renderVideoTiles(); updateCallButtons(); drainPendingCallSignals();
+    const r=await apiCallRaw('/api/calls/'+inc.callId+'/respond', { method:'POST', body: JSON.stringify({ accept:true }) });
+    if(!(r.reachable && r.json && r.json.success)){ toast('Could not accept the call'); teardownCall(); return; }
+    return;
+  } else {
+    Object.assign(callSession,{ active:true, mode:'circle', role:'callee', callId:inc.callId, peerId:null, circleId:inc.circleId,
+      isVideo:inc.isVideo, localStream:stream, peers:{}, incoming:null, accepted:true, timerRunning:false, memberIds:inc.memberIds||[] });
+    setCallHeader(groupName(callSession.circleId), 'Connecting…', callSession.isVideo);
+    callState={muted:false, camera:true, speaker:false, video:callSession.isVideo};
+    setCallMode(false); renderVideoTiles(); updateCallButtons(); drainPendingCallSignals();
+    // Announce the join; everyone already in the call offers to us.
+    (callSession.memberIds||[]).filter(id=>Number(id)!==meId()).forEach(id=>sendCallSignal(id,{ kind:'group-join', circleId: callSession.circleId }));
+    return;
+  }
+}
+function rejectIncomingCall(){
+  const inc=callSession.incoming; if(!inc) return;
+  if(inc.mode==='dm') apiCallRaw('/api/calls/'+inc.callId+'/respond', { method:'POST', body: JSON.stringify({ accept:false }) });
+  callSession.incoming=null;
+  stopRingtone();
+  const card=callCardEl(); if(card) card.classList.remove('ringing');
+  document.getElementById('ringDot').style.display='none';
+  hideCallOverlay(); setCallMode(false);
+}
+async function onCallResponse(data){
+  if(!callSession.active || callSession.mode!=='dm') return;
+  if(data && data.accepted){
+    callSession.accepted=true;
+    document.getElementById('callStatusText').textContent='Connecting…';
+    await offerTo(callSession.peerId);   // caller offers once the callee has accepted
+  } else {
+    teardownCall('Call declined');
+  }
+}
+function onCallEnded(){
+  if(callSession.active && callSession.mode==='dm') teardownCall('Call ended');
+  else if(callSession.incoming && callSession.incoming.mode==='dm'){
+    callSession.incoming=null; stopRingtone(); hideCallOverlay(); setCallMode(false);
+    const card=callCardEl(); if(card) card.classList.remove('ringing');
+  }
 }
 function endCall(){
+  if(callSession.incoming && !callSession.active) return rejectIncomingCall();
+  if(callSession.active){
+    if(callSession.mode==='dm' && callSession.callId) apiCallRaw('/api/calls/'+callSession.callId+'/end', { method:'POST' });
+    Object.keys(callSession.peers).forEach(id=>sendCallSignal(id,{ kind:'bye', circleId: callSession.circleId||undefined }));
+  }
+  teardownCall();
+}
+function teardownCall(msg){
   stopRingtone();
   if(callRingTimeout){ clearTimeout(callRingTimeout); callRingTimeout=null; }
   if(callTimerInt){ clearInterval(callTimerInt); callTimerInt=null; }
-  document.getElementById('callOverlay').classList.remove('show');
-  const card=document.querySelector('#callOverlay .callCard');
-  card.classList.remove('ringing','videoMode');
-  track('call_ended', {seconds:callSeconds});
+  Object.keys(callSession.peers).forEach(id=>{ try{ callSession.peers[id].pc.close(); }catch(e){} });
+  if(callSession.localStream){ try{ callSession.localStream.getTracks().forEach(t=>t.stop()); }catch(e){} }
+  Object.assign(callSession,{ active:false, mode:null, role:null, callId:null, peerId:null, circleId:null,
+    isVideo:false, localStream:null, peers:{}, incoming:null, accepted:false, timerRunning:false, memberIds:[] });
+  pendingCallSignals=[];
+  const host=document.getElementById('callRemoteAudio'); if(host) host.innerHTML='';
+  const frame=document.getElementById('callVideoFrame');
+  if(frame){ frame.innerHTML=''; frame.classList.remove('on'); frame.style.backgroundImage=''; }
+  const card=callCardEl(); if(card) card.classList.remove('ringing','videoMode');
+  document.getElementById('ringDot').style.display='none';
+  hideCallOverlay(); setCallMode(false);
+  track('call_ended',{seconds:callSeconds});
+  if(msg) toast(msg);
 }
-document.getElementById('callMute').onclick=()=>{ callState.muted=!callState.muted; updateCallButtons(); toast(callState.muted?'Muted':'Unmuted'); };
+
+document.getElementById('callMute').onclick=()=>{
+  callState.muted=!callState.muted;
+  if(callSession.localStream) callSession.localStream.getAudioTracks().forEach(t=>{ t.enabled=!callState.muted; });
+  updateCallButtons(); toast(callState.muted?'Muted':'Unmuted');
+};
 document.getElementById('callSpeaker').onclick=()=>{ callState.speaker=!callState.speaker; updateCallButtons(); toast(callState.speaker?'Speaker on':'Speaker off'); };
 document.getElementById('callCamera').onclick=()=>{
   if(!callState.video) return;
-  callState.camera=!callState.camera; updateCallButtons();
-  document.getElementById('callVideoFrame').style.opacity = callState.camera?1:0.15;
+  callState.camera=!callState.camera;
+  if(callSession.localStream) callSession.localStream.getVideoTracks().forEach(t=>{ t.enabled=callState.camera; });
+  updateCallButtons(); renderVideoTiles();
   toast(callState.camera?'Camera on':'Camera off');
 };
 document.getElementById('callEnd').onclick=endCall;
-document.getElementById('callBtn').onclick=()=>{
-  const c=conversations.find(x=>x.id===state.activeConvo);
-  if(!c){ toast('Open a conversation first'); return; }
-  openCall(c.name, false);
-};
-document.getElementById('videoCallBtn').onclick=()=>{
-  const c=conversations.find(x=>x.id===state.activeConvo);
-  if(!c){ toast('Open a conversation first'); return; }
-  openCall(c.name, true);
-};
+document.getElementById('callAccept').onclick=acceptIncomingCall;
+document.getElementById('callReject').onclick=rejectIncomingCall;
+
+/* Thread-header call buttons. The peer is resolved from the REAL active conversation
+   (convoState), never from the old demo `conversations` array — that lookup always
+   returned undefined and produced "Open a conversation first". */
+function activeCallTarget(){
+  const id=Number(convoState.activeId);
+  if(!id) return null;
+  if(convoState.activeKind==='dm') return { kind:'dm', id, name:friendName(id) };
+  if(convoState.activeKind==='circle') return { kind:'circle', id, name:groupName(id) };
+  return null;
+}
+function updateCallButtonsForConversation(){
+  const t=activeCallTarget();
+  [['callBtn','Voice call'],['videoCallBtn','Video call']].forEach(pair=>{
+    const b=document.getElementById(pair[0]); if(!b) return;
+    b.disabled=!t;
+    b.style.opacity = t ? '' : '0.45';
+    b.title = !t ? 'Open a conversation to call'
+      : (t.kind==='circle' ? (pair[0]==='callBtn'?'Group voice call':'Group video call') : pair[1]);
+  });
+}
+function startCallFromConversation(isVideo){
+  const t=activeCallTarget();
+  if(!t){ toast('Open a conversation first'); return; }
+  if(t.kind==='circle') return startGroupCall(t.id, isVideo);
+  return startDirectCall(t.id, isVideo);
+}
+document.getElementById('callBtn').onclick=()=>startCallFromConversation(false);
+document.getElementById('videoCallBtn').onclick=()=>startCallFromConversation(true);
+updateCallButtonsForConversation();
 
 /* =========================================================
    CREATE POST
