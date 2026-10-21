@@ -1,4 +1,4 @@
-const { createApp, addClient, notifyUser, isUserOnline, endStaleCallsFor } = require('./src/app');
+const { createApp, addClient, notifyUser, isUserOnline, endStaleCallsFor, isCallPair } = require('./src/app');
 const http = require('http');
 const { currentUser } = require('./src/auth');
 let WebSocketServer = null;
@@ -7,6 +7,8 @@ try {
 } catch (error) {
   console.error('FATAL: the "ws" package is missing, so realtime messaging and calling cannot work. Run npm install.');
 }
+
+const ALLOWED_REACTIONS = new Set(['thumbsup','heart','laugh','clap','wow','party']);
 
 const port = Number(process.env.PORT) || 3000;
 const app = createApp();
@@ -31,6 +33,20 @@ if (sockets) sockets.on('connection', async (socket, request) => {
       // the recipient can never be spoofed by the payload.
       if (message.event === 'call:signal' && message.data && message.data.toUserId) {
         notifyUser(message.data.toUserId, 'call:signal', { ...message.data, fromUserId: user.id });
+        return;
+      }
+      // In-call reactions. Authorised server-side: the sender must be a participant
+      // of that call and the recipient must be the other participant, so a reaction
+      // can never be delivered to an unrelated user. Nothing is persisted.
+      if (message.event === 'call:reaction' && message.data && message.data.toUserId && message.data.callId) {
+        const allowed = ALLOWED_REACTIONS.has(String(message.data.reaction));
+        if (!allowed) return;
+        isCallPair(message.data.callId, user.id, message.data.toUserId).then(okPair => {
+          if (!okPair) return;
+          notifyUser(message.data.toUserId, 'call:reaction', {
+            callId: message.data.callId, reaction: String(message.data.reaction), fromUserId: user.id
+          });
+        }).catch(() => {});
       }
     } catch { /* Ignore malformed realtime messages. */ }
   });
