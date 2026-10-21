@@ -202,3 +202,13 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS request_id BIGINT REFERENCES connection_requests(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS notifications_user_created ON notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS posts_created ON posts(created_at DESC);
+
+-- Call history as a persistent conversation entry. kind distinguishes a normal
+-- text message from a system row; call_id ties a row to its call_sessions row and
+-- the unique index below makes a retried event a no-op instead of a duplicate.
+ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS kind VARCHAR(20) NOT NULL DEFAULT 'text';
+ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS meta JSONB;
+ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS call_id BIGINT REFERENCES call_sessions(id) ON DELETE SET NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS direct_messages_one_row_per_call ON direct_messages(call_id) WHERE call_id IS NOT NULL;
+-- When the callee answered, so a real connected duration can be computed.
+ALTER TABLE call_sessions ADD COLUMN IF NOT EXISTS answered_at TIMESTAMPTZ;
