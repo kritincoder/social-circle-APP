@@ -95,14 +95,73 @@ app.post('/api/posts', async (request, response, next) => { try { const content 
 app.post('/api/places/:placeId/rating', async (request, response, next) => { try { const rating = Number(request.body.rating); if (!Number.isInteger(rating) || rating < 1 || rating > 5) return fail(response, 400, 'Rating must be an integer from 1 to 5.'); const row = (await pool.query('INSERT INTO place_ratings(place_id,user_id,rating,review) VALUES($1,$2,$3,$4) ON CONFLICT(place_id,user_id) DO UPDATE SET rating=EXCLUDED.rating,review=EXCLUDED.review,updated_at=NOW() RETURNING *', [request.params.placeId, request.user.id, rating, input(request.body.review)])).rows[0]; return ok(response, { rating: row }); } catch (error) { next(error); } });
 app.post('/api/invite', async (request, response, next) => { try { const code = crypto.randomBytes(5).toString('hex'); await pool.query('INSERT INTO invites(code,user_id) VALUES($1,$2)', [code, request.user.id]); return ok(response, { code }, 201); } catch (error) { next(error); } });
 app.post('/api/reactions', async (request, response, next) => { try { const itemType = input(request.body.itemType); const itemId = input(request.body.itemId); const reaction = input(request.body.reaction); if (!['place', 'news'].includes(itemType) || !itemId || !['like', 'dislike'].includes(reaction)) return fail(response, 400, 'Invalid reaction.'); await pool.query('INSERT INTO content_reactions(user_id,item_type,item_id,reaction) VALUES($1,$2,$3,$4) ON CONFLICT(user_id,item_type,item_id) DO UPDATE SET reaction=EXCLUDED.reaction', [request.user.id, itemType, itemId, reaction]); return ok(response); } catch (error) { next(error); } });
-app.post('/api/circles', async (request, response, next) => { const client=await pool.connect(); try { const name=input(request.body.name); const memberIds=[...new Set((request.body.memberIds || []).map(Number).filter(id=>id && id!==request.user.id))]; if (!name) return fail(response,400,'Circle name is required.'); if (memberIds.length<2) return fail(response,400,'Select at least two accepted friends.'); for (const memberId of memberIds) if (!(await hasConnection(request.user.id,memberId))) return fail(response,403,'All group members must be accepted friends.'); await client.query('BEGIN'); const circle=(await client.query('INSERT INTO circles(owner_id,name) VALUES($1,$2) RETURNING *',[request.user.id,name])).rows[0]; await client.query("INSERT INTO circle_members(circle_id,user_id,role) VALUES($1,$2,'owner')",[circle.id,request.user.id]); for (const memberId of memberIds) await client.query("INSERT INTO circle_members(circle_id,user_id,role) VALUES($1,$2,'member')",[circle.id,memberId]); await client.query('COMMIT'); return ok(response,{circle,members:[request.user.id,...memberIds]},201); } catch(error) { await client.query('ROLLBACK'); next(error); } finally { client.release(); } });
+app.post('/api/circles', async (request, response, next) => { const client=await pool.connect(); try { const name=input(request.body.name); const memberIds=[...new Set((request.body.memberIds || []).map(Number).filter(id=>id && id!==request.user.id))]; if (!name) return fail(response,400,'Circle name is required.'); if (memberIds.length<2) return fail(response,400,'Select at least two accepted friends.'); for (const memberId of memberIds) if (!(await hasConnection(request.user.id,memberId))) return fail(response,403,'All group members must be accepted friends.'); await client.query('BEGIN'); const circle=(await client.query('INSERT INTO circles(owner_id,name) VALUES($1,$2) RETURNING *',[request.user.id,name])).rows[0]; await client.query("INSERT INTO circle_members(circle_id,user_id,role) VALUES($1,$2,'owner')",[circle.id,request.user.id]); for (const memberId of memberIds) await client.query("INSERT INTO circle_members(circle_id,user_id,role) VALUES($1,$2,'member')",[circle.id,memberId]); await client.query('COMMIT'); const memberRows=(await pool.query(`SELECT ${userQueryFields()} FROM users WHERE id = ANY($1::bigint[])`,[[request.user.id,...memberIds]])).rows.map(publicUser); const payload={circle,members:memberRows,memberIds:[request.user.id,...memberIds]}; memberIds.forEach(memberId=>notifyUser(memberId,'circle:new',payload)); return ok(response,payload,201); } catch(error) { await client.query('ROLLBACK'); next(error); } finally { client.release(); } });
 app.get('/api/circles', async (request, response, next) => { try { const circles=(await pool.query(`SELECT c.*,COUNT(cm.user_id)::int AS member_count,MAX(m.created_at) AS last_message_at FROM circles c JOIN circle_members cm ON cm.circle_id=c.id LEFT JOIN messages m ON m.circle_id=c.id WHERE c.id IN (SELECT circle_id FROM circle_members WHERE user_id=$1) GROUP BY c.id ORDER BY c.created_at DESC`,[request.user.id])).rows; return ok(response,{circles}); } catch(error) { next(error); } });
 app.post('/api/circles/:circleId/messages', async (request, response, next) => { try { const content = input(request.body.content); const member = await pool.query('SELECT 1 FROM circle_members WHERE circle_id=$1 AND user_id=$2', [request.params.circleId, request.user.id]); if (!member.rowCount) return fail(response, 403, 'You are not a member of this circle.'); if (!content) return fail(response, 400, 'Message is required.'); const message = (await pool.query('INSERT INTO messages(circle_id,sender_id,content) VALUES($1,$2,$3) RETURNING *', [request.params.circleId, request.user.id, content])).rows[0]; const members=(await pool.query('SELECT user_id FROM circle_members WHERE circle_id=$1 AND user_id<>$2',[request.params.circleId,request.user.id])).rows; members.forEach(memberRow=>notifyUser(memberRow.user_id,'message:new',{message,circleId:Number(request.params.circleId)})); return ok(response, { message }, 201); } catch (error) { next(error); } });
 app.get('/api/circles/:circleId/messages', async (request, response, next) => { try { const messages = (await pool.query('SELECT m.*,u.display_name FROM messages m JOIN users u ON u.id=m.sender_id JOIN circle_members cm ON cm.circle_id=m.circle_id WHERE m.circle_id=$1 AND cm.user_id=$2 ORDER BY m.created_at ASC LIMIT 200', [request.params.circleId, request.user.id])).rows; return ok(response, { messages }); } catch (error) { next(error); } });
-app.post('/api/circles/:circleId/calls', async (request, response, next) => { try { const roomCode = crypto.randomBytes(8).toString('hex'); const call = (await pool.query("INSERT INTO group_calls(circle_id,started_by,room_code) SELECT $1,$2,$3 WHERE EXISTS (SELECT 1 FROM circle_members WHERE circle_id=$1 AND user_id=$2) RETURNING *", [request.params.circleId, request.user.id, roomCode])).rows[0]; if (!call) return fail(response, 403, 'You are not a member of this circle.'); return ok(response, { call }, 201); } catch (error) { next(error); } });
-app.post('/api/calls', async (request, response, next) => { try { const calleeId=Number(request.body.calleeId); const callType=request.body.callType==='video'?'video':'audio'; if (!(await hasConnection(request.user.id,calleeId))) return fail(response,403,'Calls are available to accepted friends only.'); const call=(await pool.query("INSERT INTO call_sessions(caller_id,callee_id,call_type) VALUES($1,$2,$3) RETURNING *",[request.user.id,calleeId,callType])).rows[0]; notifyUser(calleeId,'call:incoming',{call}); return ok(response,{call},201); } catch(error) { next(error); } });
+app.post('/api/circles/:circleId/calls', async (request, response, next) => { try { const roomCode = crypto.randomBytes(8).toString('hex'); const call = (await pool.query("INSERT INTO group_calls(circle_id,started_by,room_code) SELECT $1,$2,$3 WHERE EXISTS (SELECT 1 FROM circle_members WHERE circle_id=$1 AND user_id=$2) RETURNING *", [request.params.circleId, request.user.id, roomCode])).rows[0]; if (!call) return fail(response, 403, 'You are not a member of this circle.'); const circle=(await pool.query('SELECT * FROM circles WHERE id=$1',[request.params.circleId])).rows[0]; const memberRows=(await pool.query('SELECT user_id FROM circle_members WHERE circle_id=$1',[request.params.circleId])).rows; const memberIds=memberRows.map(r=>Number(r.user_id)); const callType=request.body.callType==='video'?'video':'audio'; const payload={call,callType,circle,memberIds,startedBy:publicUser(request.user)}; memberIds.filter(id=>id!==Number(request.user.id)).forEach(id=>notifyUser(id,'call:group-incoming',payload)); return ok(response, payload, 201); } catch (error) { next(error); } });
+app.post('/api/calls', async (request, response, next) => { try { const calleeId=Number(request.body.calleeId); const callType=request.body.callType==='video'?'video':'audio'; if (!(await hasConnection(request.user.id,calleeId))) return fail(response,403,'Calls are available to accepted friends only.'); const call=(await pool.query("INSERT INTO call_sessions(caller_id,callee_id,call_type) VALUES($1,$2,$3) RETURNING *",[request.user.id,calleeId,callType])).rows[0]; notifyUser(calleeId,'call:incoming',{call,caller:publicUser(request.user)}); return ok(response,{call},201); } catch(error) { next(error); } });
 app.post('/api/calls/:callId/respond', async (request, response, next) => { try { const accept=request.body.accept===true; const call=(await pool.query("UPDATE call_sessions SET status=$1 WHERE id=$2 AND callee_id=$3 AND status='ringing' RETURNING *",[accept?'active':'declined',request.params.callId,request.user.id])).rows[0]; if(!call) return fail(response,404,'Call request not found.'); notifyUser(call.caller_id,'call:response',{call,accepted:accept}); return ok(response,{call}); } catch(error) { next(error); } });
 app.post('/api/calls/:callId/end', async (request, response, next) => { try { const call=(await pool.query("UPDATE call_sessions SET status='ended',ended_at=NOW() WHERE id=$1 AND (caller_id=$2 OR callee_id=$2) AND status IN ('ringing','active') RETURNING *",[request.params.callId,request.user.id])).rows[0]; if(!call) return fail(response,404,'Call not found.'); notifyUser(call.caller_id,'call:ended',{call}); notifyUser(call.callee_id,'call:ended',{call}); return ok(response,{call}); } catch(error) { next(error); } });
+// One call that powers the whole Messages list: every accepted friend (so a chat can
+// be started before any message exists), every circle the user belongs to, each with
+// its last message and an unread count derived from conversation_reads. Unread is
+// therefore durable across reloads instead of living only in browser memory.
+app.get('/api/conversations', async (request, response, next) => {
+  try {
+    const me = request.user.id;
+    const direct = (await pool.query(`
+      WITH friend_ids AS (
+        SELECT friend_id AS id FROM connections WHERE user_id=$1
+        UNION SELECT CASE WHEN sender_id=$1 THEN receiver_id ELSE sender_id END FROM connection_requests WHERE (sender_id=$1 OR receiver_id=$1) AND status='accepted'
+      )
+      SELECT u.id AS peer_id, u.username, u.display_name, u.profile_photo_url,
+             lm.content AS last_content, lm.created_at AS last_at, lm.sender_id AS last_sender_id,
+             COALESCE(uc.cnt,0)::int AS unread
+      FROM friend_ids f
+      JOIN users u ON u.id=f.id
+      LEFT JOIN LATERAL (
+        SELECT content, created_at, sender_id FROM direct_messages
+        WHERE (sender_id=$1 AND receiver_id=u.id) OR (sender_id=u.id AND receiver_id=$1)
+        ORDER BY created_at DESC LIMIT 1
+      ) lm ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*) AS cnt FROM direct_messages dm
+        WHERE dm.sender_id=u.id AND dm.receiver_id=$1
+          AND dm.created_at > COALESCE((SELECT last_read_at FROM conversation_reads WHERE user_id=$1 AND kind='dm' AND peer_id=u.id), 'epoch'::timestamptz)
+      ) uc ON TRUE
+      ORDER BY lm.created_at DESC NULLS LAST, u.display_name`, [me])).rows;
+    const groups = (await pool.query(`
+      SELECT c.id AS peer_id, c.name, c.owner_id,
+             (SELECT COUNT(*)::int FROM circle_members WHERE circle_id=c.id) AS member_count,
+             lm.content AS last_content, lm.created_at AS last_at, lm.sender_id AS last_sender_id, lm.display_name AS last_sender_name,
+             COALESCE(uc.cnt,0)::int AS unread
+      FROM circles c
+      JOIN circle_members me ON me.circle_id=c.id AND me.user_id=$1
+      LEFT JOIN LATERAL (
+        SELECT m.content, m.created_at, m.sender_id, u.display_name FROM messages m JOIN users u ON u.id=m.sender_id
+        WHERE m.circle_id=c.id ORDER BY m.created_at DESC LIMIT 1
+      ) lm ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*) AS cnt FROM messages m
+        WHERE m.circle_id=c.id AND m.sender_id<>$1
+          AND m.created_at > COALESCE((SELECT last_read_at FROM conversation_reads WHERE user_id=$1 AND kind='circle' AND peer_id=c.id), 'epoch'::timestamptz)
+      ) uc ON TRUE
+      ORDER BY lm.created_at DESC NULLS LAST, c.name`, [me])).rows;
+    return ok(response, { direct, groups });
+  } catch (error) { next(error); }
+});
+app.post('/api/conversations/:kind/:peerId/read', async (request, response, next) => {
+  try {
+    const kind = request.params.kind === 'circle' ? 'circle' : 'dm';
+    const peerId = Number(request.params.peerId);
+    if (!Number.isFinite(peerId) || peerId <= 0) return fail(response, 400, 'Invalid conversation id.');
+    await pool.query(`INSERT INTO conversation_reads(user_id,kind,peer_id,last_read_at) VALUES($1,$2,$3,NOW())
+      ON CONFLICT(user_id,kind,peer_id) DO UPDATE SET last_read_at=NOW()`, [request.user.id, kind, peerId]);
+    return ok(response, { read: true });
+  } catch (error) { next(error); }
+});
+
 app.get('/api/state', async (request, response, next) => { try { const row = (await pool.query('SELECT dark_mode AS "darkMode",live_location AS "liveLocation",friend_activity AS "friendActivity",digest,discoverable,saved_places AS "savedPlaces",saved_events AS "savedEvents" FROM user_settings WHERE user_id=$1', [request.user.id])).rows[0]; return ok(response, row ? { found: true, ...row, settings: { liveLocation: row.liveLocation, friendActivity: row.friendActivity, digest: row.digest, discoverable: row.discoverable } } : { found: false }); } catch (error) { next(error); } });
 app.post('/api/state', async (request, response, next) => { try { const d = request.body; await pool.query(`INSERT INTO user_settings(user_id,dark_mode,live_location,friend_activity,digest,discoverable,saved_places,saved_events) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(user_id) DO UPDATE SET dark_mode=EXCLUDED.dark_mode,live_location=EXCLUDED.live_location,friend_activity=EXCLUDED.friend_activity,digest=EXCLUDED.digest,discoverable=EXCLUDED.discoverable,saved_places=EXCLUDED.saved_places,saved_events=EXCLUDED.saved_events,updated_at=NOW()`, [request.user.id, !!d.darkMode, !!d.settings?.liveLocation, d.settings?.friendActivity !== false, !!d.settings?.digest, d.settings?.discoverable !== false, JSON.stringify(d.savedPlaces || []), JSON.stringify(d.savedEvents || [])]); return ok(response); } catch (error) { next(error); } });
 
