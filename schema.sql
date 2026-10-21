@@ -129,6 +129,17 @@ CREATE TABLE IF NOT EXISTS direct_messages (
 
 CREATE INDEX IF NOT EXISTS direct_messages_pair_created ON direct_messages(sender_id, receiver_id, created_at);
 
+-- Per-conversation read markers, so an unread badge survives a reload instead of
+-- living only in browser memory. kind='dm' => peer_id is the friend's user id;
+-- kind='circle' => peer_id is the circle id.
+CREATE TABLE IF NOT EXISTS conversation_reads (
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind VARCHAR(10) NOT NULL CHECK (kind IN ('dm','circle')),
+  peer_id BIGINT NOT NULL,
+  last_read_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, kind, peer_id)
+);
+
 CREATE TABLE IF NOT EXISTS group_calls (
   id BIGSERIAL PRIMARY KEY,
   circle_id BIGINT NOT NULL REFERENCES circles(id) ON DELETE CASCADE,
