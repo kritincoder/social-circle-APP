@@ -5,8 +5,47 @@ const crypto = require('crypto');
 const multer = require('multer');
 const { pool, hashPassword, validPassword, publicUser, currentUser, createSession, sessionCookie } = require('./auth');
 const { ok, fail } = require('./response');
-let notifyUser = () => {};
-try { ({ notifyUser } = require('./realtime')); } catch (error) { console.warn('Realtime transport unavailable; continuing without realtime notifications.'); }
+
+/* ---------------------------------------------------------------------------
+   REALTIME SOCKET REGISTRY
+
+   This used to live in src/realtime.js and was imported through a try/catch in
+   BOTH server.js and here. When that one file was missing from a deploy, both
+   imports threw, addClient/notifyUser silently became no-ops, and every realtime
+   feature died without a single error: sockets still connected and received
+   realtime:ready, but nothing was ever pushed. That is exactly what broke live
+   message delivery and incoming calls in production.
+
+   It now lives in this file and is exported, so there is no separate file whose
+   absence can disable realtime, and no silent fallback. src/realtime.js is no
+   longer imported by anything.
+--------------------------------------------------------------------------- */
+const socketsByUser = new Map();
+function addClient(userId, socket) {
+  const key = Number(userId);
+  if (!socketsByUser.has(key)) socketsByUser.set(key, new Set());
+  socketsByUser.get(key).add(socket);
+  socket.on('close', () => {
+    const set = socketsByUser.get(key);
+    if (!set) return;
+    set.delete(socket);
+    if (!set.size) socketsByUser.delete(key);
+  });
+}
+function notifyUser(userId, event, data) {
+  const set = socketsByUser.get(Number(userId));
+  if (!set) return false;
+  const payload = JSON.stringify({ event, data });
+  let delivered = 0;
+  set.forEach(socket => { if (socket.readyState === 1) { socket.send(payload); delivered++; } });
+  return delivered > 0;
+}
+function isUserOnline(userId) {
+  const set = socketsByUser.get(Number(userId));
+  if (!set) return false;
+  for (const socket of set) if (socket.readyState === 1) return true;
+  return false;
+}
 
 const upload = multer({ dest: path.join(__dirname, '..', 'uploads'), limits: { fileSize: 5 * 1024 * 1024 } });
 const root = path.join(__dirname, '..');
@@ -86,7 +125,7 @@ app.get('/api/connections/requests', async (request, response, next) => { try { 
 app.post('/api/connections/request', async (request, response, next) => { try { const target = Number(request.body.userId); if (!target || target === request.user.id) return fail(response, 400, 'Invalid connection target.'); const connected = await pool.query('SELECT 1 FROM connections WHERE user_id=$1 AND friend_id=$2', [request.user.id, target]); if (connected.rowCount) return fail(response, 409, 'You are already connected.'); const pending = await pool.query("SELECT 1 FROM connection_requests WHERE sender_id=$1 AND receiver_id=$2 AND status='pending'", [request.user.id, target]); if (pending.rowCount) return fail(response, 409, 'A request is already pending.'); const connectionRequest = (await pool.query('INSERT INTO connection_requests(sender_id,receiver_id) VALUES($1,$2) RETURNING id', [request.user.id, target])).rows[0]; const body=`${request.user.display_name} wants to connect with you.`; await pool.query("INSERT INTO notifications(user_id,type,title,body,actor_id,request_id) VALUES($1,'connection_request','New connection request',$2,$3,$4)", [target, body, request.user.id, connectionRequest.id]); notifyUser(target,'notification',{type:'connection_request',title:'New connection request',body,actorId:request.user.id,requestId:connectionRequest.id}); return ok(response, { requestId: connectionRequest.id }, 201); } catch (error) { next(error); } });
 app.post('/api/connections/requests/:id/:action(accept|reject)', async (request, response, next) => { try { const status = request.params.action === 'accept' ? 'accepted' : 'declined'; const row = (await pool.query("UPDATE connection_requests SET status=$1,updated_at=NOW() WHERE id=$2 AND receiver_id=$3 AND status='pending' RETURNING sender_id", [status, request.params.id, request.user.id])).rows[0]; if (!row) return fail(response, 404, 'Request not found.'); await pool.query('UPDATE notifications SET read_at=NOW() WHERE request_id=$1', [request.params.id]); if (status === 'accepted') { await pool.query('INSERT INTO connections(user_id,friend_id) VALUES($1,$2),($2,$1) ON CONFLICT DO NOTHING', [request.user.id, row.sender_id]); const body=`${request.user.display_name} accepted your connection request.`; await pool.query("INSERT INTO notifications(user_id,type,title,body,actor_id,request_id) VALUES($1,'connection_accepted','Connection request accepted',$2,$3,$4)", [row.sender_id, body, request.user.id, request.params.id]); notifyUser(row.sender_id,'notification',{type:'connection_accepted',title:'Connection request accepted',body,actorId:request.user.id,requestId:Number(request.params.id)}); } return ok(response); } catch (error) { next(error); } });
 app.delete('/api/connections/requests/:id', async (request, response, next) => { try { await pool.query("DELETE FROM connection_requests WHERE id=$1 AND sender_id=$2 AND status='pending'", [request.params.id, request.user.id]); return ok(response); } catch (error) { next(error); } });
-app.get('/api/messages/:userId', async (request, response, next) => { try { const friendId = Number(request.params.userId); if (!(await hasConnection(request.user.id, friendId))) return fail(response, 403, 'You can message accepted friends only.'); const messages = (await pool.query('SELECT id,sender_id,receiver_id,content,created_at FROM direct_messages WHERE (sender_id=$1 AND receiver_id=$2) OR (sender_id=$2 AND receiver_id=$1) ORDER BY created_at ASC LIMIT 200', [request.user.id, friendId])).rows; return ok(response, { messages }); } catch (error) { next(error); } });
+app.get('/api/messages/:userId', async (request, response, next) => { try { const friendId = Number(request.params.userId); if (!(await hasConnection(request.user.id, friendId))) return fail(response, 403, 'You can message accepted friends only.'); const messages = (await pool.query('SELECT id,sender_id,receiver_id,content,kind,meta,call_id,created_at FROM direct_messages WHERE (sender_id=$1 AND receiver_id=$2) OR (sender_id=$2 AND receiver_id=$1) ORDER BY created_at ASC LIMIT 200', [request.user.id, friendId])).rows; return ok(response, { messages }); } catch (error) { next(error); } });
 app.post('/api/messages/:userId', async (request, response, next) => { try { const friendId = Number(request.params.userId); const content = input(request.body.content); if (!(await hasConnection(request.user.id, friendId))) return fail(response, 403, 'You can message accepted friends only.'); if (!content) return fail(response, 400, 'Message is required.'); const message = (await pool.query('INSERT INTO direct_messages(sender_id,receiver_id,content) VALUES($1,$2,$3) RETURNING *', [request.user.id, friendId, content])).rows[0]; notifyUser(friendId,'message:new',{message}); return ok(response, { message }, 201); } catch (error) { next(error); } });
 
 app.get('/api/notifications', async (request, response, next) => { try { const notifications = (await pool.query("SELECT n.*,u.display_name AS actor_name FROM notifications n LEFT JOIN users u ON u.id=n.actor_id WHERE n.user_id=$1 ORDER BY n.created_at DESC LIMIT 50", [request.user.id])).rows; return ok(response, { notifications }); } catch (error) { next(error); } });
@@ -100,9 +139,71 @@ app.get('/api/circles', async (request, response, next) => { try { const circles
 app.post('/api/circles/:circleId/messages', async (request, response, next) => { try { const content = input(request.body.content); const member = await pool.query('SELECT 1 FROM circle_members WHERE circle_id=$1 AND user_id=$2', [request.params.circleId, request.user.id]); if (!member.rowCount) return fail(response, 403, 'You are not a member of this circle.'); if (!content) return fail(response, 400, 'Message is required.'); const message = (await pool.query('INSERT INTO messages(circle_id,sender_id,content) VALUES($1,$2,$3) RETURNING *', [request.params.circleId, request.user.id, content])).rows[0]; const members=(await pool.query('SELECT user_id FROM circle_members WHERE circle_id=$1 AND user_id<>$2',[request.params.circleId,request.user.id])).rows; members.forEach(memberRow=>notifyUser(memberRow.user_id,'message:new',{message,circleId:Number(request.params.circleId)})); return ok(response, { message }, 201); } catch (error) { next(error); } });
 app.get('/api/circles/:circleId/messages', async (request, response, next) => { try { const messages = (await pool.query('SELECT m.*,u.display_name FROM messages m JOIN users u ON u.id=m.sender_id JOIN circle_members cm ON cm.circle_id=m.circle_id WHERE m.circle_id=$1 AND cm.user_id=$2 ORDER BY m.created_at ASC LIMIT 200', [request.params.circleId, request.user.id])).rows; return ok(response, { messages }); } catch (error) { next(error); } });
 app.post('/api/circles/:circleId/calls', async (request, response, next) => { try { const roomCode = crypto.randomBytes(8).toString('hex'); const call = (await pool.query("INSERT INTO group_calls(circle_id,started_by,room_code) SELECT $1,$2,$3 WHERE EXISTS (SELECT 1 FROM circle_members WHERE circle_id=$1 AND user_id=$2) RETURNING *", [request.params.circleId, request.user.id, roomCode])).rows[0]; if (!call) return fail(response, 403, 'You are not a member of this circle.'); const circle=(await pool.query('SELECT * FROM circles WHERE id=$1',[request.params.circleId])).rows[0]; const memberRows=(await pool.query('SELECT user_id FROM circle_members WHERE circle_id=$1',[request.params.circleId])).rows; const memberIds=memberRows.map(r=>Number(r.user_id)); const callType=request.body.callType==='video'?'video':'audio'; const payload={call,callType,circle,memberIds,startedBy:publicUser(request.user)}; memberIds.filter(id=>id!==Number(request.user.id)).forEach(id=>notifyUser(id,'call:group-incoming',payload)); return ok(response, payload, 201); } catch (error) { next(error); } });
-app.post('/api/calls', async (request, response, next) => { try { const calleeId=Number(request.body.calleeId); const callType=request.body.callType==='video'?'video':'audio'; if (!(await hasConnection(request.user.id,calleeId))) return fail(response,403,'Calls are available to accepted friends only.'); const call=(await pool.query("INSERT INTO call_sessions(caller_id,callee_id,call_type) VALUES($1,$2,$3) RETURNING *",[request.user.id,calleeId,callType])).rows[0]; notifyUser(calleeId,'call:incoming',{call,caller:publicUser(request.user)}); return ok(response,{call},201); } catch(error) { next(error); } });
-app.post('/api/calls/:callId/respond', async (request, response, next) => { try { const accept=request.body.accept===true; const call=(await pool.query("UPDATE call_sessions SET status=$1 WHERE id=$2 AND callee_id=$3 AND status='ringing' RETURNING *",[accept?'active':'declined',request.params.callId,request.user.id])).rows[0]; if(!call) return fail(response,404,'Call request not found.'); notifyUser(call.caller_id,'call:response',{call,accepted:accept}); return ok(response,{call}); } catch(error) { next(error); } });
-app.post('/api/calls/:callId/end', async (request, response, next) => { try { const call=(await pool.query("UPDATE call_sessions SET status='ended',ended_at=NOW() WHERE id=$1 AND (caller_id=$2 OR callee_id=$2) AND status IN ('ringing','active') RETURNING *",[request.params.callId,request.user.id])).rows[0]; if(!call) return fail(response,404,'Call not found.'); notifyUser(call.caller_id,'call:ended',{call}); notifyUser(call.callee_id,'call:ended',{call}); return ok(response,{call}); } catch(error) { next(error); } });
+/* ---- Call history as a persistent conversation entry -----------------------
+   One row in direct_messages per finished call, kind='call', carrying the call id.
+   A unique index on direct_messages.call_id means a retried or duplicated event is
+   a no-op (ON CONFLICT DO NOTHING) rather than a second bubble. Both participants
+   see the same row because a 1:1 conversation is a single pair of ids, and both are
+   pushed the same message:new event so it appears without a refresh.           */
+function formatCallDuration(seconds){ const m=Math.floor(seconds/60), s=seconds%60; return m ? `${m}m ${s}s` : `${s}s`; }
+async function recordCallHistory(call, status) {
+  if (!call || !call.id) return null;
+  const type = call.call_type === 'video' ? 'video' : 'audio';
+  const noun = type === 'video' ? 'Video' : 'Audio';
+  let seconds = 0;
+  if (status === 'ended' && call.answered_at && call.ended_at) {
+    seconds = Math.max(0, Math.round((new Date(call.ended_at).getTime() - new Date(call.answered_at).getTime()) / 1000));
+  }
+  const label = status === 'ended' ? `${noun} call · ${formatCallDuration(seconds)}`
+    : status === 'declined' ? `${noun} call declined`
+    : `Missed ${type} call`;
+  const meta = { callType: type, status, seconds, callerId: Number(call.caller_id), calleeId: Number(call.callee_id) };
+  try {
+    const row = (await pool.query(
+      `INSERT INTO direct_messages(sender_id,receiver_id,content,kind,meta,call_id)
+       VALUES($1,$2,$3,'call',$4::jsonb,$5) ON CONFLICT DO NOTHING RETURNING *`,
+      [call.caller_id, call.callee_id, label, JSON.stringify(meta), call.id]
+    )).rows[0];
+    if (!row) return null; // already recorded for this call
+    notifyUser(call.caller_id, 'message:new', { message: row });
+    notifyUser(call.callee_id, 'message:new', { message: row });
+    return row;
+  } catch (error) { console.warn('Call history not recorded:', error.message); return null; }
+}
+// A socket dropping (tab closed, network lost) must not leave the other side ringing.
+async function endStaleCallsFor(userId) {
+  try {
+    const rows = (await pool.query(
+      "UPDATE call_sessions SET status='ended', ended_at=NOW() WHERE (caller_id=$1 OR callee_id=$1) AND status IN ('ringing','active') RETURNING *",
+      [Number(userId)]
+    )).rows;
+    for (const call of rows) {
+      notifyUser(call.caller_id, 'call:ended', { call, reason: 'disconnected' });
+      notifyUser(call.callee_id, 'call:ended', { call, reason: 'disconnected' });
+      await recordCallHistory(call, call.answered_at ? 'ended' : 'missed');
+    }
+    return rows.length;
+  } catch (error) { console.warn('Stale call cleanup failed:', error.message); return 0; }
+}
+
+// ICE servers come from the server so TURN credentials are never baked into the
+// page. STUN-only is the default; set TURN_URLS (+ TURN_USERNAME / TURN_CREDENTIAL)
+// in the environment to make calls work across symmetric NATs and mobile networks.
+app.get('/api/rtc-config', (request, response) => {
+  const stun = (process.env.STUN_URLS || 'stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302').split(',').map(s=>s.trim()).filter(Boolean);
+  const iceServers = [{ urls: stun }];
+  if (process.env.TURN_URLS) {
+    const entry = { urls: process.env.TURN_URLS.split(',').map(s=>s.trim()).filter(Boolean) };
+    if (process.env.TURN_USERNAME) entry.username = process.env.TURN_USERNAME;
+    if (process.env.TURN_CREDENTIAL) entry.credential = process.env.TURN_CREDENTIAL;
+    iceServers.push(entry);
+  }
+  return ok(response, { iceServers, hasTurn: !!process.env.TURN_URLS });
+});
+
+app.post('/api/calls', async (request, response, next) => { try { const calleeId=Number(request.body.calleeId); const callType=request.body.callType==='video'?'video':'audio'; if (!(await hasConnection(request.user.id,calleeId))) return fail(response,403,'Calls are available to accepted friends only.'); const busy=(await pool.query("SELECT 1 FROM call_sessions WHERE (caller_id=$1 OR callee_id=$1) AND status IN ('ringing','active') LIMIT 1",[calleeId])).rowCount>0; const call=(await pool.query("INSERT INTO call_sessions(caller_id,callee_id,call_type) VALUES($1,$2,$3) RETURNING *",[request.user.id,calleeId,callType])).rows[0]; const delivered=notifyUser(calleeId,'call:incoming',{call,caller:publicUser(request.user)}); return ok(response,{call,recipientOnline:isUserOnline(calleeId),delivered,recipientBusy:busy},201); } catch(error) { next(error); } });
+app.post('/api/calls/:callId/respond', async (request, response, next) => { try { const accept=request.body.accept===true; const call=(await pool.query("UPDATE call_sessions SET status=$1, answered_at=CASE WHEN $4 THEN NOW() ELSE answered_at END WHERE id=$2 AND callee_id=$3 AND status='ringing' RETURNING *",[accept?'active':'declined',request.params.callId,request.user.id,accept])).rows[0]; if(!call) return fail(response,404,'Call request not found.'); notifyUser(call.caller_id,'call:response',{call,accepted:accept,reason:request.body.reason||null}); if(!accept) await recordCallHistory(call,'declined'); return ok(response,{call}); } catch(error) { next(error); } });
+app.post('/api/calls/:callId/end', async (request, response, next) => { try { const call=(await pool.query("UPDATE call_sessions SET status='ended',ended_at=NOW() WHERE id=$1 AND (caller_id=$2 OR callee_id=$2) AND status IN ('ringing','active') RETURNING *",[request.params.callId,request.user.id])).rows[0]; if(!call) return fail(response,404,'Call not found.'); notifyUser(call.caller_id,'call:ended',{call}); notifyUser(call.callee_id,'call:ended',{call}); await recordCallHistory(call, call.answered_at ? 'ended' : 'missed'); return ok(response,{call}); } catch(error) { next(error); } });
 // One call that powers the whole Messages list: every accepted friend (so a chat can
 // be started before any message exists), every circle the user belongs to, each with
 // its last message and an unread count derived from conversation_reads. Unread is
@@ -180,4 +281,4 @@ app.get('*', (_request, response) => response.sendFile(path.join(root, 'socialci
 
 async function initialize() { await pool.query(fs.readFileSync(path.join(root, 'schema.sql'), 'utf8')); const password = process.env.ADMIN_PASSWORD || 'admin@123'; await pool.query(`INSERT INTO users(username,email,password_hash,display_name,is_admin) VALUES('admin','admin@socialcircle.local',$1,'Administrator',TRUE) ON CONFLICT(username) DO UPDATE SET password_hash=EXCLUDED.password_hash,is_admin=TRUE`, [await hashPassword(password)]); }
 initialize().catch(error => { console.error('Database startup failed:', error.message); process.exit(1); });
-module.exports = { createApp: () => app };
+module.exports = { createApp: () => app, addClient, notifyUser, isUserOnline, endStaleCallsFor };
