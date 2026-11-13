@@ -61,7 +61,7 @@ async function requireUser(request, response, next) {
   try { request.user = await currentUser(request); if (!request.user) return fail(response, 401, 'Authentication required.'); next(); }
   catch (error) { next(error); }
 }
-function userQueryFields() { return 'id,username,email,display_name,bio,profile_photo_url,is_admin'; }
+function userQueryFields() { return 'id,username,email,display_name,bio,profile_photo_url,is_admin,district'; }
 async function hasConnection(userId, friendId) {
   const result = await pool.query(`SELECT 1 FROM connections WHERE user_id=$1 AND friend_id=$2
     UNION SELECT 1 FROM connection_requests WHERE ((sender_id=$1 AND receiver_id=$2) OR (sender_id=$2 AND receiver_id=$1)) AND status='accepted' LIMIT 1`, [userId, friendId]);
@@ -84,12 +84,15 @@ async function ensurePlace(place) {
   id = id.slice(0, 180);
   const name = (input(place.name) || id).slice(0, 180);
   await pool.query(
-    `INSERT INTO places(id,name,address,latitude,longitude) VALUES($1,$2,$3,$4,$5)
+    `INSERT INTO places(id,name,address,latitude,longitude,district,category) VALUES($1,$2,$3,$4,$5,$6,$7)
      ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,
        address=COALESCE(EXCLUDED.address,places.address),
        latitude=COALESCE(EXCLUDED.latitude,places.latitude),
-       longitude=COALESCE(EXCLUDED.longitude,places.longitude)`,
-    [id, name, input(place.address) || null, hasCoords ? latNum : null, hasCoords ? lngNum : null]
+       longitude=COALESCE(EXCLUDED.longitude,places.longitude),
+       district=COALESCE(EXCLUDED.district,places.district),
+       category=COALESCE(EXCLUDED.category,places.category)`,
+    [id, name, input(place.address) || null, hasCoords ? latNum : null, hasCoords ? lngNum : null,
+     input(place.district) || null, input(place.category) || null]
   );
   return id;
 }
@@ -116,7 +119,7 @@ app.use('/api', requireUser);
 app.get('/api/users/search', async (request, response, next) => { try { const q = `%${input(request.query.q).toLowerCase()}%`; const rows = (await pool.query(`SELECT ${userQueryFields()} FROM users WHERE id<>$1 AND (LOWER(username) LIKE $2 OR LOWER(display_name) LIKE $2) ORDER BY username LIMIT 20`, [request.user.id, q])).rows; return ok(response, { users: rows.map(publicUser) }); } catch (error) { next(error); } });
 app.get('/api/users/:userId', async (request, response, next) => { try { const row = (await pool.query(`SELECT ${userQueryFields()} FROM users WHERE id=$1`, [Number(request.params.userId)])).rows[0]; if (!row) return fail(response, 404, 'User not found.'); return ok(response, { user: publicUser(row) }); } catch (error) { next(error); } });
 app.get('/api/profile', (request, response) => ok(response, { user: publicUser(request.user) }));
-app.patch('/api/profile', async (request, response, next) => { try { const name = input(request.body.displayName || request.body.name) || request.user.display_name; const bio = input(request.body.bio); const row = (await pool.query('UPDATE users SET display_name=$1,bio=$2 WHERE id=$3 RETURNING ' + userQueryFields(), [name, bio, request.user.id])).rows[0]; return ok(response, { user: publicUser(row) }); } catch (error) { next(error); } });
+app.patch('/api/profile', async (request, response, next) => { try { const name = input(request.body.displayName || request.body.name) || request.user.display_name; const bio = input(request.body.bio); const district = request.body.district === undefined ? request.user.district : (input(request.body.district).slice(0, 80) || null); const row = (await pool.query('UPDATE users SET display_name=$1,bio=$2,district=$3 WHERE id=$4 RETURNING ' + userQueryFields(), [name, bio, district, request.user.id])).rows[0]; return ok(response, { user: publicUser(row) }); } catch (error) { next(error); } });
 app.post('/api/profile/photo', upload.single('photo'), async (request, response, next) => { try { if (!request.file) return fail(response, 400, 'Photo is required.'); const url = `/uploads/${request.file.filename}`; const row = (await pool.query('UPDATE users SET profile_photo_url=$1 WHERE id=$2 RETURNING ' + userQueryFields(), [url, request.user.id])).rows[0]; return ok(response, { user: publicUser(row) }); } catch (error) { next(error); } });
 app.delete('/api/profile/photo', async (request, response, next) => { try { await pool.query('UPDATE users SET profile_photo_url=NULL WHERE id=$1', [request.user.id]); return ok(response); } catch (error) { next(error); } });
 
@@ -133,7 +136,7 @@ app.get('/api/feed', async (request, response, next) => { try { const feed = (aw
 app.post('/api/posts', async (request, response, next) => { try { const content = input(request.body.content); if (!content) return fail(response, 400, 'Post content is required.'); const place = request.body.place || (request.body.placeId ? { id: request.body.placeId, name: request.body.placeName, lat: request.body.lat, lng: request.body.lng } : null); let placeId = null; try { placeId = await ensurePlace(place); } catch (placeError) { console.warn('Place upsert failed; posting without a place:', placeError.message); placeId = null; } const post = (await pool.query('INSERT INTO posts(user_id,content,place_id) VALUES($1,$2,$3) RETURNING *', [request.user.id, content, placeId])).rows[0]; const rating = Number(request.body.rating); if (placeId && Number.isInteger(rating) && rating >= 1 && rating <= 5) { await pool.query('INSERT INTO place_ratings(place_id,user_id,rating,review) VALUES($1,$2,$3,$4) ON CONFLICT(place_id,user_id) DO UPDATE SET rating=EXCLUDED.rating,review=EXCLUDED.review,updated_at=NOW()', [placeId, request.user.id, rating, content]).catch(ratingError => console.warn('Rating save skipped:', ratingError.message)); } const enriched = (await pool.query(`SELECT p.*, pl.name AS place_name, pl.latitude AS place_lat, pl.longitude AS place_lng, u.username, u.display_name, u.profile_photo_url FROM posts p LEFT JOIN places pl ON pl.id=p.place_id JOIN users u ON u.id=p.user_id WHERE p.id=$1`, [post.id])).rows[0]; return ok(response, { post: enriched }, 201); } catch (error) { next(error); } });
 app.post('/api/places/:placeId/rating', async (request, response, next) => { try { const rating = Number(request.body.rating); if (!Number.isInteger(rating) || rating < 1 || rating > 5) return fail(response, 400, 'Rating must be an integer from 1 to 5.'); const row = (await pool.query('INSERT INTO place_ratings(place_id,user_id,rating,review) VALUES($1,$2,$3,$4) ON CONFLICT(place_id,user_id) DO UPDATE SET rating=EXCLUDED.rating,review=EXCLUDED.review,updated_at=NOW() RETURNING *', [request.params.placeId, request.user.id, rating, input(request.body.review)])).rows[0]; return ok(response, { rating: row }); } catch (error) { next(error); } });
 app.post('/api/invite', async (request, response, next) => { try { const code = crypto.randomBytes(5).toString('hex'); await pool.query('INSERT INTO invites(code,user_id) VALUES($1,$2)', [code, request.user.id]); return ok(response, { code }, 201); } catch (error) { next(error); } });
-app.post('/api/reactions', async (request, response, next) => { try { const itemType = input(request.body.itemType); const itemId = input(request.body.itemId); const reaction = input(request.body.reaction); if (!['place', 'news'].includes(itemType) || !itemId || !['like', 'dislike'].includes(reaction)) return fail(response, 400, 'Invalid reaction.'); await pool.query('INSERT INTO content_reactions(user_id,item_type,item_id,reaction) VALUES($1,$2,$3,$4) ON CONFLICT(user_id,item_type,item_id) DO UPDATE SET reaction=EXCLUDED.reaction', [request.user.id, itemType, itemId, reaction]); return ok(response); } catch (error) { next(error); } });
+app.post('/api/reactions', async (request, response, next) => { try { const itemType = input(request.body.itemType); const itemId = input(request.body.itemId); const reaction = input(request.body.reaction); if (!['place', 'news', 'event'].includes(itemType) || !itemId || !['like', 'dislike'].includes(reaction)) return fail(response, 400, 'Invalid reaction.'); await pool.query('INSERT INTO content_reactions(user_id,item_type,item_id,reaction) VALUES($1,$2,$3,$4) ON CONFLICT(user_id,item_type,item_id) DO UPDATE SET reaction=EXCLUDED.reaction', [request.user.id, itemType, itemId, reaction]); return ok(response); } catch (error) { next(error); } });
 app.post('/api/circles', async (request, response, next) => { const client=await pool.connect(); try { const name=input(request.body.name); const memberIds=[...new Set((request.body.memberIds || []).map(Number).filter(id=>id && id!==request.user.id))]; if (!name) return fail(response,400,'Circle name is required.'); if (memberIds.length<2) return fail(response,400,'Select at least two accepted friends.'); for (const memberId of memberIds) if (!(await hasConnection(request.user.id,memberId))) return fail(response,403,'All group members must be accepted friends.'); await client.query('BEGIN'); const circle=(await client.query('INSERT INTO circles(owner_id,name) VALUES($1,$2) RETURNING *',[request.user.id,name])).rows[0]; await client.query("INSERT INTO circle_members(circle_id,user_id,role) VALUES($1,$2,'owner')",[circle.id,request.user.id]); for (const memberId of memberIds) await client.query("INSERT INTO circle_members(circle_id,user_id,role) VALUES($1,$2,'member')",[circle.id,memberId]); await client.query('COMMIT'); const memberRows=(await pool.query(`SELECT ${userQueryFields()} FROM users WHERE id = ANY($1::bigint[])`,[[request.user.id,...memberIds]])).rows.map(publicUser); const payload={circle,members:memberRows,memberIds:[request.user.id,...memberIds]}; memberIds.forEach(memberId=>notifyUser(memberId,'circle:new',payload)); return ok(response,payload,201); } catch(error) { await client.query('ROLLBACK'); next(error); } finally { client.release(); } });
 app.get('/api/circles', async (request, response, next) => { try { const circles=(await pool.query(`SELECT c.*,COUNT(cm.user_id)::int AS member_count,MAX(m.created_at) AS last_message_at FROM circles c JOIN circle_members cm ON cm.circle_id=c.id LEFT JOIN messages m ON m.circle_id=c.id WHERE c.id IN (SELECT circle_id FROM circle_members WHERE user_id=$1) GROUP BY c.id ORDER BY c.created_at DESC`,[request.user.id])).rows; return ok(response,{circles}); } catch(error) { next(error); } });
 app.post('/api/circles/:circleId/messages', async (request, response, next) => { try { const content = input(request.body.content); const member = await pool.query('SELECT 1 FROM circle_members WHERE circle_id=$1 AND user_id=$2', [request.params.circleId, request.user.id]); if (!member.rowCount) return fail(response, 403, 'You are not a member of this circle.'); if (!content) return fail(response, 400, 'Message is required.'); const message = (await pool.query('INSERT INTO messages(circle_id,sender_id,content) VALUES($1,$2,$3) RETURNING *', [request.params.circleId, request.user.id, content])).rows[0]; const members=(await pool.query('SELECT user_id FROM circle_members WHERE circle_id=$1 AND user_id<>$2',[request.params.circleId,request.user.id])).rows; members.forEach(memberRow=>notifyUser(memberRow.user_id,'message:new',{message,circleId:Number(request.params.circleId)})); return ok(response, { message }, 201); } catch (error) { next(error); } });
@@ -294,9 +297,302 @@ app.get('/api/locations', async (request, response, next) => { try { const locat
 app.get('/api/location/:userId', async (request, response, next) => { try { const friendId = Number(request.params.userId); if (!(await hasConnection(request.user.id, friendId))) return fail(response, 403, 'You can view accepted friends only.'); const row = (await pool.query(`SELECT ul.user_id, ul.latitude, ul.longitude, ul.accuracy, ul.updated_at FROM user_locations ul JOIN user_settings s ON s.user_id=ul.user_id WHERE ul.user_id=$1 AND s.live_location=TRUE`, [friendId])).rows[0]; if (!row) return fail(response, 404, 'That friend is not sharing their location right now.'); return ok(response, { location: row }); } catch (error) { next(error); } });
 
 app.use((error, _request, response, _next) => { console.error(error); return fail(response, error.code === '23505' ? 409 : 500, error.code === '23505' ? 'Username, email, or request already exists.' : 'Server error.'); });
+
+/* ============================================================
+   CIRCLE REVIEWS, DISTRICT EVENTS, DISCOVERY
+   Every query below is scoped server-side to the authenticated
+   user's real connections. The client cannot widen that scope by
+   passing a different user id, and nothing here invents content:
+   a row is returned only if a real user created it.
+   ============================================================ */
+
+// The caller's circle: their accepted connections, plus themselves. Used by
+// every "from your circle" query so the scope can never be set by the client.
+const CIRCLE_SQL = '(SELECT $1::bigint UNION SELECT friend_id FROM connections WHERE user_id=$1)';
+
+// Genuine reviews written by the caller's circle. Authorship comes from the
+// join on users, so a review can never be attributed to someone who did not
+// write it. Only rows with actual review text are returned, because a bare
+// 1-5 star with no words is not a review worth putting in a social feed.
+app.get('/api/reviews/circle', async (request, response, next) => {
+  try {
+    const limit = Math.min(Math.max(Number(request.query.limit) || 30, 1), 100);
+    const district = input(request.query.district);
+    const rows = (await pool.query(
+      `SELECT r.id, r.rating, r.review, r.created_at, r.updated_at,
+              r.place_id, pl.name AS place_name, pl.address AS place_address,
+              pl.district AS place_district, pl.category AS place_category,
+              pl.latitude AS place_lat, pl.longitude AS place_lng,
+              u.id AS author_id, u.username AS author_username,
+              u.display_name AS author_name, u.profile_photo_url AS author_photo,
+              (u.id = $1) AS is_me
+         FROM place_ratings r
+         JOIN users u ON u.id = r.user_id
+         JOIN places pl ON pl.id = r.place_id
+        WHERE r.user_id IN ${CIRCLE_SQL}
+          AND length(btrim(r.review)) > 0
+          AND ($2 = '' OR pl.district = $2)
+        ORDER BY r.created_at DESC
+        LIMIT ${limit}`,
+      [request.user.id, district]
+    )).rows;
+    return ok(response, { reviews: rows });
+  } catch (error) { next(error); }
+});
+
+// Reviews for one place. Circle reviews first, then everyone else's, each
+// clearly flagged, so the client never has to guess which is which and an
+// outside rating is never shown as if a friend had written it.
+app.get('/api/places/:placeId/reviews', async (request, response, next) => {
+  try {
+    const rows = (await pool.query(
+      `SELECT r.id, r.rating, r.review, r.created_at,
+              u.id AS author_id, u.username AS author_username,
+              u.display_name AS author_name, u.profile_photo_url AS author_photo,
+              (r.user_id IN ${CIRCLE_SQL}) AS in_circle,
+              (u.id = $1) AS is_me
+         FROM place_ratings r
+         JOIN users u ON u.id = r.user_id
+        WHERE r.place_id = $2 AND length(btrim(r.review)) > 0
+        ORDER BY (r.user_id IN ${CIRCLE_SQL}) DESC, r.created_at DESC
+        LIMIT 60`,
+      [request.user.id, request.params.placeId]
+    )).rows;
+    const summary = (await pool.query(
+      `SELECT COUNT(*)::int AS total, ROUND(AVG(rating)::numeric, 2) AS average,
+              COUNT(*) FILTER (WHERE user_id IN ${CIRCLE_SQL})::int AS circle_total
+         FROM place_ratings WHERE place_id = $2`,
+      [request.user.id, request.params.placeId]
+    )).rows[0];
+    return ok(response, { reviews: rows, summary });
+  } catch (error) { next(error); }
+});
+
+/* ---------- events ---------- */
+// There is no verified public events API covering Indian districts, so events
+// here are posted by real members. Each row keeps its author, its real date
+// and its source; no date is ever shifted forward to make an old event look
+// current, and an event with no future date simply stops being listed.
+const EVENT_CATEGORIES = ['Educational', 'Technology', 'Hackathon', 'Workshop', 'School & College',
+  'Cultural', 'Exhibition', 'Community', 'Sports', 'Public Activity', 'Food', 'Music'];
+
+app.get('/api/events', async (request, response, next) => {
+  try {
+    const district = input(request.query.district);
+    const scope = input(request.query.scope); // '' | 'circle' | 'mine'
+    const category = input(request.query.category);
+    const includePast = request.query.includePast === '1';
+    const limit = Math.min(Math.max(Number(request.query.limit) || 40, 1), 100);
+    const rows = (await pool.query(
+      `SELECT e.*, u.username AS author_username, u.display_name AS author_name,
+              u.profile_photo_url AS author_photo, (e.created_by = $1) AS is_mine,
+              (SELECT COUNT(*) FROM event_interest i WHERE i.event_id = e.id)::int AS interest_total,
+              (SELECT COUNT(*) FROM event_interest i
+                WHERE i.event_id = e.id AND i.user_id IN ${CIRCLE_SQL} AND i.user_id <> $1)::int AS circle_interest,
+              EXISTS (SELECT 1 FROM event_interest i WHERE i.event_id = e.id AND i.user_id = $1) AS my_interest
+         FROM events e
+         JOIN users u ON u.id = e.created_by
+        WHERE ($2 = '' OR e.district = $2)
+          AND ($3 = '' OR e.category = $3)
+          AND ($4 OR COALESCE(e.ends_at, e.starts_at) >= NOW())
+          AND ($5 = '' OR ($5 = 'mine' AND e.created_by = $1)
+                       OR ($5 = 'circle' AND e.created_by IN ${CIRCLE_SQL}))
+        ORDER BY e.starts_at ASC
+        LIMIT ${limit}`,
+      [request.user.id, district, category, includePast, scope]
+    )).rows;
+    return ok(response, {
+      events: rows,
+      district: district || request.user.district || null,
+      categories: EVENT_CATEGORIES,
+      generatedAt: new Date().toISOString()
+    });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/events', async (request, response, next) => {
+  try {
+    const title = input(request.body.title).slice(0, 200);
+    if (!title) return fail(response, 400, 'An event title is required.');
+    const startsAt = new Date(request.body.startsAt || request.body.starts_at || '');
+    if (Number.isNaN(startsAt.getTime())) return fail(response, 400, 'A valid start date and time is required.');
+    const endsRaw = request.body.endsAt || request.body.ends_at;
+    let endsAt = null;
+    if (endsRaw) {
+      endsAt = new Date(endsRaw);
+      if (Number.isNaN(endsAt.getTime())) return fail(response, 400, 'The end date is not a valid date.');
+      if (endsAt < startsAt) return fail(response, 400, 'The end time cannot be before the start time.');
+    }
+    // An event that is already over cannot be posted as upcoming. This is the
+    // guard that stops the old "stale events presented as current" problem.
+    if (new Date(endsAt || startsAt) < new Date()) return fail(response, 400, 'That event has already finished.');
+    const category = EVENT_CATEGORIES.includes(input(request.body.category)) ? input(request.body.category) : 'Community';
+    const district = input(request.body.district).slice(0, 80) || request.user.district || null;
+    const lat = request.body.lat ?? request.body.latitude;
+    const lng = request.body.lng ?? request.body.longitude;
+    const latNum = lat === '' || lat == null ? null : Number(lat);
+    const lngNum = lng === '' || lng == null ? null : Number(lng);
+    const sourceUrl = input(request.body.sourceUrl).slice(0, 500) || null;
+    if (sourceUrl && !/^https?:\/\//i.test(sourceUrl)) return fail(response, 400, 'The source link must start with http:// or https://');
+    let row;
+    try {
+      row = (await pool.query(
+        `INSERT INTO events(created_by,title,description,category,district,venue,latitude,longitude,starts_at,ends_at,source,source_url)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+        [request.user.id, title, input(request.body.description).slice(0, 2000), category, district,
+         input(request.body.venue).slice(0, 200) || null,
+         Number.isFinite(latNum) ? latNum : null, Number.isFinite(lngNum) ? lngNum : null,
+         startsAt.toISOString(), endsAt ? endsAt.toISOString() : null,
+         request.user.is_admin ? 'admin' : 'member', sourceUrl]
+      )).rows[0];
+    } catch (error) {
+      if (error && error.code === '23505') return fail(response, 409, 'That event has already been posted for this district and time.');
+      throw error;
+    }
+    return ok(response, { event: row });
+  } catch (error) { next(error); }
+});
+
+// Only the author (or an admin) may change or remove an event.
+app.delete('/api/events/:eventId', async (request, response, next) => {
+  try {
+    const row = (await pool.query('SELECT created_by FROM events WHERE id=$1', [Number(request.params.eventId)])).rows[0];
+    if (!row) return fail(response, 404, 'That event no longer exists.');
+    if (Number(row.created_by) !== Number(request.user.id) && !request.user.is_admin) return fail(response, 403, 'Only the person who posted an event can remove it.');
+    await pool.query('DELETE FROM events WHERE id=$1', [Number(request.params.eventId)]);
+    return ok(response);
+  } catch (error) { next(error); }
+});
+
+app.post('/api/events/:eventId/interest', async (request, response, next) => {
+  try {
+    const eventId = Number(request.params.eventId);
+    const exists = (await pool.query('SELECT 1 FROM events WHERE id=$1', [eventId])).rows[0];
+    if (!exists) return fail(response, 404, 'That event no longer exists.');
+    const going = request.body.going === true || input(request.body.status) === 'going';
+    if (request.body.interested === false) {
+      await pool.query('DELETE FROM event_interest WHERE event_id=$1 AND user_id=$2', [eventId, request.user.id]);
+      return ok(response, { interested: false });
+    }
+    await pool.query(
+      `INSERT INTO event_interest(event_id,user_id,status) VALUES($1,$2,$3)
+       ON CONFLICT(event_id,user_id) DO UPDATE SET status=EXCLUDED.status`,
+      [eventId, request.user.id, going ? 'going' : 'interested']
+    );
+    return ok(response, { interested: true, status: going ? 'going' : 'interested' });
+  } catch (error) { next(error); }
+});
+
+/* ---------- discovery deck (the swipe cards) ---------- */
+// Real places and real upcoming events, minus anything this user already
+// swiped away. Nothing is generated: if there is not enough local content the
+// deck is short and the client shows an honest empty state.
+app.get('/api/discover', async (request, response, next) => {
+  try {
+    const district = input(request.query.district) || request.user.district || '';
+    const limit = Math.min(Math.max(Number(request.query.limit) || 20, 1), 50);
+    const places = (await pool.query(
+      `SELECT pl.id, pl.name, pl.address, pl.district, pl.category, pl.latitude, pl.longitude,
+              (SELECT COUNT(*) FROM place_ratings r WHERE r.place_id = pl.id
+                AND r.user_id IN ${CIRCLE_SQL})::int AS circle_reviews,
+              (SELECT ROUND(AVG(r.rating)::numeric,1) FROM place_ratings r WHERE r.place_id = pl.id
+                AND r.user_id IN ${CIRCLE_SQL}) AS circle_rating,
+              (SELECT COUNT(*) FROM place_ratings r WHERE r.place_id = pl.id)::int AS total_reviews
+         FROM places pl
+        WHERE ($2 = '' OR pl.district = $2)
+          AND NOT EXISTS (SELECT 1 FROM content_reactions c
+                           WHERE c.user_id = $1 AND c.item_type = 'place' AND c.item_id = pl.id)
+        ORDER BY (SELECT COUNT(*) FROM place_ratings r WHERE r.place_id = pl.id
+                   AND r.user_id IN ${CIRCLE_SQL}) DESC, pl.created_at DESC
+        LIMIT ${limit}`,
+      [request.user.id, district]
+    )).rows;
+    const events = (await pool.query(
+      `SELECT e.id, e.title, e.description, e.category, e.district, e.venue,
+              e.starts_at, e.ends_at, e.latitude, e.longitude,
+              u.display_name AS author_name,
+              (SELECT COUNT(*) FROM event_interest i WHERE i.event_id = e.id
+                AND i.user_id IN ${CIRCLE_SQL} AND i.user_id <> $1)::int AS circle_interest
+         FROM events e JOIN users u ON u.id = e.created_by
+        WHERE COALESCE(e.ends_at, e.starts_at) >= NOW()
+          AND ($2 = '' OR e.district = $2)
+          AND NOT EXISTS (SELECT 1 FROM content_reactions c
+                           WHERE c.user_id = $1 AND c.item_type = 'event' AND c.item_id = e.id::text)
+        ORDER BY e.starts_at ASC
+        LIMIT ${limit}`,
+      [request.user.id, district]
+    )).rows;
+    return ok(response, { places, events, district: district || null });
+  } catch (error) { next(error); }
+});
+
+// Districts that actually have content, so the picker is not a hardcoded list.
+app.get('/api/districts', async (request, response, next) => {
+  try {
+    const rows = (await pool.query(
+      `SELECT d AS name,
+              SUM(places_count)::int AS places,
+              SUM(events_count)::int AS events
+         FROM (
+           SELECT district AS d, COUNT(*) AS places_count, 0 AS events_count
+             FROM places WHERE district IS NOT NULL AND district <> '' GROUP BY district
+           UNION ALL
+           SELECT district AS d, 0 AS places_count, COUNT(*) AS events_count
+             FROM events WHERE district IS NOT NULL AND district <> ''
+               AND COALESCE(ends_at, starts_at) >= NOW() GROUP BY district
+         ) t
+        GROUP BY d ORDER BY d`
+    )).rows;
+    return ok(response, { districts: rows, mine: request.user.district || null });
+  } catch (error) { next(error); }
+});
+
 app.get('/react', (_request, response) => response.sendFile(path.join(clientDist, 'index.html')));
 app.get('*', (_request, response) => response.sendFile(path.join(root, 'socialcircle.html')));
 
-async function initialize() { await pool.query(fs.readFileSync(path.join(root, 'schema.sql'), 'utf8')); const password = process.env.ADMIN_PASSWORD || 'admin@123'; await pool.query(`INSERT INTO users(username,email,password_hash,display_name,is_admin) VALUES('admin','admin@socialcircle.local',$1,'Administrator',TRUE) ON CONFLICT(username) DO UPDATE SET password_hash=EXCLUDED.password_hash,is_admin=TRUE`, [await hashPassword(password)]); }
+
+/* ============================================================
+   PLACE CATALOGUE SEED
+   Real, verifiable Delhi-NCR locations: name, address, district,
+   category and coordinates. This is factual place information so
+   "Discover Places" is not empty on a fresh install — it carries
+   NO ratings, NO review text and NO social proof. Every rating or
+   review in the app is written by a real signed-in member.
+   ON CONFLICT DO NOTHING, so a place edited later is never
+   overwritten by a redeploy.
+   ============================================================ */
+const SEED_PLACES = [
+  ['seed:kunzum-hauz-khas', 'Kunzum Travel Cafe', 'Hauz Khas Village, New Delhi', 'South Delhi', 'Cafe', 28.5540, 77.1946],
+  ['seed:sunder-nursery', 'Sunder Nursery', 'Nizamuddin, New Delhi', 'South East Delhi', 'Outdoors', 28.5980, 77.2500],
+  ['seed:hauz-khas-lake', 'Hauz Khas Lake and Deer Park', 'Deer Park Road, Hauz Khas, New Delhi', 'South Delhi', 'Outdoors', 28.5565, 77.2010],
+  ['seed:cp-inner-circle', 'Connaught Place Inner Circle', 'Inner Circle, Connaught Place, New Delhi', 'New Delhi', 'Market', 28.6330, 77.2195],
+  ['seed:champa-gali', 'Champa Gali', 'Saidulajab, Saket, New Delhi', 'South Delhi', 'Arts', 28.5300, 77.2010],
+  ['seed:select-citywalk', 'Select Citywalk', 'District Centre, Saket, New Delhi', 'South Delhi', 'Shopping', 28.5280, 77.2190],
+  ['seed:dilli-haat', 'Dilli Haat INA', 'Sri Aurobindo Marg, INA, New Delhi', 'South Delhi', 'Market', 28.5736, 77.2088],
+  ['seed:lodhi-art-district', 'Lodhi Art District', 'Lodhi Colony, New Delhi', 'South East Delhi', 'Arts', 28.5830, 77.2270],
+  ['seed:humayuns-tomb', "Humayun's Tomb", 'Mathura Road, Nizamuddin East, New Delhi', 'South East Delhi', 'Heritage', 28.5933, 77.2507],
+  ['seed:qutub-minar', 'Qutub Minar', 'Mehrauli, New Delhi', 'South Delhi', 'Heritage', 28.5245, 77.1855],
+  ['seed:red-fort', 'Red Fort', 'Netaji Subhash Marg, Chandni Chowk, Delhi', 'Central Delhi', 'Heritage', 28.6562, 77.2410],
+  ['seed:chandni-chowk', 'Chandni Chowk Market', 'Chandni Chowk, Delhi', 'Central Delhi', 'Market', 28.6506, 77.2303],
+  ['seed:cyber-hub', 'DLF CyberHub', 'DLF Cyber City, Gurugram', 'Gurugram', 'Food', 28.4950, 77.0890],
+  ['seed:vasant-kunj-market', 'Vasant Kunj Market', 'Vasant Kunj, New Delhi', 'South West Delhi', 'Cafe', 28.5215, 77.1560],
+  ['seed:india-gate', 'India Gate and Kartavya Path', 'Rajpath Area, New Delhi', 'New Delhi', 'Outdoors', 28.6129, 77.2295],
+  ['seed:majnu-ka-tila', 'Majnu ka Tila', 'New Aruna Nagar, Civil Lines, Delhi', 'North Delhi', 'Food', 28.7041, 77.2280],
+  ['seed:north-campus', 'Delhi University North Campus', 'University Enclave, Delhi', 'North Delhi', 'Education', 28.6889, 77.2089],
+  ['seed:nehru-place', 'Nehru Place', 'Nehru Place, New Delhi', 'South East Delhi', 'Shopping', 28.5483, 77.2513],
+  ['seed:jnu-campus', 'Jawaharlal Nehru University', 'New Mehrauli Road, New Delhi', 'South West Delhi', 'Education', 28.5383, 77.1641],
+  ['seed:iit-delhi', 'IIT Delhi', 'Hauz Khas, New Delhi', 'South Delhi', 'Education', 28.5450, 77.1926]
+];
+async function seedPlaceCatalogue() {
+  for (const [id, name, address, district, category, lat, lng] of SEED_PLACES) {
+    await pool.query(
+      `INSERT INTO places(id,name,address,district,category,latitude,longitude)
+       VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(id) DO NOTHING`,
+      [id, name, address, district, category, lat, lng]
+    );
+  }
+}
+
+async function initialize() { await pool.query(fs.readFileSync(path.join(root, 'schema.sql'), 'utf8')); const password = process.env.ADMIN_PASSWORD || 'admin@123'; await pool.query(`INSERT INTO users(username,email,password_hash,display_name,is_admin) VALUES('admin','admin@socialcircle.local',$1,'Administrator',TRUE) ON CONFLICT(username) DO UPDATE SET password_hash=EXCLUDED.password_hash,is_admin=TRUE`, [await hashPassword(password)]); await seedPlaceCatalogue(); }
 initialize().catch(error => { console.error('Database startup failed:', error.message); process.exit(1); });
 module.exports = { createApp: () => app, addClient, notifyUser, isUserOnline, endStaleCallsFor, isCallPair };
