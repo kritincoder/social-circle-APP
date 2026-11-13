@@ -11,7 +11,7 @@ async function validPassword(password, stored) {
   return expected && crypto.timingSafeEqual(Buffer.from(actual, 'hex'), Buffer.from(expected, 'hex'));
 }
 function publicUser(user) {
-  return { id: user.id, username: user.username, email: user.email, displayName: user.display_name, name: user.display_name, bio: user.bio || '', profilePhotoUrl: user.profile_photo_url || null, isAdmin: !!user.is_admin };
+  return { id: user.id, username: user.username, email: user.email, displayName: user.display_name, display_name: user.display_name, name: user.display_name, bio: user.bio || '', profilePhotoUrl: user.profile_photo_url || null, isAdmin: !!user.is_admin, district: user.district || null };
 }
 function cookies(request) { return Object.fromEntries((request.headers.cookie || '').split(';').filter(Boolean).map(item => { const [key, ...value] = item.trim().split('='); return [key, decodeURIComponent(value.join('='))]; })); }
 async function currentUser(request) {
