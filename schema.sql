@@ -212,3 +212,73 @@ ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS call_id BIGINT REFERENCES c
 CREATE UNIQUE INDEX IF NOT EXISTS direct_messages_one_row_per_call ON direct_messages(call_id) WHERE call_id IS NOT NULL;
 -- When the callee answered, so a real connected duration can be computed.
 ALTER TABLE call_sessions ADD COLUMN IF NOT EXISTS answered_at TIMESTAMPTZ;
+-- ============================================================
+-- DISTRICT-AWARE DISCOVERY, GENUINE CIRCLE REVIEWS, REAL EVENTS
+-- Additive and idempotent. No table is dropped, no row is deleted,
+-- no existing column changes type. Safe to re-apply on every boot.
+-- ============================================================
+
+-- A user's chosen district. Nullable: a user who has not chosen one simply
+-- sees an "all districts" view rather than being forced into Delhi.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS district VARCHAR(80);
+
+-- Places gain a district and a category so discovery can filter on real
+-- attributes instead of a hardcoded frontend slug.
+ALTER TABLE places ADD COLUMN IF NOT EXISTS district VARCHAR(80);
+ALTER TABLE places ADD COLUMN IF NOT EXISTS category VARCHAR(60);
+
+-- Genuine reviews already live in place_ratings(rating, review, user_id).
+-- These indexes make the circle and per-place review queries cheap.
+CREATE INDEX IF NOT EXISTS place_ratings_user_created ON place_ratings(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS place_ratings_place_created ON place_ratings(place_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS places_district ON places(district);
+
+-- Real events, owned by the member who posted them. There is no verified
+-- public per-district events API, so every row here has a genuine author and
+-- a real date; nothing is synthesised and no date is ever shifted forward.
+CREATE TABLE IF NOT EXISTS events (
+  id BIGSERIAL PRIMARY KEY,
+  created_by BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title VARCHAR(200) NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  category VARCHAR(60) NOT NULL DEFAULT 'Community',
+  district VARCHAR(80),
+  venue VARCHAR(200),
+  latitude NUMERIC(10,7),
+  longitude NUMERIC(10,7),
+  starts_at TIMESTAMPTZ NOT NULL,
+  ends_at TIMESTAMPTZ,
+  source VARCHAR(40) NOT NULL DEFAULT 'member',
+  source_url TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- Prevents the same event being posted twice for the same district and time.
+CREATE UNIQUE INDEX IF NOT EXISTS events_no_duplicates
+  ON events (lower(title), COALESCE(district,''), starts_at);
+CREATE INDEX IF NOT EXISTS events_district_start ON events(district, starts_at);
+CREATE INDEX IF NOT EXISTS events_start ON events(starts_at);
+
+-- Who is actually interested. This is what makes "2 people in your circle are
+-- going" a real count instead of a hardcoded sentence.
+CREATE TABLE IF NOT EXISTS event_interest (
+  event_id BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status VARCHAR(12) NOT NULL DEFAULT 'interested' CHECK (status IN ('interested','going')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (event_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS event_interest_user ON event_interest(user_id);
+
+-- Swipe dismissals persist in content_reactions, which previously allowed only
+-- 'place' and 'news'. Widen it to cover events so a dismissed event card does
+-- not come back on the next page load.
+DO $$
+BEGIN
+  ALTER TABLE content_reactions DROP CONSTRAINT IF EXISTS content_reactions_item_type_check;
+  ALTER TABLE content_reactions
+    ADD CONSTRAINT content_reactions_item_type_check
+    CHECK (item_type IN ('place', 'news', 'event'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+CREATE INDEX IF NOT EXISTS content_reactions_user_type ON content_reactions(user_id, item_type);
