@@ -16,9 +16,14 @@
   --ink:#14171A; --ink-soft:#5A6067; --paper:#FBFAF7; --paper-dim:#F0EEE8; --line:#E3E0D8;
   --teal:#1F98A9; --coral:#E15A42; --gold:#CE9A2E; --slate:#54677C; --green:#2C9464; --orange:#DB8236;
   --shell-w: 232px; --topbar-h: 60px; --tabbar-h: 62px; --card-bg:#fff;
+  /* Accessible-on-light variants. --gold and --teal are too light on a white
+     card for body-size text (2.53:1 and 3.43:1), so review stars and review
+     links get their own tokens, overridden for dark below. */
+  --star:#96670C; --link:#15788A;
 }
 html[data-theme="dark"]{
   --ink:#F2F1ED; --ink-soft:#A9AFB6; --paper:#15171B; --paper-dim:#1F2227; --line:#2B2E34; --card-bg:#1B1E23;
+  --star:#CE9A2E; --link:#1F98A9;
 }
 html[data-theme="dark"] body{background:var(--paper); color:var(--ink);}
 html[data-theme="dark"] .feedCard, html[data-theme="dark"] .eventCard, html[data-theme="dark"] .savedTile,
@@ -459,6 +464,46 @@ svg{display:block;}
 .pillBtn, .backBtn{display:inline-flex; align-items:center; gap:6px;}
 .starMini{display:inline-flex; gap:2px; color:var(--gold); vertical-align:-3px;}
 .ratingPill{display:inline-flex; align-items:center; gap:4px; color:var(--gold);}
+/* --- district bar, home sections, circle review cards (theme-token driven) --- */
+.districtBar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:4px 0 20px;}
+.districtBarLabel{font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft);}
+.districtSelect{flex:1 1 180px; min-width:160px; max-width:320px; padding:9px 12px; border-radius:10px;
+  border:1px solid var(--line); background:var(--card-bg); color:var(--ink); font-family:'Inter',sans-serif; font-size:13.5px; font-weight:500;}
+.districtSelect:focus{outline:2px solid var(--teal); outline-offset:1px;}
+.homeSection{margin-bottom:26px;}
+.homeSectionHead{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;}
+.homeSectionHead h3{font-size:15.5px; font-weight:600; font-family:'Inter',sans-serif; color:var(--ink);}
+.reviewCard{border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:10px; background:var(--card-bg);}
+.reviewTop{display:flex; align-items:center; gap:10px;}
+.reviewAvatar{width:34px; height:34px; border-radius:50%; flex-shrink:0; background:var(--paper-dim); object-fit:cover;
+  display:flex; align-items:center; justify-content:center; font-weight:600; font-size:13px; color:var(--ink-soft);}
+.reviewWho{flex:1; min-width:0;}
+.reviewWho h4{font-size:14px; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.reviewWho span{font-size:12px; color:var(--ink-soft);}
+.reviewStars{font-size:13px; color:var(--star); letter-spacing:1px; white-space:nowrap;}
+.reviewBody{margin-top:9px; font-size:13.5px; line-height:1.5; color:var(--ink);}
+.reviewPlace{margin-top:9px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+.reviewPlace a{font-size:12.5px; font-weight:600; color:var(--link); text-decoration:none; cursor:pointer;}
+.reviewPlace a:hover{text-decoration:underline;}
+.reviewOutside{font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft);
+  border:1px solid var(--line); border-radius:100px; padding:2px 8px;}
+.emptyState{border:1px dashed var(--line); border-radius:14px; padding:18px; background:var(--paper-dim);}
+.emptyState p{font-size:13.5px; color:var(--ink-soft); line-height:1.5;}
+.emptyState p.lead{color:var(--ink); font-weight:600; margin-bottom:5px;}
+.formRow{margin-bottom:12px;}
+.formRow label{display:block; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin-bottom:5px;}
+.formRow input, .formRow textarea, .formRow select{width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
+  background:var(--card-bg); color:var(--ink); font-family:'Inter',sans-serif; font-size:13.5px;}
+.formRow textarea{min-height:88px; resize:vertical;}
+.starPick{display:flex; gap:6px;}
+.starPick button{width:40px; height:40px; border-radius:10px; border:1px solid var(--line); background:var(--card-bg);
+  color:var(--ink-soft); font-size:17px; cursor:pointer;}
+.starPick button.on{background:var(--gold); border-color:var(--gold); color:#fff;}
+@media (max-width:560px){
+  .districtSelect{max-width:none;}
+  .homeSectionHead{flex-wrap:wrap;}
+}
+
 .actionTile h5{font-size:13px; font-weight:600;}
 .actionTile span{font-size:11.5px; color:var(--ink-soft);}
 
@@ -498,6 +543,14 @@ svg{display:block;}
 
 /* ============ CREATE POST MODAL ============ */
 #createOverlay{position:fixed; inset:0; background:rgba(20,23,26,.5); z-index:250; display:none; align-items:flex-end; justify-content:center;}
+#formOverlay{position:fixed; inset:0; background:rgba(20,23,26,.5); z-index:260; display:none; align-items:flex-end; justify-content:center;}
+#formOverlay.show{display:flex;}
+.formSheet{background:var(--card-bg); color:var(--ink); width:100%; max-width:520px; max-height:88vh; overflow-y:auto;
+  border-radius:20px 20px 0 0; padding:22px 20px calc(22px + env(safe-area-inset-bottom,0px));}
+.formSheetHead{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:4px;}
+.formSheetClose{border:none; background:transparent; color:var(--ink-soft); font-size:22px; line-height:1; cursor:pointer; padding:0 4px;}
+@media(min-width:861px){ #formOverlay{align-items:center;} .formSheet{border-radius:20px;} }
+
 #createOverlay.show{display:flex;}
 #groupOverlay{position:fixed; inset:0; background:rgba(20,23,26,.5); z-index:250; display:none; align-items:flex-end; justify-content:center;}
 #groupOverlay.show{display:flex;}
@@ -590,9 +643,39 @@ svg{display:block;}
   <section class="screen active" id="screen-home">
     <div class="screenInner">
       <h2 class="screenTitle">Home</h2>
-      <p class="screenSub">What might I care about. Who I trust did this. What can I do next.</p>
-      <div class="chipRow" id="homeChips"></div>
-      <div id="feedList"></div>
+      <p class="screenSub">What your circle is reviewing, and what is happening around you.</p>
+
+      <!-- Which district this user is browsing. Comes from their profile and can
+           be changed here; it drives places, events and the swipe deck. -->
+      <div class="districtBar" id="homeDistrictBar">
+        <span class="districtBarLabel">Your district</span>
+        <select id="homeDistrictSelect" class="districtSelect" aria-label="Your district"></select>
+      </div>
+
+      <!-- Genuine reviews written by people this user is actually connected to.
+           Populated from /api/reviews/circle, which is scoped server-side. -->
+      <section class="homeSection" id="circleReviewsSection">
+        <div class="homeSectionHead">
+          <h3>Reviews from your circle</h3>
+          <button class="pillBtn" id="circleReviewsRefresh">Refresh</button>
+        </div>
+        <div id="circleReviewsList"></div>
+      </section>
+
+      <!-- Real upcoming events in this district, from /api/events. -->
+      <section class="homeSection" id="homeEventsSection">
+        <div class="homeSectionHead">
+          <h3>Upcoming in your district</h3>
+          <button class="pillBtn" data-screen="events">All events</button>
+        </div>
+        <div id="homeEventsList"></div>
+      </section>
+
+      <section class="homeSection">
+        <div class="homeSectionHead"><h3>Activity from your circle</h3></div>
+        <div class="chipRow" id="homeChips"></div>
+        <div id="feedList"></div>
+      </section>
     </div>
   </section>
 
@@ -600,7 +683,7 @@ svg{display:block;}
   <section class="screen" id="screen-explore">
     <div class="screenInner">
       <h2 class="screenTitle">Explore</h2>
-      <p class="screenSub">Nearby, trending, and what your circle recommends — search or just browse.</p>
+      <p class="screenSub">Real places in your district, and what your circle has actually reviewed.</p>
       <div class="tileGrid" style="margin-bottom:26px;">
         <button class="actionTile" data-screen="discover"><span class="ic" data-icon="swipe"></span><h5>Swipe discovery</h5><span>Teach the feed fast</span></button>
         <button class="actionTile" data-screen="news"><span class="ic" data-icon="news"></span><h5>News</h5><span>Personalised to you</span></button>
@@ -608,19 +691,19 @@ svg{display:block;}
         <button class="actionTile" data-screen="events"><span class="ic" data-icon="calendar"></span><h5>Events</h5><span>What's happening</span></button>
       </div>
       <div class="exploreSection">
-        <div class="exploreSectionHead"><h3>Nearby places</h3><span data-screen="map">Map view</span></div>
+        <div class="exploreSectionHead"><h3>Places near your district</h3><span data-screen="map">Map view</span></div>
         <div class="hScroll" id="exploreNearby"></div>
       </div>
       <div class="exploreSection">
-        <div class="exploreSectionHead"><h3>Trending discoveries</h3></div>
+        <div class="exploreSectionHead"><h3>More to discover</h3></div>
         <div class="hScroll" id="exploreTrending"></div>
       </div>
       <div class="exploreSection">
-        <div class="exploreSectionHead"><h3>Friends recommend</h3><span data-screen="circle">See circle</span></div>
+        <div class="exploreSectionHead"><h3>Popular in your circle</h3><span data-screen="circle">See circle</span></div>
         <div class="hScroll" id="exploreFriends"></div>
       </div>
       <div class="exploreSection">
-        <div class="exploreSectionHead"><h3>Activities</h3></div>
+        <div class="exploreSectionHead"><h3>Upcoming district events</h3></div>
         <div class="hScroll" id="exploreActivities"></div>
       </div>
     </div>
@@ -812,6 +895,7 @@ svg{display:block;}
 </div>
 
 <!-- CREATE POST -->
+<div id="formOverlay"><div class="formSheet"><div class="formSheetHead"><div id="formSheetTitle"></div><button class="formSheetClose" id="formSheetClose" aria-label="Close">&times;</button></div><div id="formSheetBody"></div></div></div>
 <div id="createOverlay">
   <div class="createSheet">
     <h3 style="font-size:18px;">Share an experience</h3>
@@ -1027,63 +1111,73 @@ wireStaticIcons();
 /* =========================================================
    MOCK DATA
 ========================================================= */
+// Real Delhi + NCR administrative districts. The id IS the district name, so a
+// place or event stores a human-readable district and every filter still works.
+// The live list of districts that actually have content comes from /api/districts.
 const districts = [
-  {id:'hk', name:'Hauz Khas', lat:28.5535, lng:77.1936, color:'#1F98A9', desc:'Village lanes, cafés, weekend crowd.'},
-  {id:'cp', name:'Connaught Place', lat:28.6315, lng:77.2167, color:'#E15A42', desc:'The city centre — always something on.'},
-  {id:'gk', name:'Greater Kailash', lat:28.5494, lng:77.2426, color:'#DB8236', desc:'Markets, brunch spots, quieter streets.'},
-  {id:'dlf', name:'Cyber Hub, Gurugram', lat:28.4950, lng:77.0890, color:'#54677C', desc:'Late nights, tech crowd, rooftop bars.'},
-  {id:'hz', name:'Hauz Khas Village', lat:28.5560, lng:77.2000, color:'#CE9A2E', desc:'Art, live music, lakeside views.'},
-  {id:'sk', name:'Saket', lat:28.5245, lng:77.2066, color:'#2C9464', desc:'Malls, multiplexes, easy weeknight plans.'},
-  {id:'ip', name:'Vasant Kunj Strip', lat:28.5200, lng:77.1591, color:'#E15A42', desc:'Brunch spots and a growing café scene.'},
+  {id:'Central Delhi', name:'Central Delhi', lat:28.6506, lng:77.2303, color:'#E15A42', desc:'Chandni Chowk, Red Fort, the old city.'},
+  {id:'New Delhi', name:'New Delhi', lat:28.6330, lng:77.2195, color:'#1F98A9', desc:'Connaught Place, India Gate, the civic core.'},
+  {id:'South Delhi', name:'South Delhi', lat:28.5450, lng:77.1926, color:'#DB8236', desc:'Hauz Khas, Saket, Mehrauli.'},
+  {id:'South East Delhi', name:'South East Delhi', lat:28.5830, lng:77.2270, color:'#CE9A2E', desc:'Nizamuddin, Lodhi Colony, Nehru Place.'},
+  {id:'South West Delhi', name:'South West Delhi', lat:28.5383, lng:77.1641, color:'#2C9464', desc:'Vasant Kunj, JNU, Dwarka side.'},
+  {id:'North Delhi', name:'North Delhi', lat:28.6889, lng:77.2089, color:'#54677C', desc:'North Campus, Civil Lines, Majnu ka Tila.'},
+  {id:'North East Delhi', name:'North East Delhi', lat:28.6835, lng:77.2750, color:'#E15A42', desc:'Shahdara side, Seelampur, Yamuna Vihar.'},
+  {id:'North West Delhi', name:'North West Delhi', lat:28.7196, lng:77.0691, color:'#1F98A9', desc:'Rohini, Pitampura, Narela.'},
+  {id:'West Delhi', name:'West Delhi', lat:28.6663, lng:77.0668, color:'#DB8236', desc:'Janakpuri, Rajouri Garden, Punjabi Bagh.'},
+  {id:'East Delhi', name:'East Delhi', lat:28.6279, lng:77.2952, color:'#CE9A2E', desc:'Preet Vihar, Laxmi Nagar, Mayur Vihar.'},
+  {id:'Shahdara', name:'Shahdara', lat:28.6730, lng:77.2890, color:'#2C9464', desc:'Shahdara, Vivek Vihar, Dilshad Garden.'},
+  {id:'Gurugram', name:'Gurugram', lat:28.4950, lng:77.0890, color:'#54677C', desc:'CyberHub, Golf Course Road, the NCR edge.'},
+  {id:'Noida', name:'Noida', lat:28.5355, lng:77.3910, color:'#1F98A9', desc:'Sector markets, expressway, the eastern NCR.'},
 ];
 
+// Place information only — name, district, category and coordinates. There is
+// deliberately NO rating and NO "a friend recommends" line here: every rating and
+// every review in Social Circle is written by a real signed-in member and comes
+// from /api/places/:id/reviews. This array is only a client-side fallback for the
+// map and labels; the authoritative catalogue lives in the places table.
 const places = [
-  {id:'p1', name:'Kunzum Travel Café', district:'hk', lat:28.5540, lng:77.1946, category:'Café', color:'#1F98A9', rating:4.6, address:'Hauz Khas Village Rd, Delhi', friend:'Recommended by people you follow', note:'Chai, maps on the wall, and a table full of trip planning.'},
-  {id:'p2', name:'Late Night Dhaba Run', district:'cp', lat:28.6320, lng:77.2180, category:'Food', color:'#E15A42', rating:4.4, address:'Inner Circle, Connaught Place', friend:'A few friends went twice this month', note:'Open past midnight, loud, exactly what the group chat asked for.'},
-  {id:'p3', name:'Sunder Nursery', district:'gk', lat:28.5980, lng:77.2500, category:'Outdoors', color:'#DB8236', rating:4.8, address:'Nizamuddin, Delhi', friend:'3 friends went this month', note:'A quiet loop through the gardens — good for a slow Sunday.'},
-  {id:'p4', name:'Cyber Hub Rooftop', district:'dlf', lat:28.4955, lng:77.0900, category:'Nightlife', color:'#54677C', rating:4.3, address:'Cyber Hub, Gurugram', friend:'Popular with your circle', note:'Rooftop, good playlist, easy to find a table before 8.'},
-  {id:'p5', name:'Hauz Khas Lake Deck', district:'hz', lat:28.5565, lng:77.2010, category:'Outdoors', color:'#CE9A2E', rating:4.7, address:'Deer Park Rd, Hauz Khas Village', friend:'Saved by a friend last week', note:'Best at golden hour, right by the fort ruins.'},
-  {id:'p6', name:'Indie Gaming Lounge', district:'hk', lat:28.5520, lng:77.1960, category:'Activity', color:'#2C9464', rating:4.5, address:'Hauz Khas Main Rd', friend:'Matches your interests', note:'A monthly meetup two friends have attended twice.'},
-  {id:'p7', name:'Select Citywalk Rooftop', district:'sk', lat:28.5280, lng:77.2190, category:'Food', color:'#2C9464', rating:4.2, address:'District Centre, Saket', friend:'2 friends went after work', note:'Easy pre-movie dinner spot, always crowded after 8.'},
-  {id:'p8', name:'Third Wave Coffee', district:'ip', lat:28.5215, lng:77.1560, category:'Café', color:'#E15A42', rating:4.5, address:'Vasant Kunj Market', friend:'Your circle rates this highly', note:'Good for working from, plug points at every table.'},
-  {id:'p9', name:'Champa Gali Art Walk', district:'sk', lat:28.5300, lng:77.2010, category:'Outdoors', color:'#DB8236', rating:4.6, address:'Champa Gali, Saidulajab', friend:'A friend posted about this last week', note:'A maze of studios and small galleries, best on weekends.'},
-  {id:'p10', name:'CP Inner Circle Bookshops', district:'cp', lat:28.6330, lng:77.2195, category:'Activity', color:'#54677C', rating:4.4, address:'Inner Circle, Connaught Place', friend:'A friend goes most weekends', note:'Secondhand stacks worth an hour of getting lost in.'},
+  {id:'seed:kunzum-hauz-khas', name:'Kunzum Travel Cafe', district:'South Delhi', lat:28.5540, lng:77.1946, category:'Cafe', color:'#1F98A9', address:'Hauz Khas Village, New Delhi'},
+  {id:'seed:sunder-nursery', name:'Sunder Nursery', district:'South East Delhi', lat:28.5980, lng:77.2500, category:'Outdoors', color:'#DB8236', address:'Nizamuddin, New Delhi'},
+  {id:'seed:hauz-khas-lake', name:'Hauz Khas Lake and Deer Park', district:'South Delhi', lat:28.5565, lng:77.2010, category:'Outdoors', color:'#CE9A2E', address:'Deer Park Road, Hauz Khas'},
+  {id:'seed:cp-inner-circle', name:'Connaught Place Inner Circle', district:'New Delhi', lat:28.6330, lng:77.2195, category:'Market', color:'#E15A42', address:'Inner Circle, Connaught Place'},
+  {id:'seed:champa-gali', name:'Champa Gali', district:'South Delhi', lat:28.5300, lng:77.2010, category:'Arts', color:'#DB8236', address:'Saidulajab, Saket'},
+  {id:'seed:select-citywalk', name:'Select Citywalk', district:'South Delhi', lat:28.5280, lng:77.2190, category:'Shopping', color:'#2C9464', address:'District Centre, Saket'},
+  {id:'seed:dilli-haat', name:'Dilli Haat INA', district:'South Delhi', lat:28.5736, lng:77.2088, category:'Market', color:'#1F98A9', address:'Sri Aurobindo Marg, INA'},
+  {id:'seed:lodhi-art-district', name:'Lodhi Art District', district:'South East Delhi', lat:28.5830, lng:77.2270, category:'Arts', color:'#54677C', address:'Lodhi Colony, New Delhi'},
+  {id:'seed:humayuns-tomb', name:"Humayun's Tomb", district:'South East Delhi', lat:28.5933, lng:77.2507, category:'Heritage', color:'#CE9A2E', address:'Mathura Road, Nizamuddin East'},
+  {id:'seed:qutub-minar', name:'Qutub Minar', district:'South Delhi', lat:28.5245, lng:77.1855, category:'Heritage', color:'#DB8236', address:'Mehrauli, New Delhi'},
+  {id:'seed:red-fort', name:'Red Fort', district:'Central Delhi', lat:28.6562, lng:77.2410, category:'Heritage', color:'#E15A42', address:'Netaji Subhash Marg, Chandni Chowk'},
+  {id:'seed:chandni-chowk', name:'Chandni Chowk Market', district:'Central Delhi', lat:28.6506, lng:77.2303, category:'Market', color:'#1F98A9', address:'Chandni Chowk, Delhi'},
+  {id:'seed:cyber-hub', name:'DLF CyberHub', district:'Gurugram', lat:28.4950, lng:77.0890, category:'Food', color:'#54677C', address:'DLF Cyber City, Gurugram'},
+  {id:'seed:vasant-kunj-market', name:'Vasant Kunj Market', district:'South West Delhi', lat:28.5215, lng:77.1560, category:'Cafe', color:'#E15A42', address:'Vasant Kunj, New Delhi'},
+  {id:'seed:india-gate', name:'India Gate and Kartavya Path', district:'New Delhi', lat:28.6129, lng:77.2295, category:'Outdoors', color:'#2C9464', address:'Rajpath Area, New Delhi'},
+  {id:'seed:majnu-ka-tila', name:'Majnu ka Tila', district:'North Delhi', lat:28.7041, lng:77.2280, category:'Food', color:'#DB8236', address:'New Aruna Nagar, Civil Lines'},
+  {id:'seed:north-campus', name:'Delhi University North Campus', district:'North Delhi', lat:28.6889, lng:77.2089, category:'Education', color:'#1F98A9', address:'University Enclave, Delhi'},
+  {id:'seed:nehru-place', name:'Nehru Place', district:'South East Delhi', lat:28.5483, lng:77.2513, category:'Shopping', color:'#54677C', address:'Nehru Place, New Delhi'},
+  {id:'seed:jnu-campus', name:'Jawaharlal Nehru University', district:'South West Delhi', lat:28.5383, lng:77.1641, category:'Education', color:'#2C9464', address:'New Mehrauli Road'},
+  {id:'seed:iit-delhi', name:'IIT Delhi', district:'South Delhi', lat:28.5450, lng:77.1926, category:'Education', color:'#CE9A2E', address:'Hauz Khas, New Delhi'},
 ];
 
-const events = [
-  {id:'e1', title:'Indie Gaming Meetup', date:'AUG 30', category:'Gaming', district:'hk', lat:28.5525, lng:77.1955, note:'Board games, indie devs demoing builds, snacks included.', friends:'2 friends interested', saved:false},
-  {id:'e2', title:'Delhi Food Crawl', date:'SEP 02', category:'Food', district:'gk', lat:28.5498, lng:77.2430, note:'A guided crawl through five stalls in Greater Kailash.', friends:'Someone in your circle is going', saved:true},
-  {id:'e3', title:'Rooftop Tech Meetup', date:'SEP 05', category:'Technology', district:'dlf', lat:28.4958, lng:77.0895, note:'Lightning talks on local startups, open bar after.', friends:'4 mutuals saved this', saved:false},
-  {id:'e4', title:'Live Music at the Lake', date:'SEP 07', category:'Entertainment', district:'hz', lat:28.5568, lng:77.2015, note:'An acoustic set right on the Hauz Khas lake deck.', friends:'A couple of friends saved this', saved:false},
-  {id:'e5', title:'Champa Gali Studio Walk', date:'SEP 09', category:'Entertainment', district:'sk', lat:28.5302, lng:77.2015, note:'Open studios, small-batch prints, coffee carts along the lane.', friends:'Someone in your circle is going', saved:false},
-  {id:'e6', title:'Weeknight Trivia', date:'SEP 11', category:'Entertainment', district:'ip', lat:28.5218, lng:77.1565, note:'Teams of four, prizes are mostly bragging rights.', friends:'3 friends interested', saved:false},
-  {id:'e7', title:'CP Book Swap', date:'SEP 13', category:'Technology', district:'cp', lat:28.6332, lng:77.2200, note:'Bring three, take three — mostly sci-fi and design books.', friends:'A friend saved this', saved:false},
-  {id:'e8', title:'Food Photography Walk', date:'SEP 14', category:'Food', district:'sk', lat:28.5283, lng:77.2192, note:'A slow walk through Select Citywalk stalls, phones only.', friends:'2 mutuals saved this', saved:false},
-];
+// Events are real rows posted by real members and are loaded from /api/events.
+// Nothing is hardcoded here: a stale event can no longer be shown as upcoming,
+// because the backend only returns events whose end (or start) is still ahead of
+// NOW() and refuses to accept an event that has already finished.
+let events = [];
 
-let feed = [
-  {type:'friend', color:'#1F98A9', kicker:'A friend recommends', title:'Kunzum Travel Café', body:'"Best chai in Hauz Khas, and the wall maps are worth the trip alone."', place:'p1'},
-  {type:'district', color:'#DB8236', kicker:'Trending in Greater Kailash', title:'Sunder Nursery is having a moment', body:'12 posts from your circle this week — mostly weekend morning walks.', place:'p3'},
-  {type:'event', color:'#54677C', kicker:'Event near you', title:'Rooftop Tech Meetup — Sep 5', body:'4 mutual friends have already saved this one.', eventId:'e3'},
-  {type:'friend', color:'#2C9464', kicker:'Two friends went together', title:'Late Night Dhaba Run', body:'"We went back two weeks in a row. Get the paratha."', place:'p2'},
-  {type:'news', color:'#CE9A2E', kicker:'Technology · Delhi', title:"Gurugram's indie tech scene is quietly booming", body:'A dozen new meetups have started in Cyber Hub this quarter.'},
-  {type:'friend', color:'#DB8236', kicker:'A friend posted an experience', title:'Champa Gali Art Walk', body:'"Found a print I\'m still thinking about. Go on a weekday if you can."', place:'p9'},
-  {type:'district', color:'#2C9464', kicker:'Active this week in Saket', title:'Select Citywalk Rooftop is picking up', body:'Three friends went after work this week — easy pre-movie stop.', place:'p7'},
-  {type:'event', color:'#E15A42', kicker:'A friend sent you this', title:'CP Book Swap — Sep 13', body:'Bring three, take three. Mostly sci-fi and design books.', eventId:'e7'},
-  {type:'friend', color:'#54677C', kicker:'A friend goes most weekends', title:'CP Inner Circle Bookshops', body:'"Secondhand stacks worth an hour of getting lost in."', place:'p10'},
-];
-// The seed cards above are demo flavour. Once a real backend is attached, the
-// "friend" cards are replaced by real posts from /api/feed; the district/event/
-// news cards are kept so Explore/News still feel populated.
+// No seeded social content. A 'friend' card is only ever a real post from
+// /api/feed (which is scoped server-side to the signed-in user's accepted
+// connections), and a review card is only ever a real row from
+// /api/reviews/circle. Nothing in this app claims a friend said something
+// they did not say.
+let feed = [];
+// Kept only so existing code that references SEED_FEED keeps working; it is now
+// empty, because there is no seeded social content any more.
 const SEED_FEED = feed.slice();
 const POST_COLORS = ['#1F98A9','#DB8236','#2C9464','#54677C','#CE9A2E','#E15A42'];
 
 const conversations = [];
 
-const notifications = [
-  {text:'2 friends are interested in Rooftop Tech Meetup.', time:'5h ago'},
-  {text:'Sunder Nursery is trending in your district.', time:'2 days ago'},
-];
+const notifications = []; // real notifications come from /api/notifications
 
 const friends = [];
 const friendRequests = [];
@@ -1099,6 +1193,36 @@ const newsItems = [
 
 /* News is a snapshot pulled from Times of India / Indian Express / The Hindu on the day this prototype
    was built. In production this list is fetched live and refreshed on a schedule. */
+// Formats a real ISO timestamp from the events table. There is no fallback that
+// invents a date: if an event has no valid start it is simply not rendered.
+function eventDateParts(iso){
+  const d = iso ? new Date(iso) : null;
+  if(!d || isNaN(d.getTime())) return null;
+  return {
+    mon: d.toLocaleDateString('en-GB',{month:'short'}).toUpperCase(),
+    day: String(d.getDate()).padStart(2,'0'),
+    label: d.toLocaleDateString('en-GB',{day:'numeric',month:'short'}),
+    time: d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
+    full: d.toLocaleString('en-GB',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}),
+    iso: d.toISOString()
+  };
+}
+// Only ever rendered when the count is genuinely greater than zero.
+function circleProofLine(n, noun){
+  const c = Number(n)||0;
+  if(c<=0) return '';
+  return c===1 ? ('1 person in your circle '+noun) : (c+' people in your circle '+noun);
+}
+function relTime(iso){
+  const d=new Date(iso); if(isNaN(d.getTime())) return '';
+  const secs=Math.floor((Date.now()-d.getTime())/1000);
+  if(secs<60) return 'just now';
+  if(secs<3600) return Math.floor(secs/60)+'m ago';
+  if(secs<86400) return Math.floor(secs/3600)+'h ago';
+  const days=Math.floor(secs/86400);
+  if(days<30) return days+'d ago';
+  return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+}
 const NEWS_AS_OF = 'Aug 29, 2026';
 
 const TAGS = ['Chill','Group-friendly','Good for work','Date spot','Budget','Live music','Outdoors','Late night'];
@@ -1250,7 +1374,8 @@ async function apiCallRaw(path, opts){
 }
 
 // Shared API-JS facade for this web client and future React/mobile clients.
-window.SocialCircleAPI = Object.freeze({
+// `api` is a local alias used by the discovery/reviews/events code below.
+const api = window.SocialCircleAPI = Object.freeze({
   request: apiCallRaw,
   auth: {
     me:()=>apiCallRaw('/api/auth/me',{method:'GET'}),
@@ -1275,9 +1400,33 @@ window.SocialCircleAPI = Object.freeze({
   social: {
     feed:()=>apiCallRaw('/api/feed',{method:'GET'}),
     createPost:data=>apiCallRaw('/api/posts',{method:'POST',body:JSON.stringify(data)}),
-    ratePlace:(placeId,rating)=>apiCallRaw(`/api/places/${encodeURIComponent(placeId)}/rating`,{method:'POST',body:JSON.stringify({rating})}),
+    // A review is a rating PLUS the member's own words. The text is what makes
+    // it a review rather than a bare star, and it is always attributed to the
+    // signed-in user server-side.
+    ratePlace:(placeId,rating,review)=>apiCallRaw(`/api/places/${encodeURIComponent(placeId)}/rating`,{method:'POST',body:JSON.stringify({rating,review:review||''})}),
     notifications:()=>apiCallRaw('/api/notifications',{method:'GET'})
-  }
+  },
+  reviews: {
+    // Scoped server-side to the caller's accepted connections.
+    circle:(district)=>apiCallRaw('/api/reviews/circle'+(district?('?district='+encodeURIComponent(district)):''),{method:'GET'}),
+    forPlace:placeId=>apiCallRaw(`/api/places/${encodeURIComponent(placeId)}/reviews`,{method:'GET'})
+  },
+  events: {
+    list:(opts)=>{
+      const q=new URLSearchParams();
+      if(opts&&opts.district) q.set('district',opts.district);
+      if(opts&&opts.category&&opts.category!=='All') q.set('category',opts.category);
+      if(opts&&opts.scope) q.set('scope',opts.scope);
+      const qs=q.toString();
+      return apiCallRaw('/api/events'+(qs?('?'+qs):''),{method:'GET'});
+    },
+    create:data=>apiCallRaw('/api/events',{method:'POST',body:JSON.stringify(data)}),
+    remove:id=>apiCallRaw(`/api/events/${id}`,{method:'DELETE'}),
+    interest:(id,interested,going)=>apiCallRaw(`/api/events/${id}/interest`,{method:'POST',body:JSON.stringify({interested,going:!!going})})
+  },
+  discover:(district)=>apiCallRaw('/api/discover'+(district?('?district='+encodeURIComponent(district)):''),{method:'GET'}),
+  districts:()=>apiCallRaw('/api/districts',{method:'GET'}),
+  react:(itemType,itemId,reaction)=>apiCallRaw('/api/reactions',{method:'POST',body:JSON.stringify({itemType,itemId,reaction})})
 });
 
 function showAuthError(msg){
@@ -1313,6 +1462,8 @@ function enterApp(user){
     loadConversations();
     loadRtcConfig();
     connectRealtime();
+    // District, circle reviews, real events and the swipe deck.
+    loadDiscoveryData();
     startLocationSharing();
   }
   const params=new URLSearchParams(location.search);
@@ -1706,33 +1857,72 @@ async function loadFriendLocations(){
 /* =========================================================
    EXPLORE
 ========================================================= */
+// A place tile shows category and district. A rating line appears ONLY when real
+// members of the caller's circle have actually rated it; no default, no placeholder.
 function placeTileHtml(p){
-  return `<div class="exploreTile" data-place="${p.id}"><div class="et-img" style="background-image:linear-gradient(160deg, ${p.color}33, rgba(20,23,26,.35)), url('${photoUrl(p.id,300,200)}'); background-size:cover; background-position:center;"></div><div class="et-body"><h5>${p.name}</h5><span>${p.category} · ${p.rating} rating</span></div></div>`;
+  const cr = Number(p.circle_reviews)||0;
+  const meta = cr>0
+    ? escHtml(p.category||'Place') + ' · ' + (p.circle_rating? escHtml(String(p.circle_rating))+'\u2605 ' : '') + 'from your circle'
+    : escHtml(p.category||'Place') + (p.district? ' · '+escHtml(p.district) : '');
+  const color = p.color || '#54677C';
+  return `<div class="exploreTile" data-place="${escAttr(p.id)}"><div class="et-img" style="background-image:linear-gradient(160deg, ${color}33, rgba(20,23,26,.35)), url('${photoUrl(p.id,300,200)}'); background-size:cover; background-position:center;"></div><div class="et-body"><h5>${escHtml(p.name)}</h5><span>${meta}</span></div></div>`;
 }
+// An event tile shows the real stored date. If the timestamp is missing or invalid
+// the tile is not rendered at all rather than showing a made-up date.
 function eventTileHtml(e){
-  return `<div class="exploreTile" data-event="${e.id}"><div class="et-img" style="background-image:linear-gradient(160deg, #54677C33, rgba(20,23,26,.35)), url('${photoUrl(e.id,300,200)}'); background-size:cover; background-position:center;"></div><div class="et-body"><h5>${e.title}</h5><span>${e.date} · ${e.category}</span></div></div>`;
+  const d = eventDateParts(e.starts_at);
+  if(!d) return '';
+  return `<div class="exploreTile" data-event="${escAttr(e.id)}"><div class="et-img" style="background-image:linear-gradient(160deg, #54677C33, rgba(20,23,26,.35)), url('${photoUrl(e.id,300,200)}'); background-size:cover; background-position:center;"></div><div class="et-body"><h5>${escHtml(e.title)}</h5><span>${d.label} · ${escHtml(e.category||'Event')}</span></div></div>`;
+}
+// Explore sections are disjoint slices of the real catalogue, so the same place
+// can no longer appear in two sections at once. "Popular in your circle" is
+// driven by genuine review counts from /api/discover and is simply omitted when
+// nobody in the circle has reviewed anything yet.
+function emptyTile(msg){
+  return `<div class="exploreTile" style="display:flex;align-items:center;justify-content:center;min-height:120px;background:var(--paper-dim);border:1px dashed var(--line);"><p style="padding:16px;text-align:center;font-size:12.5px;color:var(--ink-soft);">${escHtml(msg)}</p></div>`;
 }
 function renderExplore(){
-  document.getElementById('exploreNearby').innerHTML = places.slice(0,6).map(placeTileHtml).join('');
-  document.getElementById('exploreTrending').innerHTML = [places[2],places[8],places[4],places[6]].map(placeTileHtml).join('');
-  document.getElementById('exploreFriends').innerHTML = [places[0],places[9],places[1]].map(placeTileHtml).join('');
-  document.getElementById('exploreActivities').innerHTML = events.slice(0,5).map(eventTileHtml).join('');
+  const myDistrict = state.activeDistrict || (currentUser && currentUser.district) || null;
+  const pool_ = myDistrict ? places.filter(p=>p.district===myDistrict) : places;
+  const near = (pool_.length?pool_:places).slice(0,6);
+  const rest = (pool_.length?pool_:places).slice(6,12);
+  const nearEl=document.getElementById('exploreNearby');
+  const trendEl=document.getElementById('exploreTrending');
+  const circleEl=document.getElementById('exploreFriends');
+  const actEl=document.getElementById('exploreActivities');
+  if(nearEl) nearEl.innerHTML = near.length? near.map(placeTileHtml).join('') : emptyTile('No places listed for this district yet.');
+  if(trendEl) trendEl.innerHTML = rest.length? rest.map(placeTileHtml).join('') : emptyTile('Nothing more to show in this district yet.');
+  // Only real circle activity. No placeholder, no invented counts.
+  if(circleEl){
+    const reviewed = (typeof discoverPlaces!=='undefined'&&discoverPlaces?discoverPlaces:[]).filter(p=>Number(p.circle_reviews)>0);
+    circleEl.innerHTML = reviewed.length
+      ? reviewed.slice(0,6).map(p=>placeTileHtml(Object.assign({color:'#1F98A9'}, p))).join('')
+      : emptyTile("Nobody in your circle has reviewed a place yet. Review somewhere and it shows up here.");
+  }
+  if(actEl){
+    actEl.innerHTML = events.length ? events.slice(0,5).map(eventTileHtml).join('')
+      : emptyTile('No verified upcoming events found for your district.');
+  }
   document.querySelectorAll('#screen-explore [data-place]').forEach(t=>t.onclick=()=>openPlace(t.dataset.place));
-  document.querySelectorAll('#screen-explore [data-event]').forEach(t=>t.onclick=()=>{ switchScreen('events'); toast('Jump to Events for details'); });
+  document.querySelectorAll('#screen-explore [data-event]').forEach(t=>t.onclick=()=>{ switchScreen('events'); });
 }
 renderExplore();
 
 /* =========================================================
    DISCOVER (SWIPE) — larger responsive stack, drag-follow stamps
 ========================================================= */
-let deck=[...places, ...events.map(e=>({id:e.id,name:e.title,category:e.category,color:'#54677C',friend:e.friends,note:e.note,isEvent:true}))];
+// The deck is built from /api/discover: real places and real upcoming events in
+// the user's district, with anything they already swiped away excluded
+// server-side. loadDeck() replaces it; this is only the pre-load empty state.
+var deck=[];
+var deckLoaded=false, deckLoading=false, deckError=null;
 const stackEl=document.getElementById('cardStack'), sigFeed=document.getElementById('signalFeed');
 function renderStack(){
   stackEl.innerHTML='';
   if(deck.length===0){
     stackEl.innerHTML=`<div class="swipe-card" style="display:flex;align-items:center;justify-content:center;background:var(--paper-dim);"><div style="padding:24px;text-align:center;color:var(--ink-soft);"><p>That's every card for now.</p><button class="pillBtn primary" style="margin-top:12px;" id="reloadDeckBtn">Start over</button></div></div>`;
     const rb=document.getElementById('reloadDeckBtn');
-    if(rb) rb.onclick=()=>{ deck=shuffleArr([...places, ...events.map(e=>({id:e.id,name:e.title,category:e.category,color:'#54677C',friend:e.friends,note:e.note,isEvent:true}))]); renderStack(); };
+    if(rb) rb.onclick=()=>loadDeck(true);
     return;
   }
   deck.slice(0,3).forEach((p,i)=>{
@@ -1742,16 +1932,24 @@ function renderStack(){
     el.style.opacity = i===2?0.5:1;
     el.innerHTML=`<div class="photo" style="background-image:linear-gradient(180deg, rgba(20,23,26,.15), rgba(20,23,26,.85)), url('${photoUrl(p.id,500,700)}'); background-size:cover; background-position:center;"></div>
       ${i===0?'<div class="swipe-stamp like">Keep</div><div class="swipe-stamp nope">Pass</div>':''}
-      <div class="card-body"><h4>${p.name}</h4><p>${p.note}</p><span class="swipe-tag">${p.friend||p.category}</span></div>`;
+      <div class="card-body"><h4>${escHtml(p.name)}</h4><p>${escHtml(p.subtitle||'')}</p><span class="swipe-tag">${escHtml(p.proof||p.category||'')}</span></div>`;
     if(i===0) attachDrag(el,p);
     stackEl.appendChild(el);
   });
 }
 function decideCard(dir,p){
-  sigFeed.textContent = dir==='right' ? `✓ learned: more like "${p.name}" and places your friends visit` : `✓ learned: fewer cards like "${p.name}"`;
+  sigFeed.textContent = dir==='right' ? `Saved "${p.name}"` : `Won't show "${p.name}" again`;
   track(dir==='right'?'swipe_right':'swipe_left',{id:p.id});
   if(dir==='right'){ if(p.isEvent) state.savedEvents.add(p.id); else state.savedPlaces.add(p.id); renderProfileTab(); renderFeed(); persistState(); }
-  deck.shift(); renderStack();
+  // Persist the decision server-side so the card stays gone across refreshes
+  // and devices. A failure here is non-fatal: the card is still removed from
+  // this session's deck, it just may reappear next time.
+  if(backendAvailable){
+    api.react(p.isEvent?'event':'place', String(p.id), dir==='right'?'like':'dislike').catch(()=>{});
+  }
+  deck.shift();
+  renderStack();
+  if(deck.length<=2 && !deckLoading) loadDeck(false);
 }
 function attachDrag(el,p){
   let startX=0,dx=0,dragging=false;
@@ -1868,23 +2066,32 @@ function renderMapMarkers(){
 }
 function placeSheetHtml(p){
   const isSaved=state.savedPlaces.has(p.id);
-  return `<div class="feedKicker"><span class="dot" style="background:${p.color}"></span>${p.category.toUpperCase()}</div>
-    <h3>${p.name}</h3><p style="color:var(--ink-soft);font-size:13.5px;margin-top:4px;">${p.note}</p>
-    <p style="font-size:12.5px;color:${p.color};margin-top:8px;font-weight:600;">${p.friend}</p>
+  // Real circle review count from /api/discover, shown only when above zero.
+  const d=(typeof discoverPlaces!=='undefined'&&discoverPlaces?discoverPlaces:[]).find(x=>x.id===p.id)||{};
+  const proof = Number(d.circle_reviews)>0
+    ? (d.circle_reviews+(Number(d.circle_reviews)===1?' review':' reviews')+' from your circle')
+    : '';
+  return `<div class="feedKicker"><span class="dot" style="background:${p.color||'#54677C'}"></span>${escHtml(String(p.category||'Place').toUpperCase())}</div>
+    <h3>${escHtml(p.name)}</h3><p style="color:var(--ink-soft);font-size:13.5px;margin-top:4px;">${escHtml([p.address,p.district].filter(Boolean).join(' · '))}</p>
+    ${proof?`<p style="font-size:12.5px;color:var(--link);margin-top:8px;font-weight:600;">${proof}</p>`:''}
     <div class="feedMeta"><button class="pillBtn ${isSaved?'saved':''}" onclick="toggleSavePlace('${p.id}')">${isSaved?'Saved':'Save'}</button>
     <button class="pillBtn" onclick="openPlace('${p.id}')">Full page</button>
     <button class="pillBtn" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}','_blank')">Directions</button></div>`;
 }
 function eventSheetHtml(e){
-  const isSaved=state.savedEvents.has(e.id);
-  return `<div class="feedKicker"><span class="dot" style="background:#54677C"></span>${e.category.toUpperCase()} · ${e.date}</div>
-    <h3>${e.title}</h3><p style="color:var(--ink-soft);font-size:13.5px;margin-top:4px;">${e.note}</p>
-    <p style="font-size:12.5px;color:#54677C;margin-top:8px;font-weight:600;">${e.friends}</p>
-    <div class="feedMeta"><button class="pillBtn ${isSaved?'saved':''}" onclick="toggleSaveEvent('${e.id}')">${isSaved?'Interested':'Interested?'}</button></div>`;
+  const interested = e.my_interest===true || state.savedEvents.has(String(e.id));
+  const d=eventDateParts(e.starts_at);
+  const proof=circleProofLine(e.circle_interest,'are going');
+  return `<div class="feedKicker"><span class="dot" style="background:#54677C"></span>${escHtml(String(e.category||'Event').toUpperCase())}${d?(' · '+d.label):''}</div>
+    <h3>${escHtml(e.title)}</h3><p style="color:var(--ink-soft);font-size:13.5px;margin-top:4px;">${escHtml(e.description||'')}</p>
+    <p class="screenSub" style="margin-top:6px;">${d?d.full:''}${e.venue?(' · '+escHtml(e.venue)):''}</p>
+    ${proof?`<p style="font-size:12.5px;color:#54677C;margin-top:8px;font-weight:600;">${proof}</p>`:''}
+    <div class="feedMeta"><button class="pillBtn ${interested?'saved':''}" onclick="toggleEventInterest(events.find(x=>String(x.id)==='${escAttr(e.id)}')||{id:'${escAttr(e.id)}'}, ${!interested})">${interested?'Going':'Interested'}</button></div>`;
 }
 function toggleSavePlace(id){ state.savedPlaces.has(id)?state.savedPlaces.delete(id):state.savedPlaces.add(id); if(document.getElementById('mapSheet').classList.contains('show')) openSheet(placeSheetHtml(places.find(p=>p.id===id))); if(state.activePlace===id) renderPlaceDetail(id); track('place_saved',{id}); renderFeed(); renderProfileTab(); persistState(); }
 function toggleSaveEvent(id){ state.savedEvents.has(id)?state.savedEvents.delete(id):state.savedEvents.add(id); if(document.getElementById('mapSheet').classList.contains('show')) openSheet(eventSheetHtml(events.find(e=>e.id===id))); track('event_saved',{id}); renderEvents(); renderProfileTab(); persistState(); }
 function openSheet(html){ document.getElementById('mapSheetBody').innerHTML=html; document.getElementById('mapSheet').classList.add('show'); }
+function closeSheet(){ const el=document.getElementById('mapSheet'); if(el) el.classList.remove('show'); }
 document.getElementById('mapSheetClose').onclick=()=>document.getElementById('mapSheet').classList.remove('show');
 
 /* =========================================================
@@ -1894,6 +2101,8 @@ function openPlace(id){
   state.activePlace=id;
   renderPlaceDetail(id);
   switchScreen('place');
+  // Real reviews for this place, split into circle vs everyone else.
+  loadPlaceReviews(id);
   track('place_opened',{id});
 }
 async function sharePlace(id){
@@ -1912,7 +2121,7 @@ function renderPlaceDetail(id){
     <div class="placeHero" style="background-image:linear-gradient(160deg, ${p.color}44, rgba(20,23,26,.4)), url('${photoUrl(p.id,800,400)}'); background-size:cover; background-position:center;"></div>
     <div class="placeHead">
       <div><h2>${p.name}</h2><p class="screenSub" style="margin:4px 0 0;">${p.category} \u00b7 ${dist?dist.name:''} \u00b7 ${p.address}</p></div>
-      <div class="ratingPill">${icon('star',14)} ${p.rating}</div>
+      <div class="ratingPill" id="placeRatingPill"></div>
     </div>
     <div class="feedMeta" style="margin:14px 0 6px;">
       <button class="pillBtn ${isSaved?'saved':''}" onclick="toggleSavePlace('${p.id}')">${isSaved?'Saved':'Save'}</button>
@@ -1920,12 +2129,17 @@ function renderPlaceDetail(id){
       <button class="pillBtn" onclick="sharePlace('${p.id}')">Share</button>
       <button class="pillBtn" onclick="switchScreen('map'); setTimeout(()=>openSheet(placeSheetHtml(places.find(x=>x.id==='${p.id}'))),80)">View on map</button>
     </div>
-    <h3 style="font-size:15px; margin:22px 0 6px;">Friend ratings</h3>
-    <p class="screenSub" style="margin-top:-4px;">No friends yet, so no ratings from your circle here \u2014 this fills in once you add people in Circle.</p>
+    <h3 style="font-size:15px; margin:22px 0 6px;">Reviews from your circle</h3>
+    <div id="placeCircleReviews"><p class="screenSub" style="margin-top:-4px;">Loading reviews...</p></div>
+    <div class="feedMeta" style="margin:10px 0 0;">
+      <button class="pillBtn primary" onclick="openReviewForm('${p.id}')">Write a review</button>
+    </div>
+    <h3 style="font-size:15px; margin:22px 0 6px;">Other reviews on Social Circle</h3>
+    <div id="placeOtherReviews"></div>
     <h3 style="font-size:15px; margin:22px 0 6px;">Recent experiences</h3>
     ${relatedPosts.length ? relatedPosts.map(r=>`<div class="feedCard"><div class="feedKicker"><span class="dot" style="background:${r.color}"></span>${r.kicker}</div><p>${r.body}</p></div>`).join('') : `<p class="screenSub">No posts yet — be the first to share what it was like.</p>`}
     <h3 style="font-size:15px; margin:22px 0 6px;">Nearby events</h3>
-    ${events.filter(e=>e.district===p.district).slice(0,2).map(e=>`<div class="eventCard"><div class="eventDate"><div class="d">${e.date.split(' ')[1]}</div><div class="m">${e.date.split(' ')[0]}</div></div><div class="eventBody"><h3>${e.title}</h3><p>${e.note}</p></div></div>`).join('') || `<p class="screenSub">Nothing scheduled nearby right now.</p>`}
+    ${events.filter(e=>e.district===p.district).slice(0,2).map(e=>{const d=eventDateParts(e.starts_at); if(!d) return ''; return `<div class="eventCard"><div class="eventDate"><div class="d">${d.day}</div><div class="m">${d.mon}</div></div><div class="eventBody"><h3>${escHtml(e.title)}</h3><p>${escHtml(e.description||'')}</p><p class="screenSub" style="margin-top:2px;">${d.full}${e.venue?' · '+escHtml(e.venue):''}</p></div></div>`;}).join('') || `<p class="screenSub">No verified upcoming events found for this district.</p>`}
   `;
   document.getElementById('placeDetailBody').innerHTML=html;
 }
@@ -1934,25 +2148,428 @@ function renderPlaceDetail(id){
    EVENTS SCREEN
 ========================================================= */
 const eventChipsEl=document.getElementById('eventChips');
-['All','Food','Gaming','Technology','Entertainment'].forEach(c=>{
+['All','Educational','Technology','Hackathon','Workshop','School & College','Cultural','Exhibition','Community','Sports','Public Activity','Food','Music'].forEach(c=>{
   const chip=document.createElement('button'); chip.className='chip'+(c==='All'?' active':''); chip.textContent=c;
   chip.onclick=()=>{state.eventFilter=c; document.querySelectorAll('#eventChips .chip').forEach(x=>x.classList.remove('active')); chip.classList.add('active'); renderEvents();};
   eventChipsEl.appendChild(chip);
 });
+// Every row here is a real events-table row with a real author and a real date.
+// The "N people in your circle" line is a genuine count from event_interest and
+// is omitted entirely when that count is zero.
 function renderEvents(){
-  const list=document.getElementById('eventList'); list.innerHTML='';
-  events.filter(e=>state.eventFilter==='All'||e.category===state.eventFilter).forEach(e=>{
-    const isSaved=state.savedEvents.has(e.id);
-    const [mon,day]=e.date.split(' ');
+  const list=document.getElementById('eventList'); if(!list) return;
+  list.innerHTML='';
+  if(eventsLoading){ list.innerHTML='<p class="screenSub">Loading events...</p>'; return; }
+  if(eventsError){
+    list.innerHTML='<div class="feedCard"><p>'+escHtml(eventsError)+'</p><div class="feedMeta" style="margin-top:10px;"><button class="pillBtn" id="eventsRetry">Try again</button></div></div>';
+    const r=document.getElementById('eventsRetry'); if(r) r.onclick=()=>loadEvents(true);
+    return;
+  }
+  const shown = events.filter(e=>state.eventFilter==='All'||e.category===state.eventFilter);
+  if(!shown.length){
+    const d = state.activeDistrict || (currentUser&&currentUser.district);
+    list.innerHTML = '<div class="feedCard">'
+      + '<p style="font-weight:600;">No verified upcoming events found' + (d?(' for '+escHtml(d)):' for your district') + '.</p>'
+      + '<p class="screenSub" style="margin-top:6px;">Events on Social Circle are posted by real members with a real date and venue. Nothing is listed until someone adds something.</p>'
+      + '<div class="feedMeta" style="margin-top:12px;">'
+      + '<button class="pillBtn primary" id="evAddBtn">Post an event</button>'
+      + '<button class="pillBtn" id="evAllBtn">Show all districts</button>'
+      + '<button class="pillBtn" id="evRefreshBtn">Refresh</button>'
+      + '</div></div>';
+    const a=document.getElementById('evAddBtn'); if(a) a.onclick=()=>openEventForm();
+    const b=document.getElementById('evAllBtn'); if(b) b.onclick=()=>{ state.activeDistrict=null; loadEvents(true); };
+    const c=document.getElementById('evRefreshBtn'); if(c) c.onclick=()=>loadEvents(true);
+    return;
+  }
+  shown.forEach(e=>{
+    const d=eventDateParts(e.starts_at); if(!d) return;
+    const interested = e.my_interest===true;
+    const proof = circleProofLine(e.circle_interest,'are going');
     const card=document.createElement('div'); card.className='eventCard';
-    card.innerHTML=`<div class="eventDate"><div class="d">${day}</div><div class="m">${mon}</div></div>
-      <div class="eventBody" style="flex:1;"><h3>${e.title}</h3><p>${e.note}</p><p style="color:#54677C;font-weight:600;margin-top:4px;">${e.friends}</p></div>
-      <button class="pillBtn ${isSaved?'saved':''}" style="align-self:center;" data-id="${e.id}">${isSaved?'Interested':'Interested?'}</button>`;
-    card.querySelector('.pillBtn').onclick=()=>toggleSaveEvent(e.id);
+    card.innerHTML='<div class="eventDate"><div class="d">'+d.day+'</div><div class="m">'+d.mon+'</div></div>'
+      + '<div class="eventBody" style="flex:1;">'
+      + '<h3>'+escHtml(e.title)+'</h3>'
+      + '<p>'+escHtml(e.description||'')+'</p>'
+      + '<p class="screenSub" style="margin-top:4px;">'+d.full+(e.venue?(' · '+escHtml(e.venue)):'')+(e.district?(' · '+escHtml(e.district)):'')+'</p>'
+      + '<p class="screenSub" style="margin-top:2px;">'+escHtml(e.category||'Community')+' · posted by '+escHtml(e.author_name||'a member')
+      + (e.source_url?(' · <a href="'+escAttr(e.source_url)+'" target="_blank" rel="noopener noreferrer">source</a>'):'')+'</p>'
+      + (proof?('<p style="color:#54677C;font-weight:600;margin-top:4px;">'+proof+'</p>'):'')
+      + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:6px;align-self:center;">'
+      + '<button class="pillBtn '+(interested?'saved':'')+'" data-go="1">'+(interested?'Going':'Interested')+'</button>'
+      + (e.is_mine?'<button class="pillBtn" data-del="1">Remove</button>':'')
+      + '</div>';
+    card.querySelector('[data-go]').onclick=()=>toggleEventInterest(e, !interested);
+    const del=card.querySelector('[data-del]');
+    if(del) del.onclick=()=>removeMyEvent(e.id);
     list.appendChild(card);
   });
 }
 renderEvents();
+
+/* =========================================================
+   DISTRICT-AWARE DISCOVERY + GENUINE CIRCLE REVIEWS
+   Nothing in this section invents content. Every list is either a
+   real row from the backend or an honest empty state. Counts such as
+   "2 people in your circle are going" are rendered only when the
+   backend actually returned that number and it is above zero.
+========================================================= */
+function escAttr(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function stars(n){ const k=Math.max(0,Math.min(5,Math.round(Number(n)||0))); return '★'.repeat(k)+'☆'.repeat(5-k); }
+function initials(name){ return String(name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||'?'; }
+
+// `var` on purpose: renderExplore() and renderEvents() both run once during
+// initial script evaluation, which is BEFORE this block executes. `var` is
+// hoisted (as undefined) so those early calls read a falsy value instead of
+// throwing a temporal-dead-zone ReferenceError, which `let` would do.
+var discoverPlaces=[], discoverEvents=[];
+var circleReviews=[], circleReviewsLoading=false, circleReviewsError=null;
+var eventsLoading=false, eventsError=null;
+var liveDistricts=[];
+
+function activeDistrict(){
+  return state.activeDistrict || (currentUser && currentUser.district) || null;
+}
+
+/* ---------- district selector ---------- */
+async function loadDistricts(){
+  // The static `districts` list is the catalogue of real administrative
+  // districts; /api/districts tells us which ones actually have content.
+  if(backendAvailable){
+    const r = await api.districts().catch(()=>null);
+    if(r && r.ok && r.json && r.json.data) liveDistricts = r.json.data.districts || [];
+  }
+  renderDistrictSelect();
+}
+function renderDistrictSelect(){
+  const sel=document.getElementById('homeDistrictSelect'); if(!sel) return;
+  const counts={}; liveDistricts.forEach(d=>{ counts[d.name]={places:d.places,events:d.events}; });
+  const mine=activeDistrict();
+  const opts=['<option value="">All districts</option>'].concat(
+    districts.map(d=>{
+      const c=counts[d.name];
+      const suffix = c ? ' ('+c.places+' places, '+c.events+' events)' : '';
+      return '<option value="'+escAttr(d.id)+'"'+(d.id===mine?' selected':'')+'>'+escHtml(d.name)+suffix+'</option>';
+    })
+  );
+  sel.innerHTML=opts.join('');
+  sel.onchange=async ()=>{
+    const v=sel.value||null;
+    state.activeDistrict=v;
+    persistState();
+    // Persist it on the profile so it follows the user to another device.
+    if(backendAvailable && currentUser){
+      const r=await api.profile.update({displayName:currentUser.displayName||currentUser.name, bio:currentUser.bio||'', district:v||''}).catch(()=>null);
+      if(r && r.ok && r.json && r.json.data && r.json.data.user) currentUser=r.json.data.user;
+    }
+    toast(v?('Showing '+v):'Showing all districts');
+    refreshDistrictContent();
+  };
+}
+function refreshDistrictContent(){
+  loadCircleReviews(true);
+  loadEvents(true);
+  loadDeck(true);
+  if(typeof renderMapMarkers==='function') try{ renderMapMarkers(); }catch(e){}
+}
+
+/* ---------- reviews from your circle ---------- */
+async function loadCircleReviews(force){
+  if(!backendAvailable){ circleReviews=[]; renderCircleReviews(); return; }
+  if(circleReviewsLoading && !force) return;
+  circleReviewsLoading=true; circleReviewsError=null; renderCircleReviews();
+  const r = await api.reviews.circle(activeDistrict()).catch(()=>null);
+  circleReviewsLoading=false;
+  if(!r || !r.ok || !r.json || !r.json.data){
+    circleReviewsError = 'Could not load reviews from your circle right now.';
+    circleReviews=[];
+  } else {
+    circleReviews = r.json.data.reviews || [];
+  }
+  renderCircleReviews();
+}
+function reviewCardHtml(v, opts){
+  const o=opts||{};
+  const who = v.is_me ? 'You' : (v.author_name || v.author_username || 'A member');
+  const photo = v.author_photo
+    ? '<img class="reviewAvatar" src="'+escAttr(v.author_photo)+'" alt="">'
+    : '<div class="reviewAvatar">'+escHtml(initials(who))+'</div>';
+  const placeLink = o.hidePlace ? '' :
+    '<div class="reviewPlace"><a data-openplace="'+escAttr(v.place_id)+'">'+escHtml(v.place_name||'View place')+'</a>'
+    + (v.place_district?'<span class="reviewOutside">'+escHtml(v.place_district)+'</span>':'') + '</div>';
+  const outside = (o.showScope && v.in_circle===false) ? '<span class="reviewOutside">Outside your circle</span>' : '';
+  return '<div class="reviewCard">'
+    + '<div class="reviewTop">'+photo
+    + '<div class="reviewWho"><h4>'+escHtml(who)+' '+outside+'</h4><span>'+relTime(v.created_at)+'</span></div>'
+    + '<div class="reviewStars" title="'+v.rating+' out of 5">'+stars(v.rating)+'</div></div>'
+    + '<div class="reviewBody">'+escHtml(v.review)+'</div>'
+    + placeLink
+    + '</div>';
+}
+function wireReviewPlaceLinks(root){
+  (root||document).querySelectorAll('[data-openplace]').forEach(a=>{
+    a.onclick=()=>{ const id=a.dataset.openplace; if(id) openPlace(id); };
+  });
+}
+function renderCircleReviews(){
+  const host=document.getElementById('circleReviewsList'); if(!host) return;
+  if(circleReviewsLoading){ host.innerHTML='<p class="screenSub">Loading reviews...</p>'; return; }
+  if(circleReviewsError){
+    host.innerHTML='<div class="emptyState"><p class="lead">'+escHtml(circleReviewsError)+'</p>'
+      +'<p>Check your connection and try again.</p></div>';
+    return;
+  }
+  if(!circleReviews.length){
+    host.innerHTML='<div class="emptyState">'
+      + '<p class="lead">Your circle hasn\'t reviewed any places yet.</p>'
+      + '<p>Discover somewhere new and share your experience. Reviews you and your connections write show up here &mdash; nowhere else in the app will claim a friend said something they didn\'t.</p>'
+      + '</div>';
+    return;
+  }
+  host.innerHTML = circleReviews.map(v=>reviewCardHtml(v,{})).join('');
+  wireReviewPlaceLinks(host);
+}
+
+/* ---------- write a review ---------- */
+let reviewDraft={ placeId:null, rating:0 };
+function openFormSheet(title, html){
+  const ov=document.getElementById('formOverlay');
+  document.getElementById('formSheetTitle').innerHTML=title;
+  document.getElementById('formSheetBody').innerHTML=html;
+  ov.classList.add('show');
+}
+function closeFormSheet(){ const ov=document.getElementById('formOverlay'); if(ov) ov.classList.remove('show'); }
+(function wireFormSheet(){
+  const ov=document.getElementById('formOverlay');
+  if(!ov) return;
+  ov.addEventListener('click', e=>{ if(e.target===ov) closeFormSheet(); });
+  const c=document.getElementById('formSheetClose'); if(c) c.onclick=closeFormSheet;
+})();
+function openReviewForm(placeId){
+  if(!backendAvailable){ toast('Sign in to write a review'); return; }
+  const place = places.find(x=>x.id===placeId) || (discoverPlaces||[]).find(x=>x.id===placeId) || {id:placeId,name:'this place'};
+  reviewDraft={ placeId:placeId, rating:0 };
+  openFormSheet('<h3 style="font-size:17px;font-weight:600;">Review '+escHtml(place.name)+'</h3>',
+      '<p class="screenSub" style="margin-bottom:14px;">Your name and photo are attached to this review. Your circle will see it on their Home.</p>'
+    + '<div class="formRow"><label>Your rating</label><div class="starPick" id="reviewStars">'
+    + [1,2,3,4,5].map(n=>'<button type="button" data-star="'+n+'">★</button>').join('')
+    + '</div></div>'
+    + '<div class="formRow"><label>Your review</label><textarea id="reviewText" maxlength="1200" placeholder="What was it actually like?"></textarea></div>'
+    + '<p class="screenSub" id="reviewFormError" style="color:var(--coral);display:none;"></p>'
+    + '<button class="pillBtn primary" id="reviewSubmit" style="width:100%;padding:12px;margin-top:4px;">Post review</button>');
+  const host=document.getElementById('reviewStars');
+  host.querySelectorAll('[data-star]').forEach(b=>{
+    b.onclick=()=>{
+      reviewDraft.rating=Number(b.dataset.star);
+      host.querySelectorAll('[data-star]').forEach(x=>x.classList.toggle('on', Number(x.dataset.star)<=reviewDraft.rating));
+    };
+  });
+  document.getElementById('reviewSubmit').onclick=submitReview;
+}
+async function submitReview(){
+  const err=document.getElementById('reviewFormError');
+  const show=m=>{ if(err){ err.textContent=m; err.style.display='block'; } };
+  const text=(document.getElementById('reviewText')||{}).value||'';
+  if(!reviewDraft.rating) return show('Pick a rating from 1 to 5 first.');
+  if(!text.trim()) return show('Add a few words &mdash; a star on its own is not a review.');
+  const btn=document.getElementById('reviewSubmit'); if(btn){ btn.disabled=true; btn.textContent='Posting...'; }
+  const r=await api.social.ratePlace(reviewDraft.placeId, reviewDraft.rating, text.trim()).catch(()=>null);
+  if(btn){ btn.disabled=false; btn.textContent='Post review'; }
+  if(!r || !r.ok){
+    return show((r && r.json && r.json.error && r.json.error.message) || 'Could not post that review. Try again.');
+  }
+  closeFormSheet();
+  toast('Review posted');
+  loadCircleReviews(true);
+  loadDeck(true);
+  if(document.getElementById('placeCircleReviews')) loadPlaceReviews(reviewDraft.placeId);
+}
+
+/* ---------- reviews on one place ---------- */
+async function loadPlaceReviews(placeId){
+  const circleHost=document.getElementById('placeCircleReviews');
+  const otherHost=document.getElementById('placeOtherReviews');
+  const pill=document.getElementById('placeRatingPill');
+  if(!circleHost) return;
+  if(!backendAvailable){
+    circleHost.innerHTML='<p class="screenSub">Sign in to see reviews.</p>';
+    if(otherHost) otherHost.innerHTML='';
+    return;
+  }
+  circleHost.innerHTML='<p class="screenSub">Loading reviews...</p>';
+  const r=await api.reviews.forPlace(placeId).catch(()=>null);
+  if(!r || !r.ok || !r.json || !r.json.data){
+    circleHost.innerHTML='<div class="emptyState"><p class="lead">Could not load reviews.</p><p>Check your connection and try again.</p></div>';
+    if(otherHost) otherHost.innerHTML='';
+    return;
+  }
+  const all=r.json.data.reviews||[];
+  const summary=r.json.data.summary||{};
+  // The rating pill shows a real average, or nothing at all.
+  if(pill){
+    pill.innerHTML = (summary.total>0 && summary.average)
+      ? (icon('star',14)+' '+escHtml(String(summary.average))+' <span style="color:var(--ink-soft);font-weight:500;">('+summary.total+')</span>')
+      : '<span style="color:var(--ink-soft);font-size:12px;">No ratings yet</span>';
+  }
+  const mine=all.filter(v=>v.in_circle===true);
+  const theirs=all.filter(v=>v.in_circle!==true);
+  circleHost.innerHTML = mine.length
+    ? mine.map(v=>reviewCardHtml(v,{hidePlace:true})).join('')
+    : '<div class="emptyState"><p class="lead">Nobody in your circle has reviewed this yet.</p><p>If you have been, you could be the first.</p></div>';
+  if(otherHost){
+    otherHost.innerHTML = theirs.length
+      ? theirs.map(v=>reviewCardHtml(v,{hidePlace:true,showScope:true})).join('')
+      : '<p class="screenSub">No other reviews on Social Circle yet.</p>';
+  }
+  wireReviewPlaceLinks(circleHost); wireReviewPlaceLinks(otherHost);
+}
+
+/* ---------- district events ---------- */
+async function loadEvents(force){
+  if(!backendAvailable){ events=[]; eventsError=null; renderEvents(); renderHomeEvents(); return; }
+  if(eventsLoading && !force) return;
+  eventsLoading=true; eventsError=null; renderEvents();
+  const r=await api.events.list({district:activeDistrict(), scope:''}).catch(()=>null);
+  eventsLoading=false;
+  if(!r || !r.ok || !r.json || !r.json.data){
+    eventsError='Could not load events right now.';
+    events=[];
+  } else {
+    // Defensive: only keep rows that actually have a usable start timestamp.
+    events=(r.json.data.events||[]).filter(e=>!!eventDateParts(e.starts_at));
+  }
+  renderEvents(); renderHomeEvents(); renderExplore();
+}
+function renderHomeEvents(){
+  const host=document.getElementById('homeEventsList'); if(!host) return;
+  if(eventsLoading){ host.innerHTML='<p class="screenSub">Loading events...</p>'; return; }
+  const soon=events.slice(0,3);
+  if(!soon.length){
+    const d=activeDistrict();
+    host.innerHTML='<div class="emptyState"><p class="lead">No verified upcoming events found'+(d?(' for '+escHtml(d)):'')+'.</p>'
+      +'<p>Events here are posted by real members with a real date and venue.</p>'
+      +'<div class="feedMeta" style="margin-top:12px;"><button class="pillBtn primary" id="homeAddEvent">Post an event</button></div></div>';
+    const a=document.getElementById('homeAddEvent'); if(a) a.onclick=()=>openEventForm();
+    return;
+  }
+  host.innerHTML = soon.map(e=>{
+    const d=eventDateParts(e.starts_at);
+    const proof=circleProofLine(e.circle_interest,'are going');
+    return '<div class="eventCard"><div class="eventDate"><div class="d">'+d.day+'</div><div class="m">'+d.mon+'</div></div>'
+      + '<div class="eventBody" style="flex:1;"><h3>'+escHtml(e.title)+'</h3>'
+      + '<p class="screenSub" style="margin-top:3px;">'+d.full+(e.venue?(' · '+escHtml(e.venue)):'')+'</p>'
+      + (proof?('<p style="color:#54677C;font-weight:600;margin-top:4px;">'+proof+'</p>'):'')
+      + '</div></div>';
+  }).join('');
+}
+async function toggleEventInterest(e, interested){
+  if(!backendAvailable){ toast('Sign in to mark interest'); return; }
+  const r=await api.events.interest(e.id, interested, interested).catch(()=>null);
+  if(!r || !r.ok){ toast('Could not update that'); return; }
+  if(interested) state.savedEvents.add(String(e.id)); else state.savedEvents.delete(String(e.id));
+  persistState();
+  loadEvents(true);
+}
+async function removeMyEvent(id){
+  if(!confirm('Remove this event? This cannot be undone.')) return;
+  const r=await api.events.remove(id).catch(()=>null);
+  if(!r || !r.ok){ toast('Could not remove that event'); return; }
+  toast('Event removed');
+  loadEvents(true);
+}
+function openEventForm(){
+  if(!backendAvailable){ toast('Sign in to post an event'); return; }
+  const cats=['Educational','Technology','Hackathon','Workshop','School & College','Cultural','Exhibition','Community','Sports','Public Activity','Food','Music'];
+  const mine=activeDistrict();
+  openFormSheet('<h3 style="font-size:17px;font-weight:600;">Post an event</h3>',
+      '<p class="screenSub" style="margin-bottom:14px;">Real events only. Your name is attached, the date you enter is the date shown, and an event that has already finished cannot be posted.</p>'
+    + '<div class="formRow"><label>Title</label><input id="evTitle" maxlength="200" placeholder="e.g. Delhi Open Data Hackathon"></div>'
+    + '<div class="formRow"><label>Starts</label><input id="evStart" type="datetime-local"></div>'
+    + '<div class="formRow"><label>Ends (optional)</label><input id="evEnd" type="datetime-local"></div>'
+    + '<div class="formRow"><label>Category</label><select id="evCat">'+cats.map(c=>'<option'+(c==='Community'?' selected':'')+'>'+escHtml(c)+'</option>').join('')+'</select></div>'
+    + '<div class="formRow"><label>District</label><select id="evDistrict"><option value="">Not specified</option>'
+    + districts.map(d=>'<option value="'+escAttr(d.id)+'"'+(d.id===mine?' selected':'')+'>'+escHtml(d.name)+'</option>').join('')+'</select></div>'
+    + '<div class="formRow"><label>Venue</label><input id="evVenue" maxlength="200" placeholder="e.g. IIT Delhi, Hauz Khas"></div>'
+    + '<div class="formRow"><label>Details</label><textarea id="evDesc" maxlength="2000" placeholder="What is it, who is it for?"></textarea></div>'
+    + '<div class="formRow"><label>Official link (optional)</label><input id="evUrl" maxlength="500" placeholder="https://..."></div>'
+    + '<p class="screenSub" id="evFormError" style="color:var(--coral);display:none;"></p>'
+    + '<button class="pillBtn primary" id="evSubmit" style="width:100%;padding:12px;margin-top:4px;">Post event</button>');
+  document.getElementById('evSubmit').onclick=submitEvent;
+}
+async function submitEvent(){
+  const err=document.getElementById('evFormError');
+  const show=m=>{ if(err){ err.textContent=m; err.style.display='block'; } };
+  const val=id=>((document.getElementById(id)||{}).value||'').trim();
+  const title=val('evTitle'), start=val('evStart');
+  if(!title) return show('Give the event a title.');
+  if(!start) return show('Pick when it starts.');
+  const btn=document.getElementById('evSubmit'); if(btn){ btn.disabled=true; btn.textContent='Posting...'; }
+  const body={
+    title, description:val('evDesc'), category:val('evCat'), district:val('evDistrict'),
+    venue:val('evVenue'), sourceUrl:val('evUrl'),
+    startsAt:new Date(start).toISOString()
+  };
+  const end=val('evEnd');
+  if(end) body.endsAt=new Date(end).toISOString();
+  const r=await api.events.create(body).catch(()=>null);
+  if(btn){ btn.disabled=false; btn.textContent='Post event'; }
+  if(!r || !r.ok){
+    return show((r && r.json && r.json.error && r.json.error.message) || 'Could not post that event.');
+  }
+  closeFormSheet();
+  toast('Event posted');
+  loadEvents(true); loadDeck(true); loadDistricts();
+}
+
+/* ---------- swipe deck ---------- */
+async function loadDeck(force){
+  if(!backendAvailable){ deck=[]; deckLoaded=true; renderStack(); return; }
+  if(deckLoading && !force) return;
+  deckLoading=true; deckError=null;
+  const r=await api.discover(activeDistrict()).catch(()=>null);
+  deckLoading=false; deckLoaded=true;
+  if(!r || !r.ok || !r.json || !r.json.data){
+    deckError='Could not load recommendations.';
+    deck=[]; renderStack(); return;
+  }
+  discoverPlaces = r.json.data.places || [];
+  discoverEvents = r.json.data.events || [];
+  // One card shape for both kinds. `proof` is only ever a real, non-zero count.
+  const placeCards = discoverPlaces.map(p=>({
+    id:p.id, name:p.name, category:p.category||'Place', isEvent:false,
+    subtitle:[p.address,p.district].filter(Boolean).join(' · '),
+    proof: Number(p.circle_reviews)>0
+      ? (p.circle_reviews+(Number(p.circle_reviews)===1?' review':' reviews')+' from your circle')
+      : (p.total_reviews>0 ? (p.total_reviews+' review'+(Number(p.total_reviews)===1?'':'s')+' on Social Circle') : (p.category||'Place'))
+  }));
+  const eventCards = discoverEvents.map(e=>{
+    const d=eventDateParts(e.starts_at);
+    return d ? {
+      id:e.id, name:e.title, category:e.category||'Event', isEvent:true,
+      subtitle:[d.full, e.venue, e.district].filter(Boolean).join(' · '),
+      proof: circleProofLine(e.circle_interest,'are going') || ('Event · '+(e.category||'Community'))
+    } : null;
+  }).filter(Boolean);
+  // Interleave so the deck is not all places then all events.
+  const out=[]; const a=placeCards, b=eventCards;
+  for(let i=0;i<Math.max(a.length,b.length);i++){ if(a[i]) out.push(a[i]); if(b[i]) out.push(b[i]); }
+  deck=out;
+  renderStack();
+  renderExplore();
+}
+
+/* ---------- initial + post-login load ---------- */
+async function loadDiscoveryData(){
+  await loadDistricts();
+  await Promise.all([ loadCircleReviews(true), loadEvents(true), loadDeck(true) ]);
+}
+(function wireDiscoveryUi(){
+  const r=document.getElementById('circleReviewsRefresh');
+  if(r) r.onclick=()=>{ loadCircleReviews(true); loadEvents(true); };
+  // Render the honest pre-auth/offline state immediately so these sections are
+  // never blank and never show placeholder content.
+  renderCircleReviews(); renderHomeEvents(); renderDistrictSelect();
+})();
 
 /* =========================================================
    NEWS — live fetch with a rotating, always-fresh-looking fallback
@@ -3840,7 +4457,7 @@ function renderDistrictList(){
       <div class="dc-body">
         <h3>${d.name}</h3><p>${d.desc}</p>
         <div class="dc-meta">${places.filter(p=>p.district===d.id).length} places \u00b7 ${events.filter(e=>e.district===d.id).length} events</div>
-        ${dEvents.length?`<div class="dc-events">${dEvents.map(e=>`<div class="dc-event-row"><span class="dc-event-date">${e.date}</span><span>${e.title}</span></div>`).join('')}</div>`:''}
+        ${dEvents.length?`<div class="dc-events">${dEvents.map(e=>{const pd=eventDateParts(e.starts_at); return pd?`<div class="dc-event-row"><span class="dc-event-date">${pd.label}</span><span>${escHtml(e.title)}</span></div>`:'';}).join('')}</div>`:''}
         <div class="feedMeta" style="margin-top:10px;"><button class="pillBtn" data-d="${d.id}">View on map</button></div>
       </div>`;
     list.appendChild(card);
