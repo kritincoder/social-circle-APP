@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const multer = require('multer');
 const { pool, hashPassword, validPassword, publicUser, currentUser, createSession, sessionCookie } = require('./auth');
 const { ok, fail } = require('./response');
+const { storage, MAX_IMAGE_BYTES, MAX_VIDEO_BYTES } = require('./storage');
 
 /* ---------------------------------------------------------------------------
    REALTIME SOCKET REGISTRY
@@ -47,12 +48,31 @@ function isUserOnline(userId) {
   return false;
 }
 
-const upload = multer({ dest: path.join(__dirname, '..', 'uploads'), limits: { fileSize: 5 * 1024 * 1024 } });
+// Bytes are held in memory and handed to the storage driver, which decides
+// where they are written. Nothing is written to a path baked into the image.
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_VIDEO_BYTES } });
+const uploadImage = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_IMAGE_BYTES } });
 const root = path.join(__dirname, '..');
 const app = express();
+const STARTED_AT = new Date().toISOString();
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(root, { index: false }));
+// Previously this was express.static(root), which served the whole project
+// directory — including src/*.js and schema.sql — to the public internet. The
+// page loads no local asset other than user uploads, so only the upload
+// directory is exposed, and it is served from wherever the driver put it (which
+// may be a mounted volume outside the project).
+app.use('/uploads', express.static(storage.root, {
+  index: false,
+  dotfiles: 'deny',
+  // Uploads are user-supplied bytes; never let a browser sniff them into
+  // something executable, and never render one as a document on our origin.
+  setHeaders(response) {
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('Content-Disposition', 'inline');
+    response.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; media-src 'self'");
+  }
+}));
 const clientDist = path.join(root, 'client-dist');
 if (fs.existsSync(clientDist)) app.use('/react', express.static(clientDist));
 
@@ -97,6 +117,31 @@ async function ensurePlace(place) {
   return id;
 }
 
+// Hashes of the files that make up this build. This replaces reading the
+// source over HTTP for deployment verification, which is no longer possible
+// (and should never have been).
+app.get('/api/version', (_request, response) => {
+  const digest = file => {
+    try {
+      const buffer = fs.readFileSync(path.join(root, file));
+      const normalised = buffer.toString('utf8').replace(/\r\n/g, '\n').replace(/\n+$/, '');
+      return crypto.createHash('sha256').update(normalised).digest('hex').slice(0, 16);
+    } catch { return null; }
+  };
+  return ok(response, {
+    files: {
+      'socialcircle.html': digest('socialcircle.html'),
+      'server.js': digest('server.js'),
+      'src/app.js': digest('src/app.js'),
+      'src/auth.js': digest('src/auth.js'),
+      'src/storage.js': digest('src/storage.js'),
+      'schema.sql': digest('schema.sql')
+    },
+    storageDriver: storage.name,
+    uploadRoot: storage.root,
+    startedAt: STARTED_AT
+  });
+});
 app.get('/api/health', (_request, response) => ok(response, { status: 'healthy' }));
 app.post('/api/auth/signup', async (request, response, next) => {
   try {
@@ -120,8 +165,31 @@ app.get('/api/users/search', async (request, response, next) => { try { const q 
 app.get('/api/users/:userId', async (request, response, next) => { try { const row = (await pool.query(`SELECT ${userQueryFields()} FROM users WHERE id=$1`, [Number(request.params.userId)])).rows[0]; if (!row) return fail(response, 404, 'User not found.'); return ok(response, { user: publicUser(row) }); } catch (error) { next(error); } });
 app.get('/api/profile', (request, response) => ok(response, { user: publicUser(request.user) }));
 app.patch('/api/profile', async (request, response, next) => { try { const name = input(request.body.displayName || request.body.name) || request.user.display_name; const bio = input(request.body.bio); const district = request.body.district === undefined ? request.user.district : (input(request.body.district).slice(0, 80) || null); const row = (await pool.query('UPDATE users SET display_name=$1,bio=$2,district=$3 WHERE id=$4 RETURNING ' + userQueryFields(), [name, bio, district, request.user.id])).rows[0]; return ok(response, { user: publicUser(row) }); } catch (error) { next(error); } });
-app.post('/api/profile/photo', upload.single('photo'), async (request, response, next) => { try { if (!request.file) return fail(response, 400, 'Photo is required.'); const url = `/uploads/${request.file.filename}`; const row = (await pool.query('UPDATE users SET profile_photo_url=$1 WHERE id=$2 RETURNING ' + userQueryFields(), [url, request.user.id])).rows[0]; return ok(response, { user: publicUser(row) }); } catch (error) { next(error); } });
-app.delete('/api/profile/photo', async (request, response, next) => { try { await pool.query('UPDATE users SET profile_photo_url=NULL WHERE id=$1', [request.user.id]); return ok(response); } catch (error) { next(error); } });
+app.post('/api/profile/photo', uploadImage.single('photo'), async (request, response, next) => {
+  try {
+    if (!request.file) return fail(response, 400, 'Photo is required.');
+    // The driver sniffs the bytes and rejects anything that is not a real image.
+    const put = await storage.put(request.file.buffer, { kind: 'image', ownerId: request.user.id, scope: 'avatars' });
+    if (put.error) return fail(response, 400, put.error);
+    const previous = (await pool.query('SELECT profile_photo_url FROM users WHERE id=$1', [request.user.id])).rows[0];
+    const row = (await pool.query('UPDATE users SET profile_photo_url=$1 WHERE id=$2 RETURNING ' + userQueryFields(),
+      [put.url, request.user.id])).rows[0];
+    // Remove the file the row used to point at, so replacing an avatar does not
+    // leak storage forever.
+    const oldKey = storage.keyFromUrl(previous && previous.profile_photo_url);
+    if (oldKey && oldKey !== put.key) await storage.remove(oldKey);
+    return ok(response, { user: publicUser(row) });
+  } catch (error) { next(error); }
+});
+app.delete('/api/profile/photo', async (request, response, next) => {
+  try {
+    const previous = (await pool.query('SELECT profile_photo_url FROM users WHERE id=$1', [request.user.id])).rows[0];
+    await pool.query('UPDATE users SET profile_photo_url=NULL WHERE id=$1', [request.user.id]);
+    const key = storage.keyFromUrl(previous && previous.profile_photo_url);
+    if (key) await storage.remove(key);
+    return ok(response);
+  } catch (error) { next(error); }
+});
 
 app.get('/api/connections', async (request, response, next) => { try { const connections = (await pool.query(`SELECT DISTINCT u.* FROM users u WHERE u.id IN (SELECT friend_id FROM connections WHERE user_id=$1 UNION SELECT CASE WHEN sender_id=$1 THEN receiver_id ELSE sender_id END FROM connection_requests WHERE (sender_id=$1 OR receiver_id=$1) AND status='accepted') ORDER BY u.username`, [request.user.id])).rows.map(publicUser); return ok(response, { connections, users: connections }); } catch (error) { next(error); } });
 app.get('/api/connections/requests', async (request, response, next) => { try { const incoming = (await pool.query(`SELECT cr.id AS request_id,u.* FROM connection_requests cr JOIN users u ON u.id=cr.sender_id WHERE cr.receiver_id=$1 AND cr.status='pending'`, [request.user.id])).rows.map(row => ({ ...publicUser(row), id: row.request_id, requestId: row.request_id, userId: row.id })); const outgoing = (await pool.query(`SELECT cr.id AS request_id,u.* FROM connection_requests cr JOIN users u ON u.id=cr.receiver_id WHERE cr.sender_id=$1 AND cr.status='pending'`, [request.user.id])).rows.map(row => ({ ...publicUser(row), requestId: row.request_id, userId: row.id })); return ok(response, { incoming, outgoing }); } catch (error) { next(error); } });
@@ -544,6 +612,623 @@ app.get('/api/districts', async (request, response, next) => {
         GROUP BY d ORDER BY d`
     )).rows;
     return ok(response, { districts: rows, mine: request.user.district || null });
+  } catch (error) { next(error); }
+});
+
+
+/* ============================================================
+   STAGE 3 — GROUP PLANNING
+   Outings, polls, attendance, shortlists and the calendar.
+
+   Access rules are enforced here in SQL, never in the client:
+     - an outing is visible to its creator, its invited participants,
+       and the members of its circle. Nobody else, ever.
+     - a poll inherits its parent's access rule.
+     - a single-choice poll replaces a member's previous vote inside a
+       transaction, so one member can never hold two votes.
+     - attendance has a per-row `visible` flag; counts shown to other
+       people only ever count rows where it is true.
+   ============================================================ */
+
+// Membership test used by every outing route. Returns the outing row plus the
+// caller's role, or null when the caller has no business seeing it.
+async function outingAccess(outingId, userId) {
+  const id = Number(outingId);
+  if (!Number.isFinite(id)) return null;
+  const row = (await pool.query(
+    `SELECT o.*,
+            (o.created_by = $2) AS is_owner,
+            EXISTS (SELECT 1 FROM outing_participants p
+                     WHERE p.outing_id = o.id AND p.user_id = $2) AS is_participant,
+            EXISTS (SELECT 1 FROM circle_members m
+                     WHERE m.circle_id = o.circle_id AND m.user_id = $2) AS is_circle_member,
+            (SELECT rsvp FROM outing_participants p
+              WHERE p.outing_id = o.id AND p.user_id = $2) AS my_rsvp
+       FROM outings o WHERE o.id = $1`,
+    [id, userId]
+  )).rows[0];
+  if (!row) return null;
+  if (!row.is_owner && !row.is_participant && !row.is_circle_member) return null;
+  return row;
+}
+
+// Everyone who may see an outing, used to fan out notifications.
+async function outingAudience(outingId) {
+  const rows = (await pool.query(
+    `SELECT DISTINCT user_id FROM (
+       SELECT created_by AS user_id FROM outings WHERE id = $1
+       UNION SELECT user_id FROM outing_participants WHERE outing_id = $1
+       UNION SELECT m.user_id FROM circle_members m
+              JOIN outings o ON o.circle_id = m.circle_id WHERE o.id = $1
+     ) t`, [outingId])).rows;
+  return rows.map(r => Number(r.user_id));
+}
+
+const OUTING_STATUS = ['planning', 'voting', 'confirmed', 'completed', 'cancelled'];
+
+/* ---------- outings ---------- */
+app.get('/api/outings', async (request, response, next) => {
+  try {
+    const scope = input(request.query.scope); // '' | 'mine' | 'invited'
+    const rows = (await pool.query(
+      `SELECT o.*, u.display_name AS owner_name, u.profile_photo_url AS owner_photo,
+              c.name AS circle_name,
+              (o.created_by = $1) AS is_owner,
+              (SELECT rsvp FROM outing_participants p WHERE p.outing_id=o.id AND p.user_id=$1) AS my_rsvp,
+              (SELECT COUNT(*) FROM outing_options x WHERE x.outing_id=o.id)::int AS option_count,
+              (SELECT COUNT(*) FROM outing_participants p WHERE p.outing_id=o.id)::int AS participant_count,
+              (SELECT COUNT(*) FROM outing_participants p WHERE p.outing_id=o.id AND p.rsvp='yes')::int AS yes_count
+         FROM outings o
+         JOIN users u ON u.id = o.created_by
+         LEFT JOIN circles c ON c.id = o.circle_id
+        WHERE (o.created_by = $1
+               OR EXISTS (SELECT 1 FROM outing_participants p WHERE p.outing_id=o.id AND p.user_id=$1)
+               OR EXISTS (SELECT 1 FROM circle_members m WHERE m.circle_id=o.circle_id AND m.user_id=$1))
+          AND ($2 = '' OR ($2='mine' AND o.created_by=$1) OR ($2='invited' AND o.created_by<>$1))
+        ORDER BY (o.status IN ('planning','voting')) DESC,
+                 COALESCE(o.proposed_date, o.created_at) ASC
+        LIMIT 60`,
+      [request.user.id, scope]
+    )).rows;
+    return ok(response, { outings: rows, statuses: OUTING_STATUS });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/outings/:outingId', async (request, response, next) => {
+  try {
+    const outing = await outingAccess(request.params.outingId, request.user.id);
+    if (!outing) return fail(response, 404, 'That outing does not exist, or you were not invited to it.');
+    const options = (await pool.query(
+      `SELECT x.*, pl.name AS place_name, pl.address AS place_address, pl.district AS place_district,
+              pl.category AS place_category, e.title AS event_title, e.starts_at AS event_starts_at,
+              e.venue AS event_venue, u.display_name AS added_by_name,
+              (SELECT COUNT(*) FROM poll_votes v
+                 JOIN poll_options po ON po.id = v.option_id
+                 JOIN polls p ON p.id = po.poll_id
+                WHERE p.outing_id = x.outing_id
+                  AND ((po.place_id IS NOT NULL AND po.place_id = x.place_id)
+                    OR (po.event_id IS NOT NULL AND po.event_id = x.event_id)))::int AS votes
+         FROM outing_options x
+         JOIN users u ON u.id = x.added_by
+         LEFT JOIN places pl ON pl.id = x.place_id
+         LEFT JOIN events e ON e.id = x.event_id
+        WHERE x.outing_id = $1 ORDER BY x.created_at ASC`, [outing.id])).rows;
+    const participants = (await pool.query(
+      `SELECT p.user_id, p.role, p.rsvp, u.display_name, u.username, u.profile_photo_url
+         FROM outing_participants p JOIN users u ON u.id = p.user_id
+        WHERE p.outing_id = $1 ORDER BY p.role DESC, u.display_name ASC`, [outing.id])).rows;
+    const polls = (await pool.query(
+      `SELECT id, question, allow_multiple, closes_at, closed_at, created_at
+         FROM polls WHERE outing_id = $1 ORDER BY created_at DESC`, [outing.id])).rows;
+    return ok(response, { outing, options, participants, polls });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/outings', async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    const title = input(request.body.title).slice(0, 200);
+    if (!title) return fail(response, 400, 'Give the outing a title.');
+    let proposed = null;
+    if (request.body.proposedDate) {
+      proposed = new Date(request.body.proposedDate);
+      if (Number.isNaN(proposed.getTime())) return fail(response, 400, 'That proposed date is not a valid date.');
+    }
+    const circleId = request.body.circleId ? Number(request.body.circleId) : null;
+    // A circle may only be attached by one of its own members.
+    if (circleId) {
+      const member = (await client.query('SELECT 1 FROM circle_members WHERE circle_id=$1 AND user_id=$2', [circleId, request.user.id])).rows[0];
+      if (!member) return fail(response, 403, 'You are not a member of that circle.');
+    }
+    // Invitees must be accepted connections, so an outing cannot be used to
+    // push content at strangers.
+    const inviteIds = [...new Set((request.body.inviteIds || []).map(Number).filter(n => n && n !== Number(request.user.id)))];
+    for (const id of inviteIds) {
+      const friend = (await client.query('SELECT 1 FROM connections WHERE user_id=$1 AND friend_id=$2', [request.user.id, id])).rows[0];
+      if (!friend) return fail(response, 400, 'You can only invite people you are connected to.');
+    }
+    await client.query('BEGIN');
+    const outing = (await client.query(
+      `INSERT INTO outings(created_by,circle_id,title,description,proposed_date,district)
+       VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [request.user.id, circleId, title, input(request.body.description).slice(0, 2000),
+       proposed ? proposed.toISOString() : null,
+       input(request.body.district).slice(0, 80) || request.user.district || null]
+    )).rows[0];
+    await client.query(
+      `INSERT INTO outing_participants(outing_id,user_id,role,rsvp) VALUES($1,$2,'owner','yes')
+       ON CONFLICT DO NOTHING`, [outing.id, request.user.id]);
+    for (const id of inviteIds) {
+      await client.query(
+        `INSERT INTO outing_participants(outing_id,user_id,role) VALUES($1,$2,'invitee')
+         ON CONFLICT DO NOTHING`, [outing.id, id]);
+    }
+    await client.query('COMMIT');
+    // Tell the people who were actually invited.
+    for (const id of inviteIds) {
+      await pool.query(
+        `INSERT INTO notifications(user_id,type,title,body) VALUES($1,'outing_invite',$2,$3)`,
+        [id, 'Outing invite', `${request.user.display_name} invited you to "${title}"`]
+      ).catch(() => {});
+      notifyUser(id, 'notification', { type: 'outing_invite', outingId: outing.id });
+    }
+    return ok(response, { outing });
+  } catch (error) { await client.query('ROLLBACK').catch(() => {}); next(error); }
+  finally { client.release(); }
+});
+
+app.patch('/api/outings/:outingId', async (request, response, next) => {
+  try {
+    const outing = await outingAccess(request.params.outingId, request.user.id);
+    if (!outing) return fail(response, 404, 'That outing does not exist, or you were not invited to it.');
+    if (!outing.is_owner) return fail(response, 403, 'Only the person who created an outing can change it.');
+    const status = input(request.body.status);
+    if (status && !OUTING_STATUS.includes(status)) return fail(response, 400, 'That is not a valid outing status.');
+    const title = request.body.title === undefined ? outing.title : (input(request.body.title).slice(0, 200) || outing.title);
+    const description = request.body.description === undefined ? outing.description : input(request.body.description).slice(0, 2000);
+    let proposed = outing.proposed_date;
+    if (request.body.proposedDate !== undefined) {
+      if (!request.body.proposedDate) proposed = null;
+      else {
+        const d = new Date(request.body.proposedDate);
+        if (Number.isNaN(d.getTime())) return fail(response, 400, 'That proposed date is not a valid date.');
+        proposed = d.toISOString();
+      }
+    }
+    // Confirming an outing may name the winning option, which must belong to it.
+    let decided = outing.decided_option_id;
+    if (request.body.decidedOptionId !== undefined) {
+      if (!request.body.decidedOptionId) decided = null;
+      else {
+        const opt = (await pool.query('SELECT 1 FROM outing_options WHERE id=$1 AND outing_id=$2',
+          [Number(request.body.decidedOptionId), outing.id])).rows[0];
+        if (!opt) return fail(response, 400, 'That option does not belong to this outing.');
+        decided = Number(request.body.decidedOptionId);
+      }
+    }
+    const row = (await pool.query(
+      `UPDATE outings SET title=$1, description=$2, proposed_date=$3,
+              status=$4, decided_option_id=$5, updated_at=NOW()
+        WHERE id=$6 RETURNING *`,
+      [title, description, proposed, status || outing.status, decided, outing.id]
+    )).rows[0];
+    if (status && status !== outing.status) {
+      for (const id of await outingAudience(outing.id)) {
+        if (Number(id) === Number(request.user.id)) continue;
+        notifyUser(id, 'notification', { type: 'outing_status', outingId: outing.id, status });
+      }
+    }
+    return ok(response, { outing: row });
+  } catch (error) { next(error); }
+});
+
+app.delete('/api/outings/:outingId', async (request, response, next) => {
+  try {
+    const outing = await outingAccess(request.params.outingId, request.user.id);
+    if (!outing) return fail(response, 404, 'That outing does not exist, or you were not invited to it.');
+    if (!outing.is_owner) return fail(response, 403, 'Only the person who created an outing can delete it.');
+    await pool.query('DELETE FROM outings WHERE id=$1', [outing.id]);
+    return ok(response);
+  } catch (error) { next(error); }
+});
+
+// RSVP. Any participant may set their own, and only their own.
+app.post('/api/outings/:outingId/rsvp', async (request, response, next) => {
+  try {
+    const outing = await outingAccess(request.params.outingId, request.user.id);
+    if (!outing) return fail(response, 404, 'That outing does not exist, or you were not invited to it.');
+    const rsvp = input(request.body.rsvp);
+    if (!['pending', 'yes', 'no', 'maybe'].includes(rsvp)) return fail(response, 400, 'Pick yes, no or maybe.');
+    await pool.query(
+      `INSERT INTO outing_participants(outing_id,user_id,role,rsvp) VALUES($1,$2,'invitee',$3)
+       ON CONFLICT(outing_id,user_id) DO UPDATE SET rsvp=EXCLUDED.rsvp`,
+      [outing.id, request.user.id, rsvp]);
+    return ok(response, { rsvp });
+  } catch (error) { next(error); }
+});
+
+// Add a real place or event as an option.
+app.post('/api/outings/:outingId/options', async (request, response, next) => {
+  try {
+    const outing = await outingAccess(request.params.outingId, request.user.id);
+    if (!outing) return fail(response, 404, 'That outing does not exist, or you were not invited to it.');
+    if (['completed', 'cancelled'].includes(outing.status)) return fail(response, 400, 'That outing is closed.');
+    const kind = input(request.body.kind);
+    if (!['place', 'event'].includes(kind)) return fail(response, 400, 'An option must be a place or an event.');
+    let placeId = null, eventId = null;
+    if (kind === 'place') {
+      placeId = input(request.body.placeId);
+      if (!placeId) return fail(response, 400, 'Which place?');
+      const exists = (await pool.query('SELECT 1 FROM places WHERE id=$1', [placeId])).rows[0];
+      if (!exists) return fail(response, 400, 'That place is not in the catalogue.');
+    } else {
+      eventId = Number(request.body.eventId);
+      const exists = (await pool.query('SELECT 1 FROM events WHERE id=$1', [eventId])).rows[0];
+      if (!exists) return fail(response, 400, 'That event no longer exists.');
+    }
+    let row;
+    try {
+      row = (await pool.query(
+        `INSERT INTO outing_options(outing_id,kind,place_id,event_id,note,added_by)
+         VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,
+        [outing.id, kind, placeId, eventId, input(request.body.note).slice(0, 500), request.user.id]
+      )).rows[0];
+    } catch (error) {
+      if (error && error.code === '23505') return fail(response, 409, 'That option is already on this outing.');
+      throw error;
+    }
+    return ok(response, { option: row });
+  } catch (error) { next(error); }
+});
+
+app.delete('/api/outings/:outingId/options/:optionId', async (request, response, next) => {
+  try {
+    const outing = await outingAccess(request.params.outingId, request.user.id);
+    if (!outing) return fail(response, 404, 'That outing does not exist, or you were not invited to it.');
+    const opt = (await pool.query('SELECT * FROM outing_options WHERE id=$1 AND outing_id=$2',
+      [Number(request.params.optionId), outing.id])).rows[0];
+    if (!opt) return fail(response, 404, 'That option is not on this outing.');
+    // Whoever added it, or the outing owner, may remove it.
+    if (Number(opt.added_by) !== Number(request.user.id) && !outing.is_owner) {
+      return fail(response, 403, 'Only the person who added an option, or the outing owner, can remove it.');
+    }
+    await pool.query('DELETE FROM outing_options WHERE id=$1', [opt.id]);
+    return ok(response);
+  } catch (error) { next(error); }
+});
+
+/* ---------- polls ---------- */
+// Access to a poll is exactly the access to its parent circle or outing.
+async function pollAccess(pollId, userId) {
+  const id = Number(pollId);
+  if (!Number.isFinite(id)) return null;
+  const row = (await pool.query(
+    `SELECT p.*, (p.created_by = $2) AS is_owner,
+            (p.closed_at IS NOT NULL OR (p.closes_at IS NOT NULL AND p.closes_at <= NOW())) AS is_closed
+       FROM polls p WHERE p.id = $1`, [id, userId])).rows[0];
+  if (!row) return null;
+  if (row.circle_id) {
+    const m = (await pool.query('SELECT 1 FROM circle_members WHERE circle_id=$1 AND user_id=$2', [row.circle_id, userId])).rows[0];
+    if (!m) return null;
+  } else if (row.outing_id) {
+    const o = await outingAccess(row.outing_id, userId);
+    if (!o) return null;
+  } else return null;
+  return row;
+}
+async function pollPayload(poll, userId) {
+  const options = (await pool.query(
+    `SELECT o.id, o.label, o.place_id, o.event_id, o.position,
+            pl.name AS place_name, e.title AS event_title, e.starts_at AS event_starts_at,
+            (SELECT COUNT(*) FROM poll_votes v WHERE v.option_id = o.id)::int AS votes,
+            EXISTS (SELECT 1 FROM poll_votes v WHERE v.option_id = o.id AND v.user_id = $2) AS my_vote
+       FROM poll_options o
+       LEFT JOIN places pl ON pl.id = o.place_id
+       LEFT JOIN events e ON e.id = o.event_id
+      WHERE o.poll_id = $1 ORDER BY o.position ASC, o.id ASC`, [poll.id, userId])).rows;
+  const voters = (await pool.query(
+    'SELECT COUNT(DISTINCT user_id)::int AS n FROM poll_votes WHERE poll_id=$1', [poll.id])).rows[0];
+  return { poll, options, voterCount: voters.n };
+}
+
+app.get('/api/polls', async (request, response, next) => {
+  try {
+    const circleId = request.query.circleId ? Number(request.query.circleId) : null;
+    const outingId = request.query.outingId ? Number(request.query.outingId) : null;
+    if (circleId) {
+      const m = (await pool.query('SELECT 1 FROM circle_members WHERE circle_id=$1 AND user_id=$2', [circleId, request.user.id])).rows[0];
+      if (!m) return fail(response, 403, 'You are not a member of that circle.');
+    }
+    if (outingId && !(await outingAccess(outingId, request.user.id))) {
+      return fail(response, 404, 'That outing does not exist, or you were not invited to it.');
+    }
+    const rows = (await pool.query(
+      `SELECT p.*, u.display_name AS owner_name, c.name AS circle_name,
+              (p.created_by=$1) AS is_owner,
+              (p.closed_at IS NOT NULL OR (p.closes_at IS NOT NULL AND p.closes_at <= NOW())) AS is_closed,
+              (SELECT COUNT(DISTINCT v.user_id) FROM poll_votes v WHERE v.poll_id=p.id)::int AS voter_count,
+              EXISTS (SELECT 1 FROM poll_votes v WHERE v.poll_id=p.id AND v.user_id=$1) AS i_voted
+         FROM polls p
+         JOIN users u ON u.id=p.created_by
+         LEFT JOIN circles c ON c.id=p.circle_id
+        WHERE ($2::bigint IS NULL OR p.circle_id=$2)
+          AND ($3::bigint IS NULL OR p.outing_id=$3)
+          AND (EXISTS (SELECT 1 FROM circle_members m WHERE m.circle_id=p.circle_id AND m.user_id=$1)
+            OR EXISTS (SELECT 1 FROM outings o WHERE o.id=p.outing_id
+                        AND (o.created_by=$1
+                          OR EXISTS (SELECT 1 FROM outing_participants op WHERE op.outing_id=o.id AND op.user_id=$1)
+                          OR EXISTS (SELECT 1 FROM circle_members m2 WHERE m2.circle_id=o.circle_id AND m2.user_id=$1))))
+        ORDER BY p.created_at DESC LIMIT 50`,
+      [request.user.id, circleId, outingId]
+    )).rows;
+    return ok(response, { polls: rows });
+  } catch (error) { next(error); }
+});
+
+app.get('/api/polls/:pollId', async (request, response, next) => {
+  try {
+    const poll = await pollAccess(request.params.pollId, request.user.id);
+    if (!poll) return fail(response, 404, 'That poll does not exist, or you cannot see it.');
+    return ok(response, await pollPayload(poll, request.user.id));
+  } catch (error) { next(error); }
+});
+
+app.post('/api/polls', async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    const question = input(request.body.question).slice(0, 300);
+    if (!question) return fail(response, 400, 'What is the question?');
+    const circleId = request.body.circleId ? Number(request.body.circleId) : null;
+    const outingId = request.body.outingId ? Number(request.body.outingId) : null;
+    if (!circleId && !outingId) return fail(response, 400, 'A poll must belong to a circle or an outing.');
+    if (circleId) {
+      const m = (await client.query('SELECT 1 FROM circle_members WHERE circle_id=$1 AND user_id=$2', [circleId, request.user.id])).rows[0];
+      if (!m) return fail(response, 403, 'You are not a member of that circle.');
+    }
+    if (outingId && !(await outingAccess(outingId, request.user.id))) {
+      return fail(response, 404, 'That outing does not exist, or you were not invited to it.');
+    }
+    const options = (request.body.options || []).map(o => (typeof o === 'string' ? { label: o } : o))
+      .filter(o => o && (input(o.label) || o.placeId || o.eventId)).slice(0, 10);
+    if (options.length < 2) return fail(response, 400, 'Give the poll at least two options.');
+    let closesAt = null;
+    if (request.body.closesAt) {
+      closesAt = new Date(request.body.closesAt);
+      if (Number.isNaN(closesAt.getTime())) return fail(response, 400, 'That closing time is not a valid date.');
+      if (closesAt <= new Date()) return fail(response, 400, 'The closing time has to be in the future.');
+    }
+    await client.query('BEGIN');
+    const poll = (await client.query(
+      `INSERT INTO polls(created_by,circle_id,outing_id,question,allow_multiple,closes_at)
+       VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [request.user.id, circleId, outingId, question, request.body.allowMultiple === true,
+       closesAt ? closesAt.toISOString() : null]
+    )).rows[0];
+    let pos = 0;
+    for (const o of options) {
+      const placeId = input(o.placeId) || null;
+      const eventId = o.eventId ? Number(o.eventId) : null;
+      let label = input(o.label).slice(0, 200);
+      if (!label && placeId) {
+        label = (await client.query('SELECT name FROM places WHERE id=$1', [placeId])).rows[0]?.name || placeId;
+      }
+      if (!label && eventId) {
+        label = (await client.query('SELECT title FROM events WHERE id=$1', [eventId])).rows[0]?.title || ('Event ' + eventId);
+      }
+      await client.query(
+        `INSERT INTO poll_options(poll_id,label,place_id,event_id,position) VALUES($1,$2,$3,$4,$5)`,
+        [poll.id, label || ('Option ' + (pos + 1)), placeId, eventId, pos++]);
+    }
+    await client.query('COMMIT');
+    // Notify the group the poll belongs to.
+    const audience = circleId
+      ? (await pool.query('SELECT user_id FROM circle_members WHERE circle_id=$1', [circleId])).rows.map(r => Number(r.user_id))
+      : await outingAudience(outingId);
+    for (const id of audience) {
+      if (Number(id) === Number(request.user.id)) continue;
+      await pool.query(`INSERT INTO notifications(user_id,type,title,body) VALUES($1,'poll_new',$2,$3)`,
+        [id, 'New poll', `${request.user.display_name}: ${question}`]).catch(() => {});
+      notifyUser(id, 'notification', { type: 'poll_new', pollId: poll.id });
+    }
+    return ok(response, await pollPayload(poll, request.user.id));
+  } catch (error) { await client.query('ROLLBACK').catch(() => {}); next(error); }
+  finally { client.release(); }
+});
+
+// The creator may change the options, but only while nobody has voted and the
+// poll is still open — otherwise earlier votes would silently change meaning.
+app.patch('/api/polls/:pollId', async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    const poll = await pollAccess(request.params.pollId, request.user.id);
+    if (!poll) return fail(response, 404, 'That poll does not exist, or you cannot see it.');
+    if (!poll.is_owner) return fail(response, 403, 'Only the person who created a poll can change it.');
+    if (request.body.close === true) {
+      const row = (await client.query('UPDATE polls SET closed_at=NOW() WHERE id=$1 RETURNING *', [poll.id])).rows[0];
+      return ok(response, await pollPayload(row, request.user.id));
+    }
+    if (poll.is_closed) return fail(response, 400, 'That poll is closed.');
+    if (Array.isArray(request.body.options)) {
+      const voted = (await client.query('SELECT 1 FROM poll_votes WHERE poll_id=$1 LIMIT 1', [poll.id])).rows[0];
+      if (voted) return fail(response, 400, 'People have already voted, so the options can no longer be changed. Close this poll and start a new one.');
+      const options = request.body.options.map(o => (typeof o === 'string' ? { label: o } : o))
+        .filter(o => o && (input(o.label) || o.placeId || o.eventId)).slice(0, 10);
+      if (options.length < 2) return fail(response, 400, 'Give the poll at least two options.');
+      await client.query('BEGIN');
+      await client.query('DELETE FROM poll_options WHERE poll_id=$1', [poll.id]);
+      let pos = 0;
+      for (const o of options) {
+        await client.query(`INSERT INTO poll_options(poll_id,label,place_id,event_id,position) VALUES($1,$2,$3,$4,$5)`,
+          [poll.id, input(o.label).slice(0, 200) || ('Option ' + (pos + 1)), input(o.placeId) || null,
+           o.eventId ? Number(o.eventId) : null, pos++]);
+      }
+      await client.query('COMMIT');
+    }
+    const question = request.body.question === undefined ? poll.question : (input(request.body.question).slice(0, 300) || poll.question);
+    const row = (await client.query('UPDATE polls SET question=$1 WHERE id=$2 RETURNING *', [question, poll.id])).rows[0];
+    return ok(response, await pollPayload(row, request.user.id));
+  } catch (error) { await client.query('ROLLBACK').catch(() => {}); next(error); }
+  finally { client.release(); }
+});
+
+// Voting. One vote per member unless the creator allowed multiple; the replace
+// happens inside a transaction so a double-submit cannot leave two rows.
+app.post('/api/polls/:pollId/vote', async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    const poll = await pollAccess(request.params.pollId, request.user.id);
+    if (!poll) return fail(response, 404, 'That poll does not exist, or you cannot see it.');
+    if (poll.is_closed) return fail(response, 400, 'That poll has closed.');
+    const ids = [...new Set((Array.isArray(request.body.optionIds) ? request.body.optionIds
+      : [request.body.optionId]).map(Number).filter(Number.isFinite))];
+    if (!ids.length) return fail(response, 400, 'Pick an option.');
+    if (!poll.allow_multiple && ids.length > 1) return fail(response, 400, 'This poll allows one choice only.');
+    const owned = (await client.query('SELECT id FROM poll_options WHERE poll_id=$1 AND id = ANY($2::bigint[])',
+      [poll.id, ids])).rows.map(r => Number(r.id));
+    if (owned.length !== ids.length) return fail(response, 400, 'One of those options does not belong to this poll.');
+    await client.query('BEGIN');
+    if (!poll.allow_multiple) {
+      await client.query('DELETE FROM poll_votes WHERE poll_id=$1 AND user_id=$2', [poll.id, request.user.id]);
+    }
+    for (const id of owned) {
+      await client.query(
+        `INSERT INTO poll_votes(poll_id,option_id,user_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`,
+        [poll.id, id, request.user.id]);
+    }
+    await client.query('COMMIT');
+    return ok(response, await pollPayload(poll, request.user.id));
+  } catch (error) { await client.query('ROLLBACK').catch(() => {}); next(error); }
+  finally { client.release(); }
+});
+
+app.delete('/api/polls/:pollId/vote', async (request, response, next) => {
+  try {
+    const poll = await pollAccess(request.params.pollId, request.user.id);
+    if (!poll) return fail(response, 404, 'That poll does not exist, or you cannot see it.');
+    if (poll.is_closed) return fail(response, 400, 'That poll has closed.');
+    await pool.query('DELETE FROM poll_votes WHERE poll_id=$1 AND user_id=$2', [poll.id, request.user.id]);
+    return ok(response, await pollPayload(poll, request.user.id));
+  } catch (error) { next(error); }
+});
+
+/* ---------- who's going ---------- */
+// Attendance is not public. `visible` defaults to true but the owner can hide
+// it, and every count returned to anyone else only counts visible rows.
+app.get('/api/events/:eventId/attendance', async (request, response, next) => {
+  try {
+    const eventId = Number(request.params.eventId);
+    const exists = (await pool.query('SELECT 1 FROM events WHERE id=$1', [eventId])).rows[0];
+    if (!exists) return fail(response, 404, 'That event no longer exists.');
+    const mine = (await pool.query('SELECT status, visible FROM event_interest WHERE event_id=$1 AND user_id=$2',
+      [eventId, request.user.id])).rows[0] || null;
+    const counts = (await pool.query(
+      `SELECT status, COUNT(*)::int AS n FROM event_interest
+        WHERE event_id=$1 AND (visible = TRUE OR user_id = $2)
+        GROUP BY status`, [eventId, request.user.id])).rows;
+    // Named attendees: only people in the caller's circle who chose to be visible.
+    const circle = (await pool.query(
+      `SELECT i.status, u.id, u.username, u.display_name, u.profile_photo_url
+         FROM event_interest i JOIN users u ON u.id = i.user_id
+        WHERE i.event_id = $1 AND i.visible = TRUE AND i.status IN ('interested','going')
+          AND i.user_id IN (SELECT friend_id FROM connections WHERE user_id = $2)
+        ORDER BY i.status DESC, u.display_name ASC LIMIT 40`, [eventId, request.user.id])).rows;
+    return ok(response, {
+      me: mine,
+      counts: counts.reduce((a, r) => (a[r.status] = r.n, a), { interested: 0, going: 0, not_going: 0 }),
+      circleAttendees: circle
+    });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/events/:eventId/attendance', async (request, response, next) => {
+  try {
+    const eventId = Number(request.params.eventId);
+    const exists = (await pool.query('SELECT 1 FROM events WHERE id=$1', [eventId])).rows[0];
+    if (!exists) return fail(response, 404, 'That event no longer exists.');
+    const status = input(request.body.status);
+    if (status === 'clear') {
+      await pool.query('DELETE FROM event_interest WHERE event_id=$1 AND user_id=$2', [eventId, request.user.id]);
+      return ok(response, { me: null });
+    }
+    if (!['interested', 'going', 'not_going'].includes(status)) {
+      return fail(response, 400, 'Status must be interested, going or not_going.');
+    }
+    const visible = request.body.visible === undefined ? true : request.body.visible === true;
+    const row = (await pool.query(
+      `INSERT INTO event_interest(event_id,user_id,status,visible) VALUES($1,$2,$3,$4)
+       ON CONFLICT(event_id,user_id) DO UPDATE SET status=EXCLUDED.status, visible=EXCLUDED.visible, updated_at=NOW()
+       RETURNING status, visible`,
+      [eventId, request.user.id, status, visible])).rows[0];
+    return ok(response, { me: row });
+  } catch (error) { next(error); }
+});
+
+/* ---------- shortlist (swipe-right) ---------- */
+// Swipe decisions already persist in content_reactions. This reads the keeps
+// back so "Shortlist" survives a refresh and a device change.
+app.get('/api/shortlist', async (request, response, next) => {
+  try {
+    const places = (await pool.query(
+      `SELECT pl.id, pl.name, pl.address, pl.district, pl.category, c.created_at AS saved_at
+         FROM content_reactions c JOIN places pl ON pl.id = c.item_id
+        WHERE c.user_id=$1 AND c.item_type='place' AND c.reaction='like'
+        ORDER BY c.created_at DESC LIMIT 100`, [request.user.id])).rows;
+    const events = (await pool.query(
+      `SELECT e.id, e.title, e.description, e.category, e.district, e.venue, e.starts_at, e.ends_at,
+              c.created_at AS saved_at
+         FROM content_reactions c JOIN events e ON e.id::text = c.item_id
+        WHERE c.user_id=$1 AND c.item_type='event' AND c.reaction='like'
+          AND COALESCE(e.ends_at, e.starts_at) >= NOW()
+        ORDER BY e.starts_at ASC LIMIT 100`, [request.user.id])).rows;
+    return ok(response, { places, events });
+  } catch (error) { next(error); }
+});
+
+app.delete('/api/shortlist/:kind/:itemId', async (request, response, next) => {
+  try {
+    const kind = input(request.params.kind);
+    if (!['place', 'event'].includes(kind)) return fail(response, 400, 'Not a shortlist kind.');
+    await pool.query('DELETE FROM content_reactions WHERE user_id=$1 AND item_type=$2 AND item_id=$3',
+      [request.user.id, kind, input(request.params.itemId)]);
+    return ok(response);
+  } catch (error) { next(error); }
+});
+
+/* ---------- calendar ---------- */
+// One read-only view over three genuinely different kinds of date, kept
+// distinguishable rather than flattened: an official event date, a user-created
+// outing date, and a shortlisted event. Past items are never returned.
+app.get('/api/calendar', async (request, response, next) => {
+  try {
+    const days = Math.min(Math.max(Number(request.query.days) || 60, 1), 365);
+    const rows = (await pool.query(
+      `SELECT 'event' AS kind, e.id::text AS id, e.title, e.starts_at AS at, e.ends_at,
+              e.venue, e.district, e.category, i.status AS my_status, NULL::text AS outing_status
+         FROM event_interest i JOIN events e ON e.id = i.event_id
+        WHERE i.user_id = $1 AND i.status IN ('interested','going')
+          AND COALESCE(e.ends_at, e.starts_at) BETWEEN NOW() - INTERVAL '1 day' AND NOW() + ($2 || ' days')::interval
+       UNION ALL
+       SELECT 'shortlist' AS kind, e.id::text, e.title, e.starts_at, e.ends_at,
+              e.venue, e.district, e.category, NULL, NULL
+         FROM content_reactions c JOIN events e ON e.id::text = c.item_id
+        WHERE c.user_id = $1 AND c.item_type='event' AND c.reaction='like'
+          AND NOT EXISTS (SELECT 1 FROM event_interest i2 WHERE i2.event_id=e.id AND i2.user_id=$1)
+          AND COALESCE(e.ends_at, e.starts_at) BETWEEN NOW() - INTERVAL '1 day' AND NOW() + ($2 || ' days')::interval
+       UNION ALL
+       SELECT 'outing' AS kind, o.id::text, o.title, o.proposed_date, NULL,
+              NULL, o.district, NULL, p.rsvp, o.status
+         FROM outings o
+         LEFT JOIN outing_participants p ON p.outing_id=o.id AND p.user_id=$1
+        WHERE o.proposed_date IS NOT NULL
+          AND o.status NOT IN ('cancelled','completed')
+          AND (o.created_by=$1
+            OR EXISTS (SELECT 1 FROM outing_participants p2 WHERE p2.outing_id=o.id AND p2.user_id=$1)
+            OR EXISTS (SELECT 1 FROM circle_members m WHERE m.circle_id=o.circle_id AND m.user_id=$1))
+          AND o.proposed_date BETWEEN NOW() - INTERVAL '1 day' AND NOW() + ($2 || ' days')::interval
+       ORDER BY at ASC`,
+      [request.user.id, String(days)]
+    )).rows;
+    return ok(response, { items: rows, from: new Date().toISOString(), days });
   } catch (error) { next(error); }
 });
 
