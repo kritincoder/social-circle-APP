@@ -282,3 +282,118 @@ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 CREATE INDEX IF NOT EXISTS content_reactions_user_type ON content_reactions(user_id, item_type);
+
+-- ============================================================
+-- STAGE 3 — GROUP PLANNING
+-- Outings, group polls, event attendance and shortlists.
+-- Additive and idempotent: no table is dropped, no column changes
+-- type, no row is deleted. Every visibility rule below is enforced
+-- in SQL by the routes, not in the client.
+-- ============================================================
+
+-- A planned outing. Either attached to a circle (every member is invited) or
+-- to an ad-hoc set of invited friends held in outing_participants.
+CREATE TABLE IF NOT EXISTS outings (
+  id BIGSERIAL PRIMARY KEY,
+  created_by BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  circle_id BIGINT REFERENCES circles(id) ON DELETE SET NULL,
+  title VARCHAR(200) NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  proposed_date TIMESTAMPTZ,
+  district VARCHAR(80),
+  status VARCHAR(12) NOT NULL DEFAULT 'planning'
+    CHECK (status IN ('planning','voting','confirmed','completed','cancelled')),
+  decided_option_id BIGINT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS outings_creator ON outings(created_by, created_at DESC);
+CREATE INDEX IF NOT EXISTS outings_circle ON outings(circle_id);
+
+-- Who can see and act on an outing. A row here (or circle membership) is the
+-- ONLY thing that grants access; there is no public outing.
+CREATE TABLE IF NOT EXISTS outing_participants (
+  outing_id BIGINT NOT NULL REFERENCES outings(id) ON DELETE CASCADE,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role VARCHAR(10) NOT NULL DEFAULT 'invitee' CHECK (role IN ('owner','invitee')),
+  rsvp VARCHAR(10) NOT NULL DEFAULT 'pending' CHECK (rsvp IN ('pending','yes','no','maybe')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (outing_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS outing_participants_user ON outing_participants(user_id);
+
+-- Candidate places/events for an outing. References the real rows rather than
+-- copying a listing, so an option can never drift from the place it names.
+CREATE TABLE IF NOT EXISTS outing_options (
+  id BIGSERIAL PRIMARY KEY,
+  outing_id BIGINT NOT NULL REFERENCES outings(id) ON DELETE CASCADE,
+  kind VARCHAR(8) NOT NULL CHECK (kind IN ('place','event')),
+  place_id VARCHAR(180) REFERENCES places(id) ON DELETE CASCADE,
+  event_id BIGINT REFERENCES events(id) ON DELETE CASCADE,
+  note TEXT NOT NULL DEFAULT '',
+  added_by BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK ((kind = 'place' AND place_id IS NOT NULL AND event_id IS NULL)
+      OR (kind = 'event' AND event_id IS NOT NULL AND place_id IS NULL))
+);
+CREATE INDEX IF NOT EXISTS outing_options_outing ON outing_options(outing_id);
+-- The same place or event cannot be added to one outing twice.
+CREATE UNIQUE INDEX IF NOT EXISTS outing_options_no_dup_place
+  ON outing_options(outing_id, place_id) WHERE place_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS outing_options_no_dup_event
+  ON outing_options(outing_id, event_id) WHERE event_id IS NOT NULL;
+
+-- "Where should we go?" polls. Scoped to a circle or to an outing; access is
+-- derived from that parent, so a poll is never visible to an unrelated user.
+CREATE TABLE IF NOT EXISTS polls (
+  id BIGSERIAL PRIMARY KEY,
+  created_by BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  circle_id BIGINT REFERENCES circles(id) ON DELETE CASCADE,
+  outing_id BIGINT REFERENCES outings(id) ON DELETE CASCADE,
+  question VARCHAR(300) NOT NULL,
+  allow_multiple BOOLEAN NOT NULL DEFAULT FALSE,
+  closes_at TIMESTAMPTZ,
+  closed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (circle_id IS NOT NULL OR outing_id IS NOT NULL)
+);
+CREATE INDEX IF NOT EXISTS polls_circle ON polls(circle_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS polls_outing ON polls(outing_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS poll_options (
+  id BIGSERIAL PRIMARY KEY,
+  poll_id BIGINT NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+  label VARCHAR(200) NOT NULL,
+  place_id VARCHAR(180) REFERENCES places(id) ON DELETE SET NULL,
+  event_id BIGINT REFERENCES events(id) ON DELETE SET NULL,
+  position SMALLINT NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS poll_options_poll ON poll_options(poll_id, position);
+
+-- One row per (poll, user, option). For a single-choice poll the route replaces
+-- any previous vote inside a transaction, so a member can never hold two votes;
+-- for a multi-choice poll the primary key still prevents voting twice for the
+-- same option.
+CREATE TABLE IF NOT EXISTS poll_votes (
+  poll_id BIGINT NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+  option_id BIGINT NOT NULL REFERENCES poll_options(id) ON DELETE CASCADE,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (poll_id, user_id, option_id)
+);
+CREATE INDEX IF NOT EXISTS poll_votes_option ON poll_votes(option_id);
+
+-- Attendance: "Who's going?" needs a third state and a visibility switch.
+-- Widening the CHECK only ever allows more, so no existing row can break.
+DO $$
+BEGIN
+  ALTER TABLE event_interest DROP CONSTRAINT IF EXISTS event_interest_status_check;
+  ALTER TABLE event_interest
+    ADD CONSTRAINT event_interest_status_check
+    CHECK (status IN ('interested','going','not_going'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+-- Attendance is NOT public by default: a user's status is shown to their circle
+-- only while this is true, and counts shown to others respect it.
+ALTER TABLE event_interest ADD COLUMN IF NOT EXISTS visible BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE event_interest ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
